@@ -1,0 +1,9 @@
+rails_blog:
+  title: Ruby on Rails Blog
+  url: https://fixtures.example.com/rails/feed.xml
+  site_url: https://fixtures.example.com/rails
+
+ruby_weekly:
+  title: Ruby Weekly
+  url: https://fixtures.example.com/rubyweekly/feed.xml
+  site_url: https://fixtures.example.com/rubyweekly

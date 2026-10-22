@@ -19,4 +19,4 @@ Swift 版（参考・後で削除予定）: ../dopafeed-swift
 - Unit 0 の雛形と開始命令: unit0/KICKOFF.md
 
 ## 状態
-まだ `rails new` 前。Ruby / Rails / Docker は未インストール。
+Unit 0（縄張り）: `bin/ci`・GitHub Actions・390×844 システムテスト・認証・seed・Claude の骨・Litestream 設定。運用は docs/runbook.md。

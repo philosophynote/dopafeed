@@ -1,8 +1,21 @@
 #!/bin/bash -e
 
-# If running the rails server then create or migrate existing database
+# server 起動時だけ「復元 → db:prepare → Litestream 配下で起動」を行う。
+# console / runner など他のコマンドは素通し（複製プロセスは DB 1 つにつき 1 本だけ）。
 if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
+  if [ -z "${LITESTREAM_BUCKET:-}" ]; then
+    # バックアップ無しで静かに動くほうが致命的（ADR 0004）。設定が入るまで起動しない
+    echo "LITESTREAM_BUCKET is not set. Refusing to start without backups (ADR 0004). See config/deploy.yml and docs/runbook.md" >&2
+    exit 1
+  fi
+
+  # 新しいサーバー（volume が空）なら S3 から復元。DB が既にあれば何もしない。db:prepare より前でなければ空 DB が作られて復元が走らない
+  litestream restore -if-db-not-exists -if-replica-exists -config config/litestream.yml /rails/storage/production.sqlite3
+
   ./bin/rails db:prepare
+
+  # Litestream を親に、Thruster/Puma を子にする。子が死ねば Litestream も終わり、コンテナが落ちて kamal-proxy が気づく
+  exec litestream replicate -config config/litestream.yml -exec "$*"
 fi
 
 exec "${@}"
