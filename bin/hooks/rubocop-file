@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Claude Code PostToolUse hook: 変更した .rb / .erb にだけ RuboCop / erb_lint を当てる
+set -euo pipefail
+file=$(jq -r '.tool_input.file_path // empty' 2>/dev/null || true)
+[ -z "$file" ] && exit 0
+case "$file" in
+  *.rb)  bin/rubocop -A --fail-level E "$file" >/dev/null 2>&1 || { echo "RuboCop: $file にエラー。bin/rubocop $file で確認せよ"; exit 2; } ;;
+  *.erb) bundle exec erb_lint --autocorrect "$file" >/dev/null 2>&1 || { echo "erb_lint: $file にエラー。bundle exec erb_lint $file で確認せよ"; exit 2; } ;;
+esac
+exit 0

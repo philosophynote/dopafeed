@@ -1,0 +1,23 @@
+# 殿（nao）だけが値を変える。エージェントは読むのみ（.claude/settings.json で deny）。
+# 画面モックの数字を初期値にした。本丸を触ってから調整する。
+shared:
+  read:
+    complete_after_seconds: 20        # 滞在がこの秒数を超えたら完読
+  xp:
+    base: 10                          # 読了 1 本の基礎 XP
+    roulette_duration_ms: 500
+    combo_multiplier_step: 0.1        # 連続読了 1 本ごとに +0.1 倍
+    combo_max_multiplier: 2.0
+    tiers:                            # ルーレットの出目。probability の合計 = 1.0
+      - { name: common,    multiplier: 1,  probability: 0.70 }
+      - { name: rare,      multiplier: 3,  probability: 0.25 }
+      - { name: jackpot,   multiplier: 10, probability: 0.05 }
+  daily_goal:
+    articles: 5
+    reset_hour: 4                     # 午前 4 時に日付が変わる扱い
+  claude:
+    summary_model: claude-haiku-5-5
+    curation_model: claude-sonnet-5-5
+    daily_call_limit: 200             # 超えたらジョブを落とす（久秀の指摘）
+  comments:
+    personas_shown: 3

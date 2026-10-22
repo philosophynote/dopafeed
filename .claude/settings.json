@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bin/ci*)", "Bash(bin/rails test*)", "Bash(bin/rails db:*)", "Bash(bin/rails generate*)",
+      "Bash(bin/rails routes*)", "Bash(bin/rubocop*)", "Bash(bundle exec rubocop*)", "Bash(bundle exec erb_lint*)",
+      "Bash(bin/screens*)", "Bash(bin/dev*)", "Bash(bundle install*)", "Bash(bundle add*)",
+      "Bash(git status*)", "Bash(git diff*)", "Bash(git log*)", "Bash(git add*)", "Bash(git commit*)",
+      "Bash(git checkout -b unit-*)", "Bash(git push -u origin unit-*)", "Bash(gh pr create*)", "Bash(gh pr view*)"
+    ],
+    "deny": [
+      "Bash(kamal*)", "Bash(rm -rf*)", "Bash(git push --force*)", "Bash(git push -f*)",
+      "Read(config/master.key)", "Read(.env*)", "Read(config/credentials/*.key)",
+      "Edit(config/dopamine.yml)", "Write(config/dopamine.yml)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      { "matcher": "Edit|Write", "hooks": [ { "type": "command", "command": "bin/hooks/rubocop-file" } ] }
+    ],
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "bin/rails test 2>&1 | tail -5" } ] }
+    ]
+  }
+}
