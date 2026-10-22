@@ -26,11 +26,16 @@ module Claude
       used_today >= limit
     end
 
-    # 呼ぶ前に 1 回だけ呼ぶ。上限に達していれば行を作らずに Exhausted を投げる（Job は discard_on で止まる）
+    # 呼ぶ前に 1 回だけ呼ぶ。上限に達していれば行を作らずに Exhausted を投げる（Job は discard_on で止まる）。
+    # 数えて → 書くを 1 トランザクションに閉じる。Rails の SQLite は BEGIN IMMEDIATE なので
+    # Solid Queue のスレッド（queue.yml threads: 3）が同時に来ても上限を超えない。
     def record!(purpose:, model:)
-      raise Exhausted, "Claude daily call limit reached (#{used_today}/#{limit})" if exhausted?
+      ClaudeApiCall.transaction do
+        used = used_today
+        raise Exhausted, "Claude daily call limit reached (#{used}/#{limit})" if used >= limit
 
-      ClaudeApiCall.create!(purpose: purpose, model: model)
+        ClaudeApiCall.create!(purpose: purpose, model: model)
+      end
     end
   end
 end

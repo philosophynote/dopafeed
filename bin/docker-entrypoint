@@ -3,9 +3,9 @@
 # server 起動時だけ「復元 → db:prepare → Litestream 配下で起動」を行う。
 # console / runner など他のコマンドは素通し（複製プロセスは DB 1 つにつき 1 本だけ）。
 if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
-  if [ -z "${LITESTREAM_BUCKET:-}" ]; then
+  if [ -z "${LITESTREAM_BUCKET:-}" ] || [ -z "${LITESTREAM_REGION:-}" ]; then
     # バックアップ無しで静かに動くほうが致命的（ADR 0004）。設定が入るまで起動しない
-    echo "LITESTREAM_BUCKET is not set. Refusing to start without backups (ADR 0004). See config/deploy.yml and docs/runbook.md" >&2
+    echo "LITESTREAM_BUCKET / LITESTREAM_REGION are not set. Refusing to start without backups (ADR 0004). See config/deploy.yml and docs/runbook.md" >&2
     exit 1
   fi
 

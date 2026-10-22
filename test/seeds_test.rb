@@ -37,6 +37,17 @@ class SeedsTest < ActiveSupport::TestCase
     assert User.sole.authenticate("already-set")
   end
 
+  test "production では ENV のユーザーだけを作り、example.com の記事やフィードは入れない" do
+    with_env("DOPAFEED_USER_EMAIL" => "prod@example.com", "DOPAFEED_USER_PASSWORD" => "prod-pass") do
+      pretending_production { Rails.application.load_seed }
+    end
+
+    assert_equal 1, User.count
+    assert User.sole.authenticate("prod-pass")
+    assert_equal 0, Feed.count
+    assert_equal 0, Article.count
+  end
+
   test "production で ENV が無ければ止まる（既定パスワードのユーザーを作らない）" do
     with_env("DOPAFEED_USER_EMAIL" => nil, "DOPAFEED_USER_PASSWORD" => nil) do
       pretending_production do

@@ -15,8 +15,10 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
     )
   end
 
-  # Rails は before_teardown の中で Capybara のセッションを閉じる（その後の teardown では白紙になる）。
-  # なので super より前に撮る。スクショの失敗でテスト結果は隠さない。
+  # Rails は before_teardown で失敗時スクショ、after_teardown で Capybara.reset_sessions! を行う。
+  # teardown ブロックは super（Rails の before_teardown）より後に走るため、ドライバの状態が
+  # 変わる前に確実に撮るには before_teardown の super より前が一番早い。失敗時は Rails 既定の
+  # failures_*.png とこの 1 枚の両方が残る。スクショの失敗でテスト結果は隠さない。
   def before_teardown
     screenshot!
   rescue StandardError => e

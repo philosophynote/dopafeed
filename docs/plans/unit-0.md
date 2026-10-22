@@ -95,6 +95,16 @@ rails new 直後の骨組みに、以後の Unit が乗る「縄張り」を張�
 - `bin/hooks/rubocop-file` が 0 で返る、`.git/hooks/pre-commit` が lefthook 製
 - GitHub Actions `ci` 緑、artifact に screenshots
 
+## 計画からの変更（実装中・レビューで決めたこと）
+- root を `home#show` で仮置き: 認証ジェネレータの `after_authentication_url` が `root_url` を要求するため。Unit 5 で Main に置き換える
+- production では seed のフィード・記事を入れない（User だけ）。本番 DB に example.com のダミーを残さないため
+- `DOPAFEED_USER_EMAIL` / `DOPAFEED_USER_PASSWORD` を deploy.yml の `env.secret` に追加: 本番初回の `db:prepare` が seed を流すため
+- `faraday-retry` を追加: octokit が Faraday 2 で retry middleware を要求し警告を出すため
+- `Claude::Budget#record!` は数える→書くを 1 トランザクションに閉じる（SQLite の BEGIN IMMEDIATE で直列化）
+- entrypoint は `LITESTREAM_REGION` 未設定でも止まる
+- ADR 0004 に実装方式を追記
+- `bin/setup` が `lefthook install` も行う
+
 ## 持ち越し
 - `config.time_zone` は Unit 7 で。Budget の「今日」は今は UTC 暦日
 - Docker image のビルド検証は nao の初回 `kamal build`

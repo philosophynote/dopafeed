@@ -25,7 +25,6 @@ linters:
         Enabled: false
       Style/FrozenStringLiteralComment:
         Enabled: false
+      # 認証ジェネレータの <% if alert = flash[:alert] %> のため
       Lint/UselessAssignment:
-        Enabled: false
-      Rails/OutputSafety:
         Enabled: false

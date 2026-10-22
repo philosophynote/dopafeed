@@ -40,6 +40,9 @@ registry:
 env:
   secret:
     - RAILS_MASTER_KEY
+    # 初回起動の db:prepare が seed を流すときに作る唯一のユーザー（db/seeds.rb）。無いと起動しない
+    - DOPAFEED_USER_EMAIL
+    - DOPAFEED_USER_PASSWORD
     # Litestream（ADR 0004）の S3 鍵。.kamal/secrets に nao が足す（エージェントは触らない）
     - LITESTREAM_ACCESS_KEY_ID
     - LITESTREAM_SECRET_ACCESS_KEY

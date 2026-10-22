@@ -1,4 +1,5 @@
 # 冪等。bin/setup と CI の「Tests: Seeds」段（db:seed:replant）で毎回流れる。
+# 本番でも db:prepare が DB を新規作成した初回に一度流れる（User だけ。下の return を見よ）。
 # 乱数・Time.current は使わない（二度流しても同じ結果、テストで件数を固定できる）。
 # 記事 URL は example.com。seed のために実サイトへ偽パスを向けない。
 
@@ -18,6 +19,9 @@ if User.none?
 end
 
 # --- Feeds / Articles ----------------------------------------------------------
+# 開発・テスト用のダミー。本番には入れない（本番のフィードは画面から登録し、記事は Unit 3 の取得 Job が作る）
+return if Rails.env.production?
+
 feeds = [
   { slug: "rails", title: "Ruby on Rails Blog", url: "https://rubyonrails.org/blog/feed.xml", site_url: "https://rubyonrails.org/blog" },
   { slug: "rubyweekly", title: "Ruby Weekly", url: "https://cprss.s3.amazonaws.com/rubyweekly.com.xml", site_url: "https://rubyweekly.com" },

@@ -46,9 +46,27 @@ module Claude
       end
     end
 
-    test "remaining は負にならない（上限が後から下がっても）" do
+    test "remaining は負にならず、使用数が上限を超えていても exhausted?" do
       Budget.new(limit: 3).tap { |b| 3.times { b.record!(purpose: "summary", model: "test-model") } }
-      assert_equal 0, Budget.new(limit: 2).remaining
+
+      budget = Budget.new(limit: 2)
+      assert_equal 0, budget.remaining
+      assert budget.exhausted?
+    end
+
+    test "上限 0 なら最初の 1 回から Exhausted" do
+      budget = Budget.new(limit: 0)
+      assert budget.exhausted?
+      assert_no_difference("ClaudeApiCall.count") do
+        assert_raises(Budget::Exhausted) { budget.record!(purpose: "summary", model: "test-model") }
+      end
+    end
+
+    test "Exhausted のメッセージに使用数と上限が入る（runbook が読む）" do
+      budget = Budget.new(limit: 1)
+      budget.record!(purpose: "summary", model: "test-model")
+      error = assert_raises(Budget::Exhausted) { budget.record!(purpose: "summary", model: "test-model") }
+      assert_includes error.message, "(1/1)"
     end
   end
 end

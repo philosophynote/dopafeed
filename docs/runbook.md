@@ -5,17 +5,22 @@
 ## 0. 初回デプロイの前に（一度だけ）
 1. S3 バケットを作る（例: `dopafeed-litestream`、東京）。バージョニングは不要、パブリックアクセスは全部ブロック
 2. そのバケットだけに `s3:GetObject / PutObject / DeleteObject / ListBucket` を持つ IAM ユーザーを作り、アクセスキーを発行
-3. `.kamal/secrets` に 2 行足す（このファイルは git に入っているが値は ENV から取る）:
+3. `.kamal/secrets` に 4 行足す（このファイルは git に入っているが値は ENV から取る）:
    ```sh
+   DOPAFEED_USER_EMAIL=$DOPAFEED_USER_EMAIL
+   DOPAFEED_USER_PASSWORD=$DOPAFEED_USER_PASSWORD
    LITESTREAM_ACCESS_KEY_ID=$LITESTREAM_ACCESS_KEY_ID
    LITESTREAM_SECRET_ACCESS_KEY=$LITESTREAM_SECRET_ACCESS_KEY
    ```
-   そして Mac の環境変数に実値を置く（1Password CLI 経由でもよい）
+   そして Mac の環境変数に実値を置く（1Password CLI 経由でもよい）。
+   DOPAFEED_USER_* は初回起動の `db:prepare` が seed でログインユーザーを 1 件作るときに読む。
+   production では既定値が無いので、未設定だと `KeyError` でコンテナが上がらない（意図どおり）。
+   2 回目以降の起動では seed は走らない（ユーザーが居れば触らない）
 4. `config/deploy.yml` の `LITESTREAM_BUCKET` / `LITESTREAM_REGION` を実際の値にする
 5. `kamal config` で env が解決されることを確認し、`kamal build push` で Dockerfile（Litestream の COPY を含む）が通ることを確認
 6. `kamal deploy`。起動ログに `litestream` の `replicating to: name="s3"` が出れば複製が動いている
 
-`LITESTREAM_BUCKET` が無いと server は起動しない（bin/docker-entrypoint）。バックアップ無しで静かに動くより止まるほうを選んでいる（ADR 0004）。
+`LITESTREAM_BUCKET` / `LITESTREAM_REGION` が無いと server は起動しない（bin/docker-entrypoint）。バックアップ無しで静かに動くより止まるほうを選んでいる（ADR 0004）。
 
 ## 1. 復元
 
