@@ -17,6 +17,9 @@
    production では既定値が無いので、未設定だと `KeyError` でコンテナが上がらない（意図どおり）。
    2 回目以降の起動では seed は走らない（ユーザーが居れば触らない）
 4. `config/deploy.yml` の `LITESTREAM_BUCKET` / `LITESTREAM_REGION` を実際の値にする
+4-b. ドメインを決めて DNS を Lightsail に向け、`config/deploy.yml` の `proxy:` を `ssl: true` / `host: <ドメイン>` で有効にする。
+   production.rb は `force_ssl` / `assume_ssl` が有効なので、これを飛ばすとパスワードが平文で流れる代わりに
+   secure Cookie が落ちてログインできない（止まる側に倒してある）
 5. `kamal config` で env が解決されることを確認し、`kamal build push` で Dockerfile（Litestream の COPY を含む）が通ることを確認
 6. `kamal deploy`。起動ログに `litestream` の `replicating to: name="s3"` が出れば複製が動いている
 
@@ -32,26 +35,30 @@ cache / queue / cable の DB は複製していない。`db:prepare` が空で�
 ### 1-b. 動いているサーバーの DB を最新の複製に戻す（手動）
 ```sh
 kamal app stop
-kamal app exec --reuse "litestream restore -config config/litestream.yml -o /rails/storage/restored.sqlite3 /rails/storage/production.sqlite3"
-kamal app exec --reuse "mv /rails/storage/production.sqlite3 /rails/storage/production.broken.sqlite3 && mv /rails/storage/restored.sqlite3 /rails/storage/production.sqlite3"
+kamal app exec "litestream restore -config config/litestream.yml -o /rails/storage/restored.sqlite3 /rails/storage/production.sqlite3"
+kamal app exec "mv /rails/storage/production.sqlite3 /rails/storage/production.broken.sqlite3 && mv /rails/storage/restored.sqlite3 /rails/storage/production.sqlite3"
 kamal app start
 ```
+`kamal app stop` の後は稼働コンテナが無いので `--reuse` は使えない。`--reuse` 無しの `kamal app exec` は
+同じ image・env・volume で一時コンテナを起こして実行する（entrypoint は server 以外のコマンドを素通しする）。
 `-o` を付けないと「既にファイルがある」で止まる。壊れた DB は消さず `.broken` で残す。
 
 ### 1-c. 特定の時刻に戻す（誤操作の取り消し）
 ```sh
-kamal app exec --reuse "litestream restore -config config/litestream.yml -timestamp 2026-10-23T03:00:00Z -o /rails/storage/restored.sqlite3 /rails/storage/production.sqlite3"
+kamal app stop
+kamal app exec "litestream restore -config config/litestream.yml -timestamp 2026-10-23T03:00:00Z -o /rails/storage/restored.sqlite3 /rails/storage/production.sqlite3"
 ```
-戻せる範囲は `config/litestream.yml` の `retention`（72h）。UTC で指定する。
+続きは 1-b と同じ（mv して `kamal app start`）。戻せる範囲は `config/litestream.yml` の `retention`（72h）。UTC で指定する。
 
 ### 1-d. 復元後の確認
 ```sh
 kamal console
 ```
 ```ruby
-[Feed.count, Article.count, User.count]   # seed 直後なら [5, 30, 1]
-Article.maximum(:created_at)              # 直近まで入っているか
+[Feed.count, Article.count, User.count]   # 本番の初回起動直後は [0, 0, 1]（seed は User だけ。フィード・記事は dev/test 専用）
+Article.maximum(:created_at)              # 復元後は「障害前に見えていた最新記事の時刻」と突き合わせる
 ```
+復元の合否は件数の固定値ではなく、障害前の記憶（最新記事・XP）と比べて判断する。[0, 0, 1] は「空のバックアップから復元した」のではなく「まだ何も取り込んでいない」正常な状態でもありうる。
 
 ### 1-e. 複製が生きているかの確認
 ```sh
@@ -99,6 +106,16 @@ SolidQueue::FailedExecution.find_each(&:retry)  # 全部やり直す（原因を
 SolidQueue::ReadyExecution.count      # 待ち
 SolidQueue::ClaimedExecution.count    # 実行中（これが減らないならワーカーが死んでいる）
 SolidQueue::Process.all               # 生きているワーカー。無ければ Puma を再起動: kamal app boot
+```
+
+## 2-f. パスワードを忘れたとき
+パスワードリセットのメール（PasswordsMailer）は本番の配信設定（SMTP、`default_url_options` の host）が無く、Unit 15（Login）まで動かない。
+一人用なので console で直す:
+```sh
+kamal console
+```
+```ruby
+User.sole.update!(password: "新しいパスワード")
 ```
 
 ## 3. よく使う

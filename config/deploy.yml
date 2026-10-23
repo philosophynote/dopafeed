@@ -20,9 +20,11 @@ servers:
 #
 # Don't use this when deploying to multiple web servers (then you have to terminate SSL at your load balancer).
 #
+# ドメインが決まったら埋める（docs/runbook.md §0）。production.rb は force_ssl / assume_ssl が有効なので、
+# ここを埋めずに公開すると secure Cookie が落ちてログインできない（平文 HTTP で認証を受けない意図）。
 # proxy:
 #   ssl: true
-#   host: app.example.com
+#   host: dopafeed.example.com
 
 # Where you keep your container images.
 registry:
