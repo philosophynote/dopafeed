@@ -7,11 +7,12 @@
 2. そのバケットだけに `s3:GetObject / PutObject / DeleteObject / ListBucket` を持つ IAM ユーザーを作り、アクセスキーを発行
 3. 実値は Rails の暗号化 credentials に入れる。平文を永続保存せず、git にも入れない。
    鍵は既にある `config/master.key`（git 外）だけで、`config/credentials.yml.enc` は暗号化されたまま git に入る。
-   `credentials:edit` は復号した内容を一時ファイルに書いてエディタで開き、閉じると消す。バックアップや
-   クラウド同期をするエディタでは一時ファイルが残りうるので、`EDITOR="vim"` など素のエディタで開く。
+   `credentials:edit` は復号した内容を一時ファイルに書いてエディタで開き、閉じると消す。Zed で開くときは
+   `--wait` を付ける（無いと Zed が即座に戻り、編集前に Rails が一時ファイルを読んで閉じる）。
    ```sh
-   bin/rails credentials:edit
+   EDITOR="zed --wait" bin/rails credentials:edit
    ```
+   バックアップやクラウド同期をするエディタでは一時ファイルが残りうる。Zed はしないので、そのまま使ってよい。
    開いたエディタに足す:
    ```yaml
    dopafeed:
