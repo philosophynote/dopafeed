@@ -24,6 +24,15 @@ FileUtils.chdir APP_ROOT do
   system! "bin/rails db:prepare"
   system! "bin/rails db:reset" if ARGV.include?("--reset")
 
+  # db:prepare は DB を新規作成したときしか seed を流さない。既存 DB にも入るよう毎回流す（seeds.rb は冪等）
+  puts "\n== Seeding database =="
+  system! "bin/rails db:seed"
+
+  if File.directory?(".git")
+    puts "\n== Installing git hooks (lefthook) =="
+    system! "bundle exec lefthook install"
+  end
+
   puts "\n== Removing old logs and tempfiles =="
   system! "bin/rails log:clear tmp:clear"
 

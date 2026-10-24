@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 # AGENTS.md の規約を文章ではなくテストで守る。失敗文に直し方を書く。
 require "test_helper"
 

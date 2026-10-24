@@ -1,0 +1,30 @@
+# bin/ci の「Style: ERB」段、bin/hooks/rubocop-file、lefthook が使う
+---
+glob: "**/*.{html,text,js,css,json}{+*,}.erb"
+exclude:
+  - "**/vendor/**/*"
+  - "**/node_modules/**/*"
+  - "**/tmp/**/*"
+  - "**/public/**/*"
+  - "**/app/assets/builds/**/*"
+EnableDefaultLinters: true
+linters:
+  Rubocop:
+    enabled: true
+    rubocop_config:
+      inherit_from:
+        - .rubocop.yml
+      # ERB の断片では成り立たないルールを外す
+      Layout/InitialIndentation:
+        Enabled: false
+      Layout/TrailingEmptyLines:
+        Enabled: false
+      Layout/TrailingWhitespace:
+        Enabled: false
+      Layout/LeadingEmptyLines:
+        Enabled: false
+      Style/FrozenStringLiteralComment:
+        Enabled: false
+      # 認証ジェネレータの <% if alert = flash[:alert] %> のため
+      Lint/UselessAssignment:
+        Enabled: false

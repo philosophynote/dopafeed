@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# 全システムテストを 390×844 で回し、tmp/screenshots/ に絵を集める。
+# 引数はそのまま bin/rails test:system に渡る（例: bin/screens test/system/smoke_test.rb）
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+rm -rf tmp/screenshots
+mkdir -p tmp/screenshots
+
+bin/rails test:system "$@"
+
+echo
+echo "== tmp/screenshots =="
+ls -1 tmp/screenshots

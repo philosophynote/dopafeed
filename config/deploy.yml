@@ -20,9 +20,11 @@ servers:
 #
 # Don't use this when deploying to multiple web servers (then you have to terminate SSL at your load balancer).
 #
+# ドメインが決まったら埋める（docs/runbook.md §0）。production.rb は force_ssl / assume_ssl が有効なので、
+# ここを埋めずに公開すると secure Cookie が落ちてログインできない（平文 HTTP で認証を受けない意図）。
 # proxy:
 #   ssl: true
-#   host: app.example.com
+#   host: dopafeed.example.com
 
 # Where you keep your container images.
 registry:
@@ -40,7 +42,17 @@ registry:
 env:
   secret:
     - RAILS_MASTER_KEY
+    # 初回起動の db:prepare が seed を流すときに作る唯一のユーザー（db/seeds.rb）。無いと起動しない
+    - DOPAFEED_USER_EMAIL
+    - DOPAFEED_USER_PASSWORD
+    # Litestream（ADR 0004）の S3 鍵。.kamal/secrets に nao が足す（エージェントは触らない）
+    - LITESTREAM_ACCESS_KEY_ID
+    - LITESTREAM_SECRET_ACCESS_KEY
   clear:
+    # Litestream の複製先。バケットは nao が作って名前と region を埋める。未設定だと server は起動しない（bin/docker-entrypoint）
+    LITESTREAM_BUCKET: dopafeed-litestream
+    LITESTREAM_REGION: ap-northeast-1
+
     # Run the Solid Queue Supervisor inside the web server's Puma process to do jobs.
     # When you start using multiple servers, you should split out job processing to a dedicated machine.
     SOLID_QUEUE_IN_PUMA: true

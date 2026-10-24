@@ -1,0 +1,16 @@
+# Litestream（ADR 0004）。bin/docker-entrypoint が本番の server 起動時に読む。
+# 複製するのは primary だけ。cache / queue / cable は再生成できるので対象外（S3 の PUT を節約）。
+# 値は config/deploy.yml の env（bucket / region）と .kamal/secrets（鍵）から環境変数で入る。
+dbs:
+  - path: /rails/storage/production.sqlite3
+    replicas:
+      - type: s3
+        bucket: ${LITESTREAM_BUCKET}
+        path: production.sqlite3
+        region: ${LITESTREAM_REGION}
+        access-key-id: ${LITESTREAM_ACCESS_KEY_ID}
+        secret-access-key: ${LITESTREAM_SECRET_ACCESS_KEY}
+        # 3 日ぶんの WAL を残す。docs/runbook.md の「時刻を指定して復元」はこの範囲で効く
+        retention: 72h
+        # S3 互換ストレージ（Cloudflare R2 など）に変えるときだけ:
+        # endpoint: https://<account>.r2.cloudflarestorage.com
