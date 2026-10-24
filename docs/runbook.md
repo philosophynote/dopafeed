@@ -5,21 +5,46 @@
 ## 0. 初回デプロイの前に（一度だけ）
 1. S3 バケットを作る（例: `dopafeed-litestream`、東京）。バージョニングは不要、パブリックアクセスは全部ブロック
 2. そのバケットだけに `s3:GetObject / PutObject / DeleteObject / ListBucket` を持つ IAM ユーザーを作り、アクセスキーを発行
-3. `.kamal/secrets` に 4 行足す（このファイルは git に入っているが値は ENV から取る）:
+3. 実値は Rails の暗号化 credentials に入れる。平文を永続保存せず、git にも入れない。
+   鍵は既にある `config/master.key`（git 外）だけで、`config/credentials.yml.enc` は暗号化されたまま git に入る。
+   `credentials:edit` は復号した内容を一時ファイルに書いてエディタで開き、閉じると消す。バックアップや
+   クラウド同期をするエディタでは一時ファイルが残りうるので、`EDITOR="vim"` など素のエディタで開く。
    ```sh
-   DOPAFEED_USER_EMAIL=$DOPAFEED_USER_EMAIL
-   DOPAFEED_USER_PASSWORD=$DOPAFEED_USER_PASSWORD
-   LITESTREAM_ACCESS_KEY_ID=$LITESTREAM_ACCESS_KEY_ID
-   LITESTREAM_SECRET_ACCESS_KEY=$LITESTREAM_SECRET_ACCESS_KEY
+   bin/rails credentials:edit
    ```
-   そして Mac の環境変数に実値を置く（1Password CLI 経由でもよい）。
+   開いたエディタに足す:
+   ```yaml
+   dopafeed:
+     user_email: nao@example.com
+     user_password: "..."
+   litestream:
+     access_key_id: "AKIA..."
+     secret_access_key: "..."
+   ```
+   `.kamal/secrets` に 4 行足す（このファイルは git に入っているが、値は `kamal` 実行時に Mac 上で復号して取る）:
+   ```sh
+   DOPAFEED_USER_EMAIL=$(bin/rails credentials:fetch dopafeed.user_email)
+   DOPAFEED_USER_PASSWORD=$(bin/rails credentials:fetch dopafeed.user_password)
+   LITESTREAM_ACCESS_KEY_ID=$(bin/rails credentials:fetch litestream.access_key_id)
+   LITESTREAM_SECRET_ACCESS_KEY=$(bin/rails credentials:fetch litestream.secret_access_key)
+   ```
+   `bin/rails credentials:fetch` は mise の Ruby が要るので、`kamal` は mise が効いているシェルで打つ。
+   確認は値を端末に出さずに行う（`kamal secrets print` 単体は値をそのまま表示するので使わない）:
+   ```sh
+   kamal secrets print | sed -E 's/=.+/=(set)/; s/=$/=(EMPTY!)/'
+   ```
+   4 行とも `(set)` なら OK。`(EMPTY!)` は credentials のキー名の打ち間違い。
+   別案: macOS のキーチェーン（`security add-generic-password -a dopafeed -s LITESTREAM_SECRET_ACCESS_KEY -w` で入れ、
+   `.kamal/secrets` で `$(security find-generic-password -a dopafeed -s LITESTREAM_SECRET_ACCESS_KEY -w)`）。どちらも平文ファイル無し。
    DOPAFEED_USER_* は初回起動の `db:prepare` が seed でログインユーザーを 1 件作るときに読む。
    production では既定値が無いので、未設定だと `KeyError` でコンテナが上がらない（意図どおり）。
    2 回目以降の起動では seed は走らない（ユーザーが居れば触らない）
 4. `config/deploy.yml` の `LITESTREAM_BUCKET` / `LITESTREAM_REGION` を実際の値にする
 4-b. ドメインを決めて DNS を Lightsail に向け、`config/deploy.yml` の `proxy:` を `ssl: true` / `host: <ドメイン>` で有効にする。
-   production.rb は `force_ssl` / `assume_ssl` が有効なので、これを飛ばすとパスワードが平文で流れる代わりに
-   secure Cookie が落ちてログインできない（止まる側に倒してある）
+   **TLS が有効で HTTP → HTTPS に転送されることを確認するまで、ログイン画面にパスワードを入力しない。**
+   production.rb の `assume_ssl` は通信を暗号化しない。proxy が HTTP を通していると Rails は「HTTPS で届いた」と
+   扱うため転送も起きず、送ったパスワードは平文で流れる（secure Cookie が落ちてログインが成立しないのは結果であって防御ではない）。
+   確認: `curl -I http://<ドメイン>/up` が 301/308 で https へ、`curl -I https://<ドメイン>/up` が 200
 5. `kamal config` で env が解決されることを確認し、`kamal build push` で Dockerfile（Litestream の COPY を含む）が通ることを確認
 6. `kamal deploy`。起動ログに `litestream` の `replicating to: name="s3"` が出れば複製が動いている
 
@@ -115,8 +140,11 @@ SolidQueue::Process.all               # 生きているワーカー。無けれ�
 kamal console
 ```
 ```ruby
-User.sole.update!(password: "新しいパスワード")
+user = User.sole
+user.update!(password: "新しいパスワード")
+user.sessions.destroy_all   # 既存の Cookie を全部無効にする（Rails 標準のリセットも同じことをする）
 ```
+パスワードを変えただけでは、盗まれた Cookie のセッションは生き残る。必ず `sessions.destroy_all` まで。
 
 ## 3. よく使う
 ```sh
