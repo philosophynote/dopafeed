@@ -41,13 +41,31 @@
    production では既定値が無いので、未設定だと `KeyError` でコンテナが上がらない（意図どおり）。
    2 回目以降の起動では seed は走らない（ユーザーが居れば触らない）
 4. `config/deploy.yml` の `LITESTREAM_BUCKET` / `LITESTREAM_REGION` を実際の値にする
+4-a. Lightsail を作る（ADR 0003: $5 プラン 1 台）
+   1. インスタンス: リージョンは東京（S3 と同じ、転送が安い）、Linux、ブループリントは「OS のみ」の Ubuntu 24.04 LTS、
+      プランは $5（1 GB / 2 vCPU / 40 GB）。x86 なので `builder.arch: amd64` のまま。SSH キーは既定キーを落とすか自分の公開鍵を登録
+   2. 静的 IP を作ってアタッチし、`config/deploy.yml` の `servers.web` に書く（再起動で IP が変わらないように）
+   3. ファイアウォール: 既定の 22 / 80 に 443 を足す。80 は Let's Encrypt の発行と HTTP → HTTPS 転送に要るので閉じない
+   4. SSH ユーザーは `ubuntu`（root ではない）。`config/deploy.yml` の `ssh.user: ubuntu` を有効にしておく。
+      Kamal は root 以外では Docker を自動インストールしないので、先に入れる:
+      ```sh
+      ssh ubuntu@<静的IP>
+      curl -fsSL https://get.docker.com | sudo sh && sudo usermod -aG docker ubuntu
+      sudo fallocate -l 1G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
+      echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+      ```
+      swap は Puma + Solid Queue + Litestream + kamal-proxy が 1 GB に同居するための保険。一度ログアウトして docker グループを効かせる
+   5. レジストリ: `config/deploy.yml` の `registry.server` を決める（例: `ghcr.io`、`username` は GitHub ユーザー名）。
+      `write:packages` の PAT を credentials に `registry.password` として入れ、`.kamal/secrets` に
+      `KAMAL_REGISTRY_PASSWORD=$(bin/rails credentials:fetch registry.password)` を足し、`registry.password` の
+      コメントを外す
 4-b. ドメインを決めて DNS を Lightsail に向け、`config/deploy.yml` の `proxy:` を `ssl: true` / `host: <ドメイン>` で有効にする。
    **TLS が有効で HTTP → HTTPS に転送されることを確認するまで、ログイン画面にパスワードを入力しない。**
    production.rb の `assume_ssl` は通信を暗号化しない。proxy が HTTP を通していると Rails は「HTTPS で届いた」と
    扱うため転送も起きず、送ったパスワードは平文で流れる（secure Cookie が落ちてログインが成立しないのは結果であって防御ではない）。
    確認: `curl -I http://<ドメイン>/up` が 301/308 で https へ、`curl -I https://<ドメイン>/up` が 200
 5. `kamal config` で env が解決されることを確認し、`kamal build push` で Dockerfile（Litestream の COPY を含む）が通ることを確認
-6. `kamal deploy`。起動ログに `litestream` の `replicating to: name="s3"` が出れば複製が動いている
+6. 初回は `kamal setup`（kamal-proxy の導入とデプロイをまとめて行う）、2 回目以降は `kamal deploy`。起動ログに `litestream` の `replicating to: name="s3"` が出れば複製が動いている
 
 `LITESTREAM_BUCKET` / `LITESTREAM_REGION` が無いと server は起動しない（bin/docker-entrypoint）。バックアップ無しで静かに動くより止まるほうを選んでいる（ADR 0004）。
 
