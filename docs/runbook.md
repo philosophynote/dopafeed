@@ -45,7 +45,16 @@
    1. インスタンス: リージョンは東京（S3 と同じ、転送が安い）、Linux、ブループリントは「OS のみ」の Ubuntu 24.04 LTS、
       プランは $5（1 GB / 2 vCPU / 40 GB）。x86 なので `builder.arch: amd64` のまま。SSH キーは既定キーを落とすか自分の公開鍵を登録
    2. 静的 IP を作ってアタッチし、`config/deploy.yml` の `servers.web` に書く（再起動で IP が変わらないように）
-   3. ファイアウォール: 既定の 22 / 80 に 443 を足す。80 は Let's Encrypt の発行と HTTP → HTTPS 転送に要るので閉じない
+   3. ファイアウォール（インスタンスの「ネットワーキング」タブ）:
+      - 80 / 443 は「任意の IPv4 アドレス」で公開（443 は既定に無いので足す）。80 は Let's Encrypt の発行と
+        HTTP → HTTPS 転送に要るので閉じない
+      - 22 は既定の「任意の IPv4 アドレス」ルールを削除し、管理用 Mac の接続元 IP だけを許可するルールを作る
+        （「IP アドレスに制限」にチェック、`curl -4 https://checkip.amazonaws.com` で出た IP を入れる）。
+        `kamal` も Mac から SSH するので、この IP 以外からはデプロイもできない。外出先から打つなら先にルールの IP を変える
+      - IPv6 ネットワーキングを有効にする場合は IPv6 側にも同じ既定ルールが生えるので、22 を消して Mac の IPv6
+        アドレスだけに絞る（`curl -6 https://checkip.amazonaws.com`）。80 / 443 は IPv6 も公開でよい
+      - 回線が変わって 22 に入れなくなったら、Lightsail コンソールの「ブラウザベースの SSH」はファイアウォールの
+        影響を受けないのでそこから入るか、コンソールでルールの IP を書き換える
    4. SSH ユーザーは `ubuntu`（root ではない）。`config/deploy.yml` の `ssh.user: ubuntu` を有効にしておく。
       Kamal は root 以外では Docker を自動インストールしないので、先に入れる:
       ```sh
@@ -164,6 +173,43 @@ user.update!(password: "新しいパスワード")
 user.sessions.destroy_all   # 既存の Cookie を全部無効にする（Rails 標準のリセットも同じことをする）
 ```
 パスワードを変えただけでは、盗まれた Cookie のセッションは生き残る。必ず `sessions.destroy_all` まで。
+
+## 2-g. AWS アクセスキーの交換・漏えい対応
+対象は Litestream 用 IAM ユーザー（§0 手順 2）の鍵。IAM ユーザーは鍵を同時に 2 本持てるので、通常の交換は複製を止めずにできる。
+漏えい時は順番が逆で、止めるのが先、復旧が後。
+
+### 通常の交換（年に一度程度）
+1. 新キーを発行する。IAM コンソールの「セキュリティ認証情報」→「アクセスキーを作成」。旧キーは Active のまま
+   ```sh
+   aws iam create-access-key --user-name <IAMユーザー>    # CLI なら
+   ```
+2. credentials を新キーに書き換えてデプロイする。環境変数はコンテナ起動時に渡るので、再デプロイしないと効かない
+   ```sh
+   EDITOR="zed --wait" bin/rails credentials:edit         # litestream.access_key_id / secret_access_key
+   kamal secrets print | sed -E 's/=.+/=(set)/; s/=$/=(EMPTY!)/'
+   kamal deploy
+   ```
+3. S3 複製が新キーで動いていることを確認する（1-e）。起動ログに `replicating to: name="s3"` が出て、
+   `litestream snapshots` の最新時刻が今になっていればよい。記事を 1 件読むなど書き込みを起こし、`wal` が増えるのも見る
+4. 旧キーを無効化し、数日置いてから削除する。無効化で 1-e が赤くなったら旧キーがまだどこかで使われている。Active に戻して調べる
+   ```sh
+   aws iam update-access-key --user-name <IAMユーザー> --access-key-id <旧AKIA> --status Inactive
+   aws iam delete-access-key --user-name <IAMユーザー> --access-key-id <旧AKIA>   # 数日後
+   ```
+
+### 漏えいしたとき（疑いだけでも）
+1. **旧キーを即 Inactive にする**（上の `update-access-key`、またはコンソール）。削除ではなく無効化。監査に残り、
+   誤報だったときに戻せる。この時点で S3 複製は止まるので、以降は急ぐ
+2. 被害を見る。IAM コンソールの「最終使用」と CloudTrail で、そのキーの直近の操作を確認する。
+   権限はバケット 1 つの Get/Put/Delete/List に絞ってあるので、起きうるのは複製の読み出しと削除まで。
+   `aws s3 ls s3://<バケット>/production.sqlite3/ --recursive` でスナップショットと WAL が残っているか見る。
+   消されていたらサーバー上の `storage/production.sqlite3` が唯一の正。`kamal app exec --reuse "sqlite3 /rails/storage/production.sqlite3 '.backup /rails/storage/emergency.sqlite3'"` で退避してから先へ進む
+3. 新キーを発行し、通常の交換の 2〜3 で複製を復旧する。複製が止まっている間の書き込みは S3 に無い
+4. 旧キーを削除する。Inactive のまま残さない
+5. 漏えい経路を塞ぐ。git の履歴に入っていたら `git log -p -S <AKIA>` で場所を特定し、履歴からも消して force push する
+   （ローカルは `credentials:edit` の一時ファイルか `.kamal/secrets` の書き間違いが典型）。読まれたのが S3 の中身なら、
+   そこには記事と読書ログしか無いが、`production.sqlite3` には `users.password_digest` と `sessions` が入っている。
+   2-f の手順でパスワードを変え、セッションを全部破棄する
 
 ## 3. よく使う
 ```sh
