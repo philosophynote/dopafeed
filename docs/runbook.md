@@ -41,20 +41,27 @@
    production では既定値が無いので、未設定だと `KeyError` でコンテナが上がらない（意図どおり）。
    2 回目以降の起動では seed は走らない（ユーザーが居れば触らない）
 4. `config/deploy.yml` の `LITESTREAM_BUCKET` / `LITESTREAM_REGION` を実際の値にする
-4-a. Lightsail を作る（ADR 0003: $5 プラン 1 台）
-   1. インスタンス: リージョンは東京（S3 と同じ、転送が安い）、Linux、ブループリントは「OS のみ」の Ubuntu 24.04 LTS、
-      プランは $5（1 GB / 2 vCPU / 40 GB）。x86 なので `builder.arch: amd64` のまま。SSH キーは既定キーを落とすか自分の公開鍵を登録
+4-a. Lightsail を作る（ADR 0003: $7 Micro 1 台）
+   1. インスタンス: リージョンは東京（S3 と同じリージョンで遅延が小さい。Lightsail の転送枠は S3 向けも消費するので安くはならない）、
+      Linux、ブループリントは「OS のみ」の Ubuntu 24.04 LTS、プランは $7 の Micro（1 GB / 2 vCPU / 40 GB / 転送 2 TB）。
+      $5 は Nano で 0.5 GB / 20 GB しか無いので選ばない。初月は無料トライアルが効く。
+      x86 なので `builder.arch: amd64` のまま。SSH キーは既定キーを落とすか自分の公開鍵を登録
    2. 静的 IP を作ってアタッチし、`config/deploy.yml` の `servers.web` に書く（再起動で IP が変わらないように）
    3. ファイアウォール（インスタンスの「ネットワーキング」タブ）:
       - 80 / 443 は「任意の IPv4 アドレス」で公開（443 は既定に無いので足す）。80 は Let's Encrypt の発行と
         HTTP → HTTPS 転送に要るので閉じない
       - 22 は既定の「任意の IPv4 アドレス」ルールを削除し、管理用 Mac の接続元 IP だけを許可するルールを作る
         （「IP アドレスに制限」にチェック、`curl -4 https://checkip.amazonaws.com` で出た IP を入れる）。
+        追加だけでは絞れない。同じポートに複数ルールがあると最も緩いものが勝つので、既定ルールは必ず消す。
+        作り直すとき「Lightsail ブラウザ SSH を許可」のチェックは付けたままにする（下の退路に使う）。
         `kamal` も Mac から SSH するので、この IP 以外からはデプロイもできない。外出先から打つなら先にルールの IP を変える
-      - IPv6 ネットワーキングを有効にする場合は IPv6 側にも同じ既定ルールが生えるので、22 を消して Mac の IPv6
-        アドレスだけに絞る（`curl -6 https://checkip.amazonaws.com`）。80 / 443 は IPv6 も公開でよい
-      - 回線が変わって 22 に入れなくなったら、Lightsail コンソールの「ブラウザベースの SSH」はファイアウォールの
-        影響を受けないのでそこから入るか、コンソールでルールの IP を書き換える
+      - IPv6 は既定で有効（2021 年 1 月 12 日以降に作ったインスタンスは全部）。IPv6 ファイアウォールにも 22 / 80 が
+        「任意の IPv6 アドレス」で生えているので、IPv4 と同じく 22 の既定ルールを消す。残すなら Mac の IPv6 だけに絞る。
+        checkip.amazonaws.com は IPv6 非対応（AAAA 無し。`curl -6` でも IPv4 が返る）なので `curl -6 https://ifconfig.co` で取る。
+        IPv6 を使わないなら「ネットワーキング」タブで IPv6 自体を無効にしてもよい。80 / 443 は IPv6 も公開でよい
+      - 回線が変わって 22 に入れなくなったら、Lightsail コンソールの「ブラウザベースの SSH」から入ってルールの IP を直す。
+        ブラウザ SSH は SSH ルールの「Lightsail ブラウザ SSH を許可」で通していて、送信元 IP の制限は受けない。
+        ただしチェックを外すか 22 のルールを全部消すと入れなくなる。その場合はコンソールでルールを作り直す
    4. SSH ユーザーは `ubuntu`（root ではない）。`config/deploy.yml` の `ssh.user: ubuntu` を有効にしておく。
       Kamal は root 以外では Docker を自動インストールしないので、先に入れる:
       ```sh
@@ -68,7 +75,20 @@
       `write:packages` の PAT を credentials に `registry.password` として入れ、`.kamal/secrets` に
       `KAMAL_REGISTRY_PASSWORD=$(bin/rails credentials:fetch registry.password)` を足し、`registry.password` の
       コメントを外す
-4-b. ドメインを決めて DNS を Lightsail に向け、`config/deploy.yml` の `proxy:` を `ssl: true` / `host: <ドメイン>` で有効にする。
+4-b. ドメインを Cloudflare Registrar で取り、DNS は Cloudflare に置く（Lightsail の DNS ゾーンは使わない）
+   1. 取得: Cloudflare ダッシュボード → Domain Registration → Register Domains で `dopafeed.net` を検索して購入する。
+      Cloudflare は原価販売（レジストリ + ICANN 料金に上乗せ無し）で、.net は年 $12 前後、更新も同額。
+      メール認証とカードが要る。無料プランでよい。自動更新は既定でオンなので切らない（切れるとオリジンが変わり、
+      ホーム画面の PWA と Push の購読が全部無効になる）。WHOIS の個人情報は無料で非公開になる。
+      新規登録から 60 日は他社へ移管できない。ネームサーバーは Cloudflare 固定で、登録中は他社 DNS に変えられない
+   2. A レコード: Cloudflare の DNS → Records → Add record。Type `A`、Name `@`、IPv4 address は 4-a-2 の静的 IP、
+      **Proxy status は「DNS only」（灰色の雲）**、TTL は Auto。
+      Proxied（橙色の雲）にしない。kamal-proxy が Let's Encrypt の発行（80 番の HTTP-01）と HTTP → HTTPS 転送を
+      自分で行う設計（ADR 0003）で、Cloudflare が TLS を終端すると発行経路も下の確認も Cloudflare の挙動に左右される。
+      CDN / WAF が欲しくなったら SSL/TLS を Full (strict) にしてから切り替える別作業（ADR を足す）。
+      4-a で IPv6 を残しているなら `AAAA` も同じく DNS only で足す。消したなら足さない
+   3. 反映確認: `dig +short dopafeed.net` が静的 IP を返す（数分で反映）。Cloudflare の IP が返るなら Proxied になっている
+   4. `config/deploy.yml` の `proxy:` が `ssl: true` / `host: dopafeed.net` になっていることを確認する（既に書いてある）
    **TLS が有効で HTTP → HTTPS に転送されることを確認するまで、ログイン画面にパスワードを入力しない。**
    production.rb の `assume_ssl` は通信を暗号化しない。proxy が HTTP を通していると Rails は「HTTPS で届いた」と
    扱うため転送も起きず、送ったパスワードは平文で流れる（secure Cookie が落ちてログインが成立しないのは結果であって防御ではない）。
