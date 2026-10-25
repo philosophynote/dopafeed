@@ -3,8 +3,18 @@
 対象: 本番（Lightsail 1 台、Kamal、SQLite + Litestream）。コマンドは nao が Mac から打つ。エージェントは打たない。
 
 ## 0. 初回デプロイの前に（一度だけ）
-1. S3 バケットを作る（例: `dopafeed-litestream`、東京）。バージョニングは不要、パブリックアクセスは全部ブロック
-2. そのバケットだけに `s3:GetObject / PutObject / DeleteObject / ListBucket` を持つ IAM ユーザーを作り、アクセスキーを発行
+1. S3 バケットを作る（例: `dopafeed-litestream`、東京）。パブリックアクセスは全部ブロック（新規バケットの既定のまま）。
+   バージョニングは必須ではないが、Litestream 公式はベストプラクティスとしている。有効にすると漏えいキーによる削除・上書きから
+   古い版を戻せる（手順 2 のポリシーに `DeleteObjectVersion` は無い）。切るなら理由は保存料で、その判断をここに書き残す
+2. そのバケットだけに権限を持つ IAM ユーザーを作り、アクセスキーを発行する。ポリシーはリソースを 2 段に分ける（Litestream 公式 S3 ガイドの形）:
+   - `arn:aws:s3:::<バケット>` に `s3:ListBucket` と `s3:GetBucketLocation`
+   - `arn:aws:s3:::<バケット>/*` に `s3:GetObject` / `s3:PutObject` / `s3:DeleteObject`
+   このユーザーにコンソールパスワードは作らない（CLI 専用）。2-g の `aws iam ...` はこのユーザーでは打てないので、
+   Mac の AWS CLI は管理用の身元（IAM Identity Center か管理用 IAM ユーザー）で動かす
+2-a. CloudTrail でこのバケットの S3 データイベントを記録しておく（2-g で「漏えいした鍵が何をしたか」を見るため）。
+   トレイルを作り、イベントタイプで「データイベント」→ S3 を選び、対象を `dopafeed-litestream` だけに絞る。
+   トレイルは既定で管理イベントしか記録せず、S3 の Get/Put/Delete は「イベント履歴」にも出ない。後から有効にしても過去は見えない。
+   費用は 10 万イベントあたり $0.10 で、Litestream の PUT 頻度なら月 $0.1 前後 + ログ保存の S3 代
 3. 実値は Rails の暗号化 credentials に入れる。平文を永続保存せず、git にも入れない。
    鍵は既にある `config/master.key`（git 外）だけで、`config/credentials.yml.enc` は暗号化されたまま git に入る。
    `credentials:edit` は復号した内容を一時ファイルに書いてエディタで開き、閉じると消す。Zed で開くときは
@@ -42,11 +52,18 @@
    2 回目以降の起動では seed は走らない（ユーザーが居れば触らない）
 4. `config/deploy.yml` の `LITESTREAM_BUCKET` / `LITESTREAM_REGION` を実際の値にする
 4-a. Lightsail を作る（ADR 0003: $7 Micro 1 台）
-   1. インスタンス: リージョンは東京（S3 と同じリージョンで遅延が小さい。Lightsail の転送枠は S3 向けも消費するので安くはならない）、
-      Linux、ブループリントは「OS のみ」の Ubuntu 24.04 LTS、プランは $7 の Micro（1 GB / 2 vCPU / 40 GB / 転送 2 TB）。
-      $5 は Nano で 0.5 GB / 20 GB しか無いので選ばない。初月は無料トライアルが効く。
-      x86 なので `builder.arch: amd64` のまま。SSH キーは既定キーを落とすか自分の公開鍵を登録
-   2. 静的 IP を作ってアタッチし、`config/deploy.yml` の `servers.web` に書く（再起動で IP が変わらないように）
+   1. インスタンス: リージョンは東京（S3 と同じリージョンで遅延が小さい。Lightsail の転送枠は S3 向けも、IN も OUT も消費するので
+      安くはならない）、Linux、ネットワークタイプは「デュアルスタック」（IPv6 専用だと静的 IPv4 が付かず、4-b の A レコードも
+      Mac からの SSH も成立しない。IPv6 専用の価格表示は $2 安く出るので見間違えない）、ブループリントは「OS のみ」の Ubuntu 24.04 LTS、
+      プランは $7 の Micro（1 GB / 2 vCPU / 40 GB / 転送 2 TB）。$5 は Nano で 0.5 GB / 20 GB しか無いので選ばない。
+      Lightsail 独自の初月無料トライアルは廃止済み。2025 年 7 月 15 日以降に作った AWS アカウントならクレジット方式の
+      Free Tier が充当されうるが、無料になる前提で予算を組まない。
+      インスタンス名は作成後に変えられないので決めて付ける（例: `dopafeed-tokyo-1`）。
+      x86 なので `builder.arch: amd64` のまま（公式に明記は無い。初回 SSH 時に `uname -m` が `x86_64` を返すのを見る）。
+      SSH キーは自分の公開鍵（`~/.ssh/id_ed25519.pub` など）を「Upload key」で登録する。Kamal が Mac の ssh と同じ鍵探索で繋がり、
+      AWS 生成の秘密鍵を保管しなくて済む
+   2. 静的 IP を作ってアタッチし、`config/deploy.yml` の `servers.web` に書く（再起動で IP が変わらないように）。
+      アタッチ中は無料、外して 1 時間を超えると $0.005/時。1-a でサーバーを作り直すときは古い方から外してすぐ新しい方に付ける
    3. ファイアウォール（インスタンスの「ネットワーキング」タブ）:
       - 80 / 443 は「任意の IPv4 アドレス」で公開（443 は既定に無いので足す）。80 は Let's Encrypt の発行と
         HTTP → HTTPS 転送に要るので閉じない
@@ -86,7 +103,8 @@
       Proxied（橙色の雲）にしない。kamal-proxy が Let's Encrypt の発行（80 番の HTTP-01）と HTTP → HTTPS 転送を
       自分で行う設計（ADR 0003）で、Cloudflare が TLS を終端すると発行経路も下の確認も Cloudflare の挙動に左右される。
       CDN / WAF が欲しくなったら SSL/TLS を Full (strict) にしてから切り替える別作業（ADR を足す）。
-      4-a で IPv6 を残しているなら `AAAA` も同じく DNS only で足す。消したなら足さない
+      4-a で IPv6 を残しているなら `AAAA` も同じく DNS only で足す。消したなら足さない。IPv6 アドレスは静的 IP のように
+      固定できず、インスタンスを削除すると解放される。1-a で作り直したら AAAA を書き換える
    3. 反映確認: `dig +short dopafeed.net` が静的 IP を返す（数分で反映）。Cloudflare の IP が返るなら Proxied になっている
    4. `config/deploy.yml` の `proxy:` が `ssl: true` / `host: dopafeed.net` になっていることを確認する（既に書いてある）
    **TLS が有効で HTTP → HTTPS に転送されることを確認するまで、ログイン画面にパスワードを入力しない。**
@@ -211,22 +229,37 @@ user.sessions.destroy_all   # 既存の Cookie を全部無効にする（Rails 
    ```
 3. S3 複製が新キーで動いていることを確認する（1-e）。起動ログに `replicating to: name="s3"` が出て、
    `litestream snapshots` の最新時刻が今になっていればよい。記事を 1 件読むなど書き込みを起こし、`wal` が増えるのも見る
-4. 旧キーを無効化し、数日置いてから削除する。無効化で 1-e が赤くなったら旧キーがまだどこかで使われている。Active に戻して調べる
+4. 旧キーを無効化し、数日置いてから削除する。無効化の前に旧キーの最終使用が切替前で止まっているのを見れば、複製を止めずに判定できる
+   （最終使用の反映には遅れがあるので、切替直後の値は信用しない）。無効化で 1-e が赤くなったら旧キーがまだどこかで使われている。Active に戻して調べる
    ```sh
+   aws iam get-access-key-last-used --access-key-id <旧AKIA>
    aws iam update-access-key --user-name <IAMユーザー> --access-key-id <旧AKIA> --status Inactive
    aws iam delete-access-key --user-name <IAMユーザー> --access-key-id <旧AKIA>   # 数日後
    ```
 
 ### 漏えいしたとき（疑いだけでも）
-1. **旧キーを即 Inactive にする**（上の `update-access-key`、またはコンソール）。削除ではなく無効化。監査に残り、
-   誤報だったときに戻せる。この時点で S3 複製は止まるので、以降は急ぐ
-2. 被害を見る。IAM コンソールの「最終使用」と CloudTrail で、そのキーの直近の操作を確認する。
-   権限はバケット 1 つの Get/Put/Delete/List に絞ってあるので、起きうるのは複製の読み出しと削除まで。
-   `aws s3 ls s3://<バケット>/production.sqlite3/ --recursive` でスナップショットと WAL が残っているか見る。
-   消されていたらサーバー上の `storage/production.sqlite3` が唯一の正。`kamal app exec --reuse "sqlite3 /rails/storage/production.sqlite3 '.backup /rails/storage/emergency.sqlite3'"` で退避してから先へ進む
-3. 新キーを発行し、通常の交換の 2〜3 で複製を復旧する。複製が止まっている間の書き込みは S3 に無い
-4. 旧キーを削除する。Inactive のまま残さない
-5. 漏えい経路を塞ぐ。git の履歴に入っていたら `git log -p -S <AKIA>` で場所を特定し、履歴からも消して force push する
+1. **旧キーを即 Inactive にする**（上の `update-access-key`、またはコンソール）。削除ではなく無効化。削除は不可逆で誤報だったときに
+   戻せない（監査の面では差が無い。削除しても CloudTrail の記録には鍵 ID が残る）。この時点で S3 複製は止まるので、以降は急ぐ。
+   AWS が先に検知していると IAM ユーザーに `AWSCompromisedKeyQuarantineV3` が付き、メールとサポートケースが来る。このポリシーは外さず
+   ケースの指示に従う。同じユーザーでの鍵の作成・更新も拒否されるので、復旧は手順 2 の新ユーザーで行う
+2. **一時認証情報を封じる**。`sts:GetSessionToken` は権限不要で呼べ、漏えいキーから最大 36 時間有効な一時認証情報を同じ権限で
+   取られている可能性がある。鍵を Inactive にしても削除しても、発行済みの一時認証情報は無効にならない。
+   利用者が Litestream だけなので、最短は **IAM ユーザーごと削除して作り直す**（ユーザーが消えれば一時認証情報の認証も失敗する）。
+   新ユーザーに §0 手順 2 のポリシーを付けて新キーを発行する。ユーザーを残すなら `Deny *` のインラインポリシーを 36 時間付けておく
+3. 被害を見る。IAM コンソールの「最終使用」（反映に遅れあり）と、§0 2-a で記録している S3 データイベントを Athena か CloudTrail Lake で
+   旧 AKIA について検索する。CloudTrail の「イベント履歴」には S3 の読み書きは出ない。出るのは管理イベントだけなので、そこでは
+   旧 AKIA で `GetSessionToken` が成功していないか、許可外の API で AccessDenied が出ていないかを見る。
+   権限はバケット 1 つの Get/Put/Delete/List なので、起きうるのは複製の読み出し・削除・**上書き（改ざん）** まで。
+   `aws s3 ls s3://<バケット>/production.sqlite3/ --recursive --region ap-northeast-1`（管理用の身元で打つ。旧キーは Inactive）で、
+   スナップショットと WAL が残っているか、LastModified が疑い時刻以降に不自然に動いていないか、サイズが異常でないかを見る。
+   消されていたか書き換えの疑いがあるなら **S3 からは復元しない**。サーバー上の `storage/production.sqlite3` が唯一の正。
+   `kamal app exec --reuse "sqlite3 /rails/storage/production.sqlite3 '.backup /rails/storage/emergency.sqlite3'"` で退避してから先へ進む。
+   あわせて IAM のユーザー一覧に不審なユーザーや鍵が増えていないか、`aws iam list-access-keys --user-name <IAMユーザー>` で
+   鍵が 2 本になっていないかも見る
+4. 新ユーザーの鍵で通常の交換の 2〜3 を行い複製を復旧する。複製が止まっている間の書き込みは S3 に無い。
+   改ざんの疑いがあったなら、復旧前に S3 の `production.sqlite3/` 配下を消して空から複製し直す（1-a の自動復元が汚染データを拾わないように）
+5. 旧キーを削除する（旧ユーザーごと消したなら不要）。Inactive のまま残さない
+6. 漏えい経路を塞ぐ。git の履歴に入っていたら `git log -p -S <AKIA>` で場所を特定し、履歴からも消して force push する
    （ローカルは `credentials:edit` の一時ファイルか `.kamal/secrets` の書き間違いが典型）。読まれたのが S3 の中身なら、
    そこには記事と読書ログしか無いが、`production.sqlite3` には `users.password_digest` と `sessions` が入っている。
    2-f の手順でパスワードを変え、セッションを全部破棄する
