@@ -11,5 +11,5 @@ accessory は volume の共有と起動順の管理が増え、Procfile は 1 �
 追記 2026-10-25（runbook §0 / §2-g を書くときに決めた）:
 - Litestream 用 IAM ユーザーはバケット 1 つに Get / Put / Delete / List だけ。鍵は Rails の暗号化 credentials に置き、`.kamal/secrets` は参照だけ
 - 複製バケットの S3 データイベントを CloudTrail で記録する。既定ではイベント履歴に S3 操作が出ず、鍵が漏えいしたとき「何をされたか」が
-  後から分からない。費用は月 $0.1 前後
+  後から分からない。費用は月 $0.1 前後。ログは Litestream 用 IAM ユーザーが触れない別バケットに置く（同居させると再帰記録と証拠の消去が起きる）
 - バージョニングを有効にするなら非現行版のライフサイクル規則を必ず付ける。無いと `retention` を過ぎた WAL が永久に溜まる（runbook §0 手順 1）

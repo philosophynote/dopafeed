@@ -16,6 +16,10 @@
    このユーザーにコンソールパスワードは作らない（CLI 専用）。2-g の `aws iam ...` はこのユーザーでは打てないので、
    Mac の AWS CLI は管理用の身元（IAM Identity Center か管理用 IAM ユーザー）で動かす
 2-a. CloudTrail でこのバケットの S3 データイベントを記録しておく（2-g で「漏えいした鍵が何をしたか」を見るため）。
+   **ログの保存先は Litestream バケットと別のバケット**にする（例: `dopafeed-cloudtrail`、東京、パブリックアクセス全ブロック）。
+   トレイル作成時に「新しい S3 バケットを作成」を選べばよい。同じバケットに置くと、CloudTrail 自身の `PutObject` が再帰的に記録されて
+   量が増え続け、漏えいした Litestream の鍵（手順 2 でそのバケット全体に Get / Delete を持つ）で監査記録を読まれ消される。
+   手順 2 の IAM ユーザーにはログバケットの権限を一切付けない。
    トレイルを作り、イベントタイプで「データイベント」→ S3 を選び、対象を `dopafeed-litestream` だけに絞る。
    トレイルは既定で管理イベントしか記録せず、S3 の Get/Put/Delete は「イベント履歴」にも出ない。後から有効にしても過去は見えない。
    費用は 10 万イベントあたり $0.10 で、Litestream の PUT 頻度なら月 $0.1 前後 + ログ保存の S3 代
@@ -255,10 +259,15 @@ user.sessions.destroy_all   # 既存の Cookie を全部無効にする（Rails 
    戻せない（監査の面では差が無い。削除しても CloudTrail の記録には鍵 ID が残る）。この時点で S3 複製は止まるので、以降は急ぐ。
    AWS が先に検知していると IAM ユーザーに `AWSCompromisedKeyQuarantineV3` が付き、メールとサポートケースが来る。このポリシーは外さず
    ケースの指示に従う。同じユーザーでの鍵の作成・更新も拒否されるので、復旧は下の手順 2 で作り直す新ユーザーで行う
-2. **一時認証情報を封じる**。`sts:GetSessionToken` は権限不要で呼べ、漏えいキーから最大 36 時間有効な一時認証情報を同じ権限で
-   取られている可能性がある。鍵を Inactive にしても削除しても、発行済みの一時認証情報は無効にならない。
-   利用者が Litestream だけなので、最短は **IAM ユーザーごと削除して作り直す**（ユーザーが消えれば一時認証情報の認証も失敗する）。
-   新ユーザーに §0 手順 2 のポリシーを付けて新キーを発行する。ユーザーを残すなら `Deny *` のインラインポリシーを 36 時間付けておく
+2. **一時認証情報を封じる。ユーザーはまだ消さない**。`sts:GetSessionToken` は権限不要で呼べ、漏えいキーから最大 36 時間有効な
+   一時認証情報を同じ権限で取られている可能性がある。鍵を Inactive にしても削除しても、発行済みの一時認証情報は無効にならない。
+   封じ方は旧ユーザーに `Deny *` のインラインポリシーを付ける。一時認証情報の権限はリクエストごとに再評価されるので、付けた時点で効く。
+   ```sh
+   aws iam put-user-policy --user-name <IAMユーザー> --policy-name deny-all-after-leak \
+     --policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Deny","Action":"*","Resource":"*"}]}'
+   ```
+   ここでユーザーを削除してしまうと、手順 3 で見る「最終使用」と `list-access-keys` の証拠が消える。削除は手順 5 で。
+   復旧用には**新しい IAM ユーザー**を作り、§0 手順 2 のポリシーを付けて新キーを発行する（旧ユーザーは Deny が付いたまま証拠保全）
 3. 被害を見る。IAM コンソールの「最終使用」（反映に遅れあり）と、§0 2-a で記録している S3 データイベントを Athena で（2-a はトレイルだけで CloudTrail Lake のイベントデータストアは作っていない）
    旧 AKIA について検索する。CloudTrail の「イベント履歴」には S3 の読み書きは出ない。出るのは管理イベントだけなので、そこでは
    旧 AKIA で `GetSessionToken` が成功していないか、許可外の API で AccessDenied が出ていないかを見る。
@@ -268,10 +277,15 @@ user.sessions.destroy_all   # 既存の Cookie を全部無効にする（Rails 
    消されていたか書き換えの疑いがあるなら **S3 からは復元しない**。サーバー上の `storage/production.sqlite3` が唯一の正。
    `kamal app exec --reuse "sqlite3 /rails/storage/production.sqlite3 '.backup /rails/storage/emergency.sqlite3'"` で退避してから先へ進む。
    あわせて IAM のユーザー一覧に不審なユーザーや鍵が増えていないか、`aws iam list-access-keys --user-name <IAMユーザー>` で
-   鍵が 2 本になっていないかも見る
+   鍵が 2 本になっていないかも見る。これらの出力は手順 5 で旧ユーザーを消す前にファイルに残す:
+   ```sh
+   aws iam get-access-key-last-used --access-key-id <旧AKIA> > leak-<日付>-last-used.json
+   aws iam list-access-keys --user-name <IAMユーザー> > leak-<日付>-keys.json
+   ```
 4. 新ユーザーの鍵で通常の交換の 2〜3 を行い複製を復旧する。複製が止まっている間の書き込みは S3 に無い。
    改ざんの疑いがあったなら、復旧前に S3 の `production.sqlite3/` 配下を消して空から複製し直す（1-a の自動復元が汚染データを拾わないように）
-5. 旧キーを削除する（旧ユーザーごと消したなら不要）。Inactive のまま残さない
+5. 証拠を取り終えたら旧ユーザーを鍵ごと削除する（`Deny *` を付けたまま 36 時間置く必要は無い。ユーザーが消えれば一時認証情報の認証も失敗する）。
+   Inactive の鍵も Deny 付きのユーザーも残さない
 6. 漏えい経路を塞ぐ。git の履歴に入っていたら `git log -p -S <AKIA>` で場所を特定し、履歴からも消して force push する
    （ローカルは `credentials:edit` の一時ファイルか `.kamal/secrets` の書き間違いが典型）。読まれたのが S3 の中身なら、
    そこには記事と読書ログしか無いが、`production.sqlite3` には `users.password_digest` と `sessions` が入っている。
