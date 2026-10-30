@@ -5,7 +5,11 @@
 ## 0. 初回デプロイの前に（一度だけ）
 1. S3 バケットを作る（例: `dopafeed-litestream`、東京）。パブリックアクセスは全部ブロック（新規バケットの既定のまま）。
    バージョニングは必須ではないが、Litestream 公式はベストプラクティスとしている。有効にすると漏えいキーによる削除・上書きから
-   古い版を戻せる（手順 2 のポリシーに `DeleteObjectVersion` は無い）。切るなら理由は保存料で、その判断をここに書き残す
+   古い版を戻せる（手順 2 のポリシーに `DeleteObjectVersion` は無い）。
+   有効にするなら**ライフサイクル規則を同時に作る**。Litestream は `retention`（72h）を過ぎた WAL を `DeleteObject` で消すが、
+   バージョニング下では削除マーカーが付くだけで非現行版は残り、ポリシーに `DeleteObjectVersion` が無いので Litestream 自身も
+   物理削除できない。規則が無いと WAL の全履歴が永久に溜まる。規則は「非現行版を 30 日で失効」＋「期限切れ削除マーカーを削除」。
+   30 日は 2-g で漏えいに気づくまでの猶予。付けないならバージョニングは切る側に倒し、その理由をここに書き残す
 2. そのバケットだけに権限を持つ IAM ユーザーを作り、アクセスキーを発行する。ポリシーはリソースを 2 段に分ける（Litestream 公式 S3 ガイドの形）:
    - `arn:aws:s3:::<バケット>` に `s3:ListBucket` と `s3:GetBucketLocation`
    - `arn:aws:s3:::<バケット>/*` に `s3:GetObject` / `s3:PutObject` / `s3:DeleteObject`
@@ -44,7 +48,8 @@
    ```sh
    kamal secrets print | sed -E 's/=.+/=(set)/; s/=$/=(EMPTY!)/'
    ```
-   4 行とも `(set)` なら OK。`(EMPTY!)` は credentials のキー名の打ち間違い。
+   `DOPAFEED_*` / `LITESTREAM_*` の 4 行が `(set)` なら OK（`RAILS_MASTER_KEY` と、4-a-5 で足す `KAMAL_REGISTRY_PASSWORD` も並ぶ）。
+   `(EMPTY!)` は credentials のキー名の打ち間違い。
    別案: macOS のキーチェーン（`security add-generic-password -a dopafeed -s LITESTREAM_SECRET_ACCESS_KEY -w` で入れ、
    `.kamal/secrets` で `$(security find-generic-password -a dopafeed -s LITESTREAM_SECRET_ACCESS_KEY -w)`）。どちらも平文ファイル無し。
    DOPAFEED_USER_* は初回起動の `db:prepare` が seed でログインユーザーを 1 件作るときに読む。
@@ -89,6 +94,8 @@
       ```
       swap は Puma + Solid Queue + Litestream + kamal-proxy が 1 GB に同居するための保険。一度ログアウトして docker グループを効かせる
    5. レジストリ: `config/deploy.yml` の `registry.server` を決める（例: `ghcr.io`、`username` は GitHub ユーザー名）。
+      Kamal は push 先を `<registry.server>/<image>` で組むので、`image: dopafeed` のままだと `ghcr.io/dopafeed` になり
+      ghcr に拒否される（ghcr は `ghcr.io/<owner>/<name>` を要求する）。`image:` を `<GitHubユーザー名>/dopafeed` に変える。
       `write:packages` の PAT を credentials に `registry.password` として入れ、`.kamal/secrets` に
       `KAMAL_REGISTRY_PASSWORD=$(bin/rails credentials:fetch registry.password)` を足し、`registry.password` の
       コメントを外す
@@ -104,7 +111,9 @@
       自分で行う設計（ADR 0003）で、Cloudflare が TLS を終端すると発行経路も下の確認も Cloudflare の挙動に左右される。
       CDN / WAF が欲しくなったら SSL/TLS を Full (strict) にしてから切り替える別作業（ADR を足す）。
       4-a で IPv6 を残しているなら `AAAA` も同じく DNS only で足す。消したなら足さない。IPv6 アドレスは静的 IP のように
-      固定できず、インスタンスを削除すると解放される。1-a で作り直したら AAAA を書き換える
+      固定できず、インスタンスを削除すると解放される。1-a で作り直したら AAAA を書き換える。
+      AAAA を足したら `curl -6 -I https://dopafeed.net/up` が 200 を返すのを見る。Docker の公開ポートが IPv6 で待ち受けるかは
+      daemon の ip6tables 設定に依存し、届かないと IPv6 優先の iPhone 回線で遅延や失敗が起きる。返らなければ AAAA を消す
    3. 反映確認: `dig +short dopafeed.net` が静的 IP を返す（数分で反映）。Cloudflare の IP が返るなら Proxied になっている
    4. `config/deploy.yml` の `proxy:` が `ssl: true` / `host: dopafeed.net` になっていることを確認する（既に書いてある）
    **TLS が有効で HTTP → HTTPS に転送されることを確認するまで、ログイン画面にパスワードを入力しない。**
@@ -119,7 +128,9 @@
 ## 1. 復元
 
 ### 1-a. サーバーを作り直す（自動復元）
-新しいサーバーに `kamal setup` → `kamal deploy` するだけ。volume が空なので entrypoint の
+新しいインスタンスで §0 4-a の 1〜4 をやり直す（静的 IP は古い方から外して付け替える。`ssh.user: ubuntu` なので Kamal は
+Docker を入れてくれない。swap とファイアウォールも手で入れる）。そのうえで `kamal setup`（デプロイを含む。`kamal deploy` を
+別に打つ必要は無い）。volume が空なので entrypoint の
 `litestream restore -if-db-not-exists -if-replica-exists` が S3 から `storage/production.sqlite3` を戻してから Puma が上がる。
 cache / queue / cable の DB は複製していない。`db:prepare` が空で作り直す（キャッシュは消え、実行待ちジョブは失われる。recurring.yml の定期ジョブは次回また積まれる）。
 
@@ -221,10 +232,12 @@ user.sessions.destroy_all   # 既存の Cookie を全部無効にする（Rails 
    ```sh
    aws iam create-access-key --user-name <IAMユーザー>    # CLI なら
    ```
-2. credentials を新キーに書き換えてデプロイする。環境変数はコンテナ起動時に渡るので、再デプロイしないと効かない
+2. credentials を新キーに書き換えてデプロイする。環境変数はコンテナ起動時に渡るので、コンテナを作り直さないと効かない。
+   `kamal deploy` を使うのは、通常のデプロイと同じ経路（ビルド・push・起動）で動作確認を兼ねるため
    ```sh
    EDITOR="zed --wait" bin/rails credentials:edit         # litestream.access_key_id / secret_access_key
    kamal secrets print | sed -E 's/=.+/=(set)/; s/=$/=(EMPTY!)/'
+   git add config/credentials.yml.enc && git commit -m "credentials: Litestream の鍵を交換"   # 暗号化済み。コミットしてよい
    kamal deploy
    ```
 3. S3 複製が新キーで動いていることを確認する（1-e）。起動ログに `replicating to: name="s3"` が出て、
@@ -241,12 +254,12 @@ user.sessions.destroy_all   # 既存の Cookie を全部無効にする（Rails 
 1. **旧キーを即 Inactive にする**（上の `update-access-key`、またはコンソール）。削除ではなく無効化。削除は不可逆で誤報だったときに
    戻せない（監査の面では差が無い。削除しても CloudTrail の記録には鍵 ID が残る）。この時点で S3 複製は止まるので、以降は急ぐ。
    AWS が先に検知していると IAM ユーザーに `AWSCompromisedKeyQuarantineV3` が付き、メールとサポートケースが来る。このポリシーは外さず
-   ケースの指示に従う。同じユーザーでの鍵の作成・更新も拒否されるので、復旧は手順 2 の新ユーザーで行う
+   ケースの指示に従う。同じユーザーでの鍵の作成・更新も拒否されるので、復旧は下の手順 2 で作り直す新ユーザーで行う
 2. **一時認証情報を封じる**。`sts:GetSessionToken` は権限不要で呼べ、漏えいキーから最大 36 時間有効な一時認証情報を同じ権限で
    取られている可能性がある。鍵を Inactive にしても削除しても、発行済みの一時認証情報は無効にならない。
    利用者が Litestream だけなので、最短は **IAM ユーザーごと削除して作り直す**（ユーザーが消えれば一時認証情報の認証も失敗する）。
    新ユーザーに §0 手順 2 のポリシーを付けて新キーを発行する。ユーザーを残すなら `Deny *` のインラインポリシーを 36 時間付けておく
-3. 被害を見る。IAM コンソールの「最終使用」（反映に遅れあり）と、§0 2-a で記録している S3 データイベントを Athena か CloudTrail Lake で
+3. 被害を見る。IAM コンソールの「最終使用」（反映に遅れあり）と、§0 2-a で記録している S3 データイベントを Athena で（2-a はトレイルだけで CloudTrail Lake のイベントデータストアは作っていない）
    旧 AKIA について検索する。CloudTrail の「イベント履歴」には S3 の読み書きは出ない。出るのは管理イベントだけなので、そこでは
    旧 AKIA で `GetSessionToken` が成功していないか、許可外の API で AccessDenied が出ていないかを見る。
    権限はバケット 1 つの Get/Put/Delete/List なので、起きうるのは複製の読み出し・削除・**上書き（改ざん）** まで。

@@ -7,3 +7,9 @@ accessory は volume の共有と起動順の管理が増え、Procfile は 1 �
 複製対象は primary（storage/production.sqlite3）だけ。cache / queue / cable は再生成できる。
 `LITESTREAM_BUCKET` / `LITESTREAM_REGION` が無いときは server を起動しない（バックアップ無しで静かに動くほうが致命的）。
 設定: Dockerfile、config/litestream.yml、bin/docker-entrypoint、config/deploy.yml。
+
+追記 2026-10-25（runbook §0 / §2-g を書くときに決めた）:
+- Litestream 用 IAM ユーザーはバケット 1 つに Get / Put / Delete / List だけ。鍵は Rails の暗号化 credentials に置き、`.kamal/secrets` は参照だけ
+- 複製バケットの S3 データイベントを CloudTrail で記録する。既定ではイベント履歴に S3 操作が出ず、鍵が漏えいしたとき「何をされたか」が
+  後から分からない。費用は月 $0.1 前後
+- バージョニングを有効にするなら非現行版のライフサイクル規則を必ず付ける。無いと `retention` を過ぎた WAL が永久に溜まる（runbook §0 手順 1）
