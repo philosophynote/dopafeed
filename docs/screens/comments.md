@@ -17,8 +17,9 @@
 - Comments → Main
 
 ## 受け入れ条件（Given-When-Then）
-- Given 未生成の記事 When 「コメントを見る」Then `Claude::CommentsJob`（仮）が 1 回の API 呼び出しで personas_shown 人分を生成し、記事ごとにキャッシュする
-- Given 生成済み When 「別の 3 人を見る」Then API を呼ばず、キャッシュ済みの人物から別の組を出す（未決 1）
+- Given 未生成の記事 When 「コメントを見る」Then `Claude::CommentsJob`（仮）が 1 回の API 呼び出しで personas.yml の全員分（8 人）を生成し、記事ごとにキャッシュする。画面はそのうち personas_shown 人をランダムに出す
+- Given 全員分が生成済み When 「別の 3 人を見る」Then API を呼ばず、キャッシュ済みの残りから別の組を出す（直前の組と同じにならない）
+- Given 同じ記事で 2 回目以降 When 「コメントを見る」Then API を呼ばない（記事ごとに 1 回。冪等）
 - Given どの状態でも When 画面を見る Then 「架空のキャラクター」の注記が出る
 - Given Claude::Budget が上限 When 「コメントを見る」Then Job は discard され、画面に「今日はもう口を出せません」が出る
 
@@ -44,7 +45,7 @@ personas:
 あり。Claude（`Claude::CommentsJob`、VCR カセット: `claude/comments_three_personas.yml`, `claude/comments_budget_exhausted.yml`）
 
 ## 未決
-1. 「別の 3 人」のたびに API を呼ぶか、初回で 8 人分を生成して出し分けるか（費用と鮮度）
+1. 初回で全員分（8 人）を 1 回の呼び出しで生成する案で書いた（「別の 3 人」が API 無しで成り立つため。1 回の出力が長くなる）。モックの設計メモは「押した時点で 3 人分を 1 回で生成」なので、費用を優先して 3 人ずつ追加呼び出しにするなら上の 2 本目を「もう一度 Job を積む」に書き換える
 2. コメントのモデル（Haiku で十分か Sonnet か）。ADR 0002 に追記
 3. 実在の人物（存命含む）を模すことの表現上の線引き。注記と禁止事項で足りるか
 4. はてブ数（「社会的報酬」の表にある）をこの画面に出すか

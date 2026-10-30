@@ -5,9 +5,9 @@
 
 ## 要素
 1. 黒背景（#141416）に紙吹雪（CSS。固定）
-2. ピル「0.3% のジャックポット」（確率は `xp.tiers` の jackpot.probability）
+2. ピル「N% のジャックポット」（N = `xp.tiers` の jackpot.probability × 100。今の yml なら「5% のジャックポット」。モックの 0.3% は未決 5）
 3. 「JACKPOT」（金 #FFD166、固定）
-4. 「+250」「XP ・ 通常 25 の 10 倍」（`xp.base` × jackpot.multiplier）
+4. 「+M」「XP ・ 通常 B の K 倍」（B = `xp.base`、K = jackpot.multiplier、M = B × K。今の yml なら「+100」「XP ・ 通常 10 の 10 倍」。モックの +250 / 25 は未決 5）
 5. 当たり記事カード: 見出し、フィード名、約 N 分（DB）
 6. チェック 3 行（固定文。数字は未決）
    - 「Lv.4 → Lv.5 にレベルアップ」（レベルは未決 1）
@@ -41,3 +41,4 @@ personas.yml: なし
 2. 「24 時間レア確率 2 倍」のバフ。dopamine.yml に鍵が無い。第一の陣では出さない案。入れるなら `xp.jackpot_buff: { hours: 24, rare_multiplier: 2 }` を PR で提案
 3. 演出中に離脱したときの扱い（Roulette の未決 2 と同じ）
 4. 激レア（紫）を別 tier として持つか。yml は 3 段で紫は無い（Roulette の未決 4）
+5. モックの数字（0.3%、+250、通常 25）は yml（5%、×10、base 10）と違う。画面は常に yml から導いて表示し、モックの値は採らない。確率を 0.3% に寄せたいなら PR で tiers の提案を出す
