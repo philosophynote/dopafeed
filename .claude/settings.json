@@ -18,7 +18,7 @@
       { "matcher": "Edit|Write", "hooks": [ { "type": "command", "command": "bin/hooks/rubocop-file" } ] }
     ],
     "Stop": [
-      { "hooks": [ { "type": "command", "command": "bin/rspec --exclude-pattern 'spec/system/**/*_spec.rb' 2>&1 | tail -5" } ] }
+      { "hooks": [ { "type": "command", "command": "bin/rspec --exclude-pattern 'spec/system/**/*_spec.rb' --format progress 2>&1 | tail -5" } ] }
     ]
   }
 }

@@ -15,7 +15,7 @@ ADR に無い技術選定なので ADR 0007 を足す。
 1. **RSpec（rspec-rails 8.0）+ FactoryBot（factory_bot_rails 6.5）**。fixtures は廃止し factories に置き換える。Minitest のテストは全て spec に変換して test/ を消す（二本立てにしない）
 2. **spec の置き場は Rails 既定**: `spec/models` / `spec/requests`（controller test は request spec に）/ `spec/services` / `spec/jobs` / `spec/system` / `spec/structure`（規約テスト）/ `spec/seeds_spec.rb` / `spec/lib`
 3. **システムテストは `spec/system`、390×844 の driver と `screenshot!` は `spec/support/system.rb` に移す**。スクショ名は `<spec ファイル名>_<example 名>[_suffix].png`（今の `<クラス名>_<テスト名>` と同じ粒度）。`bin/screens` は `bin/rspec spec/system` を呼ぶ
-4. **並列実行は入れない**（Minitest の `parallelize` 相当の parallel_tests gem は足さない。今は 70 本・数秒。要るときに ADR）
+4. **並列実行は入れない**（Minitest の `parallelize` 相当の parallel_tests gem は足さない。今は 41 本・数秒。要るときに ADR）
    補足（理解度チェックで食い違った点）: rspec-rails には `parallelize` に相当する設定が**無い**。rails_helper に書いて同等にはできない。
    並列にするなら parallel_tests gem を足す新しい技術選定になるので、遅くなってから ADR で入れる。今は直列で回る（数秒）
 5. **YARD**: Ruby のコメントは YARD（`# @param` / `# @return` / `# @raise`、クラス・モジュールの冒頭に 1 行の要約）。日本語のまま。この Unit で書く support / factories / spec の補助メソッドから適用し、AGENTS.md の規約に 1 行足す。既存の app/ のコメント（Unit 0）は Unit 2 以降、触ったファイルから順に直す（一括変換は差分を膨らませるのでしない）。yard gem は入れない（書式だけ採る。生成が要るなら別途）
@@ -95,7 +95,7 @@ test/ 752 行の削除と spec/ ほぼ同量の追加 + 設定・文書 100 行�
 `config/dopamine.yml`、`app/` の実装（コメントの YARD 化は Unit 2 以降）、`db/`、`.kamal/secrets`、`config/master.key`、`.env*`、`unit-2-domain` ブランチ（この Unit の後で rebase）
 
 ## 検証
-- `bin/rspec` 全緑（system 除く）、例数が Minitest の 69 runs（main 時点）と同じか理由が説明できる
+- `bin/rspec` 全緑（system 除く）、例数が Minitest の 41 runs（main 時点、system 除く）と同じか理由が説明できる
 - `bin/rspec spec/system` 緑、`tmp/screenshots/smoke_*.png` 2 枚以上、`window.innerWidth == 390`
 - `bin/rspec spec/structure` 緑（規約テストが app/ の違反を今までどおり落とす: 一時的に app/ に `xp = 1` を書いて赤を確認してから戻す）
 - `bin/ci` 「Signoff: 緑」
@@ -108,8 +108,15 @@ test/ 752 行の削除と spec/ ほぼ同量の追加 + 設定・文書 100 行�
 - rubocop-rspec は入れない（rubocop-rails-omakase の方針に合わせる。要るなら ADR）
 
 ## 計画からの変更（実装中に決めたこと）
-- `bin/screens` は引数なしなら `spec/system` 全部、引数ありならそのまま `bin/rspec` に渡す（Minitest 版は `test:system` に引数を渡していた）
+- `bin/screens` は常に spec/system を回し、引数は `bin/rspec` のオプションとして足す（例: `bin/screens --seed 123`）
 - メーラープレビューの置き場は rspec-rails の railtie が `spec/mailers/previews` を preview_paths に足すので設定不要（development で確認済み）
 - 成功時スクショの after は `SystemScreen.included` で group の after として登録したら、rspec-rails の after より先に走った（3 枚とも中身あり）。`prepend_after` は要らなかった
 - system spec 2 本が 11 秒で終わる。Minitest 版は同じ 2 本で 25 分（`parallelize` のワーカーが Chrome を抱えて待っていたと見える）。bin/ci の System 段が 60 分だった件はこれで消えるはず
 - 例数は Minitest の非 system 41 + system 2 = 43 と一致
+
+## レビューで直したこと
+- `filter_run_when_matching :focus` を消した（`fit` を 1 つ commit すると bin/ci がその 1 例だけで緑になる）
+- 成功時スクショの順序は「support の include が `require "rspec/rails"` より後」が前提と system.rb に明記。例ごとの 1 枚は smoke_spec の after(:context) で存在を確認
+- passwords_spec の notice は body 全体ではなく div の文言で見る（Minitest 版の `assert_select "div"` と同じ強さ）
+- bin/screens は常に spec/system を回し、引数はオプションとして足す
+- 文書の例数を 41（system 込み 43）に統一、AGENTS.md の YARD タグに `@yield`

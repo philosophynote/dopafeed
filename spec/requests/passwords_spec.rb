@@ -13,7 +13,7 @@ RSpec.describe "Passwords", type: :request do
     expect(response).to redirect_to(new_session_path)
 
     follow_redirect!
-    expect(response.body).to match(/reset instructions sent/)
+    expect_notice("reset instructions sent")
   end
 
   it "知らないユーザーでも同じ文言で戻り、メールは送らない" do
@@ -23,7 +23,7 @@ RSpec.describe "Passwords", type: :request do
     expect(response).to redirect_to(new_session_path)
 
     follow_redirect!
-    expect(response.body).to match(/reset instructions sent/)
+    expect_notice("reset instructions sent")
   end
 
   it "edit が開く" do
@@ -36,7 +36,7 @@ RSpec.describe "Passwords", type: :request do
     expect(response).to redirect_to(new_password_path)
 
     follow_redirect!
-    expect(response.body).to match(/reset link is invalid/)
+    expect_notice("reset link is invalid")
   end
 
   it "update でパスワードが変わり、new_session に戻る" do
@@ -46,7 +46,7 @@ RSpec.describe "Passwords", type: :request do
     expect(response).to redirect_to(new_session_path)
 
     follow_redirect!
-    expect(response.body).to match(/Password has been reset/)
+    expect_notice("Password has been reset")
   end
 
   it "確認が一致しなければ変わらず edit に戻る" do
@@ -57,6 +57,15 @@ RSpec.describe "Passwords", type: :request do
     expect(response).to redirect_to(edit_password_path(token))
 
     follow_redirect!
-    expect(response.body).to match(/Passwords did not match/)
+    expect_notice("Passwords did not match")
+  end
+
+  # notice が div に描かれていること（body のどこかにあるだけでは通さない）
+  #
+  # @param text [String] 期待する文言の一部
+  # @return [void]
+  def expect_notice(text)
+    divs = Nokogiri::HTML(response.body).css("div").map(&:text)
+    expect(divs).to include(a_string_matching(text))
   end
 end

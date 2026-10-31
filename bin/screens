@@ -1,17 +1,13 @@
 #!/usr/bin/env bash
 # 全システムテストを 390×844 で回し、tmp/screenshots/ に絵を集める。
-# 引数はそのまま bin/rspec に渡る（例: bin/screens spec/system/smoke_spec.rb）。無ければ spec/system 全部
+# spec/system 全部を回す。引数は bin/rspec にそのまま足す（例: bin/screens --seed 123）
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 rm -rf tmp/screenshots
 mkdir -p tmp/screenshots
 
-if [ "$#" -eq 0 ]; then
-  bin/rspec spec/system
-else
-  bin/rspec "$@"
-fi
+bin/rspec spec/system "$@"
 
 echo
 echo "== tmp/screenshots =="
