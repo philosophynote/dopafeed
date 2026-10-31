@@ -27,20 +27,28 @@ module SystemScreen
     SCREENSHOT_DIR.join("#{screenshot_name(suffix)}.png")
   end
 
-  # CSS ピクセルの viewport 幅。端末エミュレーションが効けば SCREEN_SIZE の幅になる。
-  # CI では最初の例で描画直後に読むと反映前の値（609 など）が返ったので、Capybara の既定待ち時間だけ
-  # 期待幅になるのを待つ。待っても違えば最後に読めた値を返す（失敗文に出す）
+  # CSS が見ている viewport 幅（layout viewport = documentElement.clientWidth）。端末エミュレーションが効けば SCREEN_SIZE の幅。
+  # window.innerWidth は使わない: GitHub Actions の headless Chrome では最初のページで innerWidth だけが 609（= 390 × 1.5625）
+  # を返し、clientWidth・screen.width・ウィンドウ寸法は 390 のままだった（2 例目からは 390）。メディアクエリが使うのは layout viewport
+  # Capybara の既定待ち時間だけ期待幅になるのを待ち、待っても違えば最後に読めた値を返す（失敗文に出す）
   #
   # @return [Integer]
   def viewport_width
     page.document.synchronize do
-      width = page.evaluate_script("window.innerWidth")
+      width = page.evaluate_script("document.documentElement.clientWidth")
       raise Capybara::ElementNotFound, "viewport #{width}px" unless width == SCREEN_SIZE[0]
 
       width
     end
   rescue Capybara::ElementNotFound
-    page.evaluate_script("window.innerWidth")
+    page.evaluate_script("document.documentElement.clientWidth")
+  end
+
+  # メディアクエリが SCREEN_SIZE の幅を見ているか（Tailwind のブレークポイントが使う値）
+  #
+  # @return [Boolean]
+  def media_query_sees_screen_width?
+    page.evaluate_script("window.matchMedia('(width: #{SCREEN_SIZE[0]}px)').matches")
   end
 
   # 失敗したときに切り分けに使う情報（ウィンドウ寸法・viewport の各値・UA）
@@ -95,12 +103,5 @@ RSpec.configure do |config|
         user_agent: SystemScreen::IPHONE_USER_AGENT
       )
     end
-
-    # 起動時の mobileEmulation だけだと GitHub Actions では最初の例で innerWidth が 390 にならない（ウィンドウは 390×844、
-    # UA は iPhone なのに。ローカルでは出ない）。CDP で同じ端末寸法を例ごとに明示して確定させる
-    page.driver.browser.execute_cdp(
-      "Emulation.setDeviceMetricsOverride",
-      width: SystemScreen::SCREEN_SIZE[0], height: SystemScreen::SCREEN_SIZE[1], deviceScaleFactor: 3, mobile: true
-    )
   end
 end

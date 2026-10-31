@@ -124,3 +124,6 @@ test/ 752 行の削除と spec/ ほぼ同量の追加 + 設定・文書 100 行�
 - GitHub Actions で smoke の `window.innerWidth` が最初の例だけ 609 になった（main の Minitest 版は同じランナーで 390）。端末エミュレーションの反映前に読んだ競合と見て、`viewport_width`（Capybara の synchronize で既定待ち時間だけ 390 を待つ）に替え、失敗文にウィンドウ寸法と UA を出す。ローカルでは再現しない
 - rack 3.2.7 → 3.2.8（bundler-audit が CI で 4 件の advisory を検出。ローカルの DB が古くて緑だった）
 - viewport の待ちでも CI は赤のまま（window=390x844、UA は iPhone、それでも innerWidth ≠ 390。2 例目は通る）。各例の前に CDP `Emulation.setDeviceMetricsOverride` で端末寸法を明示するようにし、失敗文に innerWidth / outerWidth / devicePixelRatio / screen 幅 / visualViewport.scale を出す
+- CDP の明示でも赤。診断値は window=390x844 / innerWidth=609 / innerHeight=1318 / outerWidth=390 / dpr=3 / screen.width=390 / visualViewport.scale=1 / clientWidth=390。
+  つまり layout viewport は 390 で、最初のページの `window.innerWidth` だけが 1.5625 倍の値を返す（headless Chrome の癖。ローカルの Chrome では出ない）。
+  CSS のメディアクエリが見るのは layout viewport なので、検証を `documentElement.clientWidth` と `matchMedia('(width: 390px)')` に替え、CDP の明示は外した（効かなかったので残さない）
