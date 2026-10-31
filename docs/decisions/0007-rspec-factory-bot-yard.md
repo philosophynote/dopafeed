@@ -10,4 +10,5 @@ nao の指示。Unit 0 の Minitest + fixtures を全て spec/ に移し、以�
 - 並列実行は入れない。rspec-rails に Minitest の parallelize 相当は無く、入れるなら parallel_tests gem という別の選定になる。今は 41 本（system 込み 43）・1 秒。遅くなったら ADR を足す
 - rubocop-rspec は入れない（rubocop-rails-omakase の方針のまま）。yard gem も入れない（書式だけ採る）
 - Ruby のコメントは YARD 書式（クラス・モジュール冒頭の 1 行要約、`@param` / `@return` / `@raise` / `@yield`）。日本語のまま。既存 app/ のコメントは触ったファイルから順に直す
+- spec は空の DB から始まる前提。rails_helper の before(:suite) で全テーブルを空にする（bin/ci の `db:seed:replant` が test DB に seed を残すため。fixtures が担っていた掃除の代わり）
 - 走らせる側: config/ci.rb の 3 段（Structure / Tests: Rails / Tests: System）、bin/screens、lefthook の pre-push、.claude/settings.json の Stop hook を `bin/rspec` に揃えた
