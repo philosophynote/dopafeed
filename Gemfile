@@ -68,6 +68,10 @@ group :development, :test do
 
   # Omakase Ruby styling [https://github.com/rails/rubocop-rails-omakase/]
   gem "rubocop-rails-omakase", require: false
+
+  # テストは RSpec + FactoryBot（ADR 0007）。fixtures は使わない
+  gem "rspec-rails"
+  gem "factory_bot_rails"
 end
 
 group :development do
