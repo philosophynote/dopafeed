@@ -3,6 +3,8 @@ require "test_helper"
 # db/seeds.rb は bin/setup と CI の「Tests: Seeds」段で毎回走る。冪等でなければならない
 class SeedsTest < ActiveSupport::TestCase
   setup do
+    Reading.delete_all
+    DailyGoal.delete_all
     Article.delete_all
     Feed.delete_all
     Session.delete_all

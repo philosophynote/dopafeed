@@ -1,0 +1,5 @@
+# 1 日（reset_hour 基準の日付）につき 1 行。achieved_at が nil なら未達成。
+
+achieved_oct_5:
+  day: 2026-10-05
+  achieved_at: 2026-10-05 21:04:12

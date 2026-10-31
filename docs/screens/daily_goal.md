@@ -46,4 +46,5 @@ personas.yml: なし
 3. 「もう 1 本だけ（ボーナス半分）」の半分の対象（基礎 XP？ ルーレット倍率？）。提案: `daily_goal.after_goal_xp_ratio: 0.5`
 4. 達成前に DailyGoal を開いたときの見せ方（別画面 / Main 内の Turbo Frame）
 5. `config.time_zone`（Unit 0 の持ち越し）。reset_hour の基準タイムゾーンは Asia/Tokyo にする
+   → **Unit 2 で入れた**: `config.time_zone = "Tokyo"`。境界は `ReadingDay.of` / `ReadingDay.range`、宝箱の行は `daily_goals`（day unique）
 6. ストリークの単位。この文書群では「1 本以上完読した日が連続」で統一（Main の「3日連続」、Install の「あと 1 本読めば継続」と一致）。モックの宝箱の「ストリーク 4 日目 確定」を「ゴール達成日が連続」と読むなら変える。main.md / install.md はここを参照
