@@ -43,12 +43,16 @@ module SystemScreen
     page.evaluate_script("window.innerWidth")
   end
 
-  # 失敗したときに切り分けに使う情報（ウィンドウ寸法・UA・Chrome の版）
+  # 失敗したときに切り分けに使う情報（ウィンドウ寸法・viewport の各値・UA）
   #
   # @return [String]
   def viewport_diagnostics
     window = page.driver.browser.manage.window.size
-    "window=#{window.width}x#{window.height} ua=#{page.evaluate_script("navigator.userAgent")}"
+    metrics = page.evaluate_script(<<~JS)
+      [window.innerWidth, window.innerHeight, window.outerWidth, window.devicePixelRatio,
+       screen.width, visualViewport && visualViewport.scale, document.documentElement.clientWidth].join("/")
+    JS
+    "window=#{window.width}x#{window.height} inner/innerH/outer/dpr/screen/scale/client=#{metrics} ua=#{page.evaluate_script("navigator.userAgent")}"
   end
 
   private
@@ -91,5 +95,12 @@ RSpec.configure do |config|
         user_agent: SystemScreen::IPHONE_USER_AGENT
       )
     end
+
+    # 起動時の mobileEmulation だけだと GitHub Actions では最初の例で innerWidth が 390 にならない（ウィンドウは 390×844、
+    # UA は iPhone なのに。ローカルでは出ない）。CDP で同じ端末寸法を例ごとに明示して確定させる
+    page.driver.browser.execute_cdp(
+      "Emulation.setDeviceMetricsOverride",
+      width: SystemScreen::SCREEN_SIZE[0], height: SystemScreen::SCREEN_SIZE[1], deviceScaleFactor: 3, mobile: true
+    )
   end
 end
