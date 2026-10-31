@@ -18,7 +18,7 @@ RSpec.describe "Smoke", type: :system do
 
     expect(page).to have_current_path(new_session_path)
     expect(page).to have_selector("h1", text: "Sign in")
-    expect(page.evaluate_script("window.innerWidth")).to eq(390)
+    expect(viewport_width).to eq(SystemScreen::SCREEN_SIZE[0]), -> { "viewport が 390 にならない: #{viewport_diagnostics}" }
 
     path = screenshot!("form")
     expect(path.to_s).to eq(SystemScreen::SCREENSHOT_DIR.join("smoke_login_page_renders_at_iphone_width_form.png").to_s)

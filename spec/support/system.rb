@@ -27,6 +27,30 @@ module SystemScreen
     SCREENSHOT_DIR.join("#{screenshot_name(suffix)}.png")
   end
 
+  # CSS ピクセルの viewport 幅。端末エミュレーションが効けば SCREEN_SIZE の幅になる。
+  # CI では最初の例で描画直後に読むと反映前の値（609 など）が返ったので、Capybara の既定待ち時間だけ
+  # 期待幅になるのを待つ。待っても違えば最後に読めた値を返す（失敗文に出す）
+  #
+  # @return [Integer]
+  def viewport_width
+    page.document.synchronize do
+      width = page.evaluate_script("window.innerWidth")
+      raise Capybara::ElementNotFound, "viewport #{width}px" unless width == SCREEN_SIZE[0]
+
+      width
+    end
+  rescue Capybara::ElementNotFound
+    page.evaluate_script("window.innerWidth")
+  end
+
+  # 失敗したときに切り分けに使う情報（ウィンドウ寸法・UA・Chrome の版）
+  #
+  # @return [String]
+  def viewport_diagnostics
+    window = page.driver.browser.manage.window.size
+    "window=#{window.width}x#{window.height} ua=#{page.evaluate_script("navigator.userAgent")}"
+  end
+
   private
 
   # @param suffix [String, nil]
