@@ -6,6 +6,7 @@ class Reading < ApplicationRecord
   belongs_to :article
 
   validates :opened_at, presence: true
+  validates :returned_at, presence: true, if: :completed_at
   validates :tier, inclusion: { in: ->(_) { Dopamine.tier_names } }
   validates :article_id, uniqueness: true
   validates :xp, numericality: { only_integer: true, greater_than_or_equal_to: 0 }

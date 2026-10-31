@@ -91,3 +91,9 @@ migration 70 + モデル 90 + fixtures 30 + テスト 200 ≈ 390 行（docs 別
 - Comments: 記事ごとのコメントキャッシュ。Similar: ベクトル列（ADR 要）
 - 推定読了時間の定数（提案: `read.chars_per_minute`）、ひとこと要約の XP（提案: `read.note_xp`）は PR 本文の提案欄へ
 - Unit 4 が要約の失敗を記録したければ `summary_failed_at` をその Unit で足す
+- Main の新着バナー「前回開いた後の新着 N 件」に要る「前回開いた時刻」の置き場（users に列 / 別テーブル）。受け入れ条件には無いので Unit 5 で決める（reviewer の指摘）
+
+## レビューで直したこと
+- fixtures の時刻を `+09:00` 明示に（ゾーン無しは UTC として入り、ReadingDay の日付が 1 日ずれていた）
+- `Reading.on(day)` の上端（翌日 reset_hour ちょうど）と `completed_at: nil` の除外をテストに追加
+- `completed_at` があるなら `returned_at` 必須の validation を追加（矛盾行を防ぐ最小の不変条件）

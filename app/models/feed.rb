@@ -1,4 +1,5 @@
-# 購読している RSS / Atom。取得状態・XP などの列は Unit 2 で足す
+# 購読している RSS / Atom。last_fetched_at / last_error / etag / last_modified は Unit 3 の取得 Job が書く
+# （last_error が nil なら前回は成功）。フィード重み（Thompson）は第二の陣
 class Feed < ApplicationRecord
   has_many :articles, dependent: :destroy
 
