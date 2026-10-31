@@ -123,3 +123,4 @@ test/ 752 行の削除と spec/ ほぼ同量の追加 + 設定・文書 100 行�
 - suite の最初に全テーブルを空にする（rails_helper の before(:suite)）。bin/ci の最終段 `db:seed:replant` が test DB に seed を残し、次の `bin/rspec` で空の DB を前提にする spec（Unit 2 の `contain_exactly`）が落ちた。Minitest は fixtures の読み込みで毎回テーブルを空にしていたので表に出なかった
 - GitHub Actions で smoke の `window.innerWidth` が最初の例だけ 609 になった（main の Minitest 版は同じランナーで 390）。端末エミュレーションの反映前に読んだ競合と見て、`viewport_width`（Capybara の synchronize で既定待ち時間だけ 390 を待つ）に替え、失敗文にウィンドウ寸法と UA を出す。ローカルでは再現しない
 - rack 3.2.7 → 3.2.8（bundler-audit が CI で 4 件の advisory を検出。ローカルの DB が古くて緑だった）
+- viewport の待ちでも CI は赤のまま（window=390x844、UA は iPhone、それでも innerWidth ≠ 390。2 例目は通る）。各例の前に CDP `Emulation.setDeviceMetricsOverride` で端末寸法を明示するようにし、失敗文に innerWidth / outerWidth / devicePixelRatio / screen 幅 / visualViewport.scale を出す
