@@ -1,4 +1,5 @@
-# 読了（1 記事 1 行）。既定は「読む」を押して開いただけ。完読は :completed
+# 読了（1 記事 1 行）。既定は「読む」を押して開いただけ。完読は :completed。
+# :completed の xp / combo_multiplier は「確定済みの任意の値」。yml の倍率から導いた値ではない（計算は Unit 5 の範囲）
 FactoryBot.define do
   factory :reading do
     article

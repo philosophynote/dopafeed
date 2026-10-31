@@ -14,9 +14,9 @@ RSpec.describe "AGENTS.md の規約" do
     expect(offenders).to be_empty, "コントローラ・モデルから Claude:: を直接呼ぶな。app/jobs/ の Job に perform_later させよ:\n#{offenders.join("\n")}"
   end
 
-  it "XP・確率・秒数の数字は config/dopamine.yml にだけ置く" do
+  it "XP・確率・秒数の数字は config/dopamine.yml にだけ置く（app/ と lib/）" do
     pattern = /\b(xp|probability|multiplier|complete_after|daily_goal)\w*\s*[=:]\s*\d/i
-    offenders = Dir[app.join("**/*.rb")].select { |f| File.read(f).match?(pattern) }
+    offenders = Dir[Rails.root.join("{app,lib}/**/*.rb")].select { |f| File.read(f).match?(pattern) }
     expect(offenders).to be_empty, "数字を config/dopamine.yml に移し、Rails.application.config_for(:dopamine) で読め:\n#{offenders.join("\n")}"
   end
 

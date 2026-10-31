@@ -104,3 +104,5 @@ migration 70 + モデル 90 + fixtures 30 + テスト 200 ≈ 390 行（docs 別
 - ブランチは `unit-2-domain`（Minitest 版、push 済み）から `unit-2-model` に切り直した。force push は禁止なので旧ブランチは nao が消す
 - Minitest 版の test/（fixtures 3 + テスト 5）を spec/ + factories に 1 対 1 で書き直し。fixture 固有だった「fixture の完読は daily_goals の day と同じ日」は factory では意味が無いので落とした
 - app/models と lib/dopamine.rb のコメントを YARD に（scope は `@!method`、メソッドは `@param` / `@return`）
+- spec 版の reviewer 指摘: factories に「:opened / :read は create 専用」「xp は任意の確定値」を明記、規約テストの数字リテラル検査を lib/ にも広げた（lib/dopamine.rb を置いたため）
+- 2a の「suite 開始時に test DB を空にする」修正はこのブランチに merge で取り込んだ（rebase は権限で拒否されたため）
