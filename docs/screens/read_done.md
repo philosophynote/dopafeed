@@ -47,9 +47,11 @@ personas.yml: なし
 
 ## 未決
 1. 推定読了時間の算出（本文文字数が要る。Unit 2 で本文列を持つか）
+   → **Unit 2**: `articles.content`（readability の本文）を足した。文字数 ÷ 定数の定数は鍵が無い（提案: `read.chars_per_minute`）
 2. 完読の下限。モックは 60 秒、dopamine.yml は 20 秒。yml が正（変えるなら PR で提案）
 3. 要約の金額「約 ¥0.3」を画面に出すか（出さない案。コストは Learning に集約）
 4. 「ひとこと要約」の保存先（articles に列？ 別テーブル？）と +10 XP の鍵
+   → **Unit 2**: `readings.note`（読了 1 行に 1 つ）。XP の鍵は無い（提案: `read.note_xp`）
 5. 「記事から戻った」の検出方法（visibilitychange / pageshow / 記事を開く前にサーバーへ開始時刻を記録して戻り時に差分）。pwa-ios Skill を読んで決める
 6. 5 本目の読了で DailyGoal に自動遷移するか、ボタンを出すか
 7. コンボの「連続」の定義。鍵が無い間は「同日内（reset_hour 基準）で完読が途切れない限り。未完読で途切れる」とする。時間窓（モックの「あと 2:14」）を入れるなら main.md 未決 3 の `xp.combo_window_seconds`

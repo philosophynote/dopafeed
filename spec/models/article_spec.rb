@@ -17,4 +17,50 @@ RSpec.describe Article, type: :model do
   it "summary が無くても保存できる（要約は Unit 4 の Job が付ける）" do
     expect(build(:article, :unsummarized)).to be_valid
   end
+
+  it "content, guid, liked_at, bookmarked_at は無くてもよい（Unit 3 以降が埋める）" do
+    article = build(:article)
+    expect(article).to be_valid
+    expect(article.content).to be_nil
+    expect(article.guid).to be_nil
+    expect(article).not_to be_saved
+  end
+
+  describe "unread / read" do
+    let!(:read) { create(:article, :read) }
+    let!(:opened) { create(:article, :opened) }
+    let!(:untouched) { create(:article) }
+
+    it "unread は完読した記事を除く。開いただけの記事は未読のまま（出目は Reading に残る）" do
+      expect(Article.unread).to contain_exactly(opened, untouched)
+    end
+
+    it "read は完読した記事だけ" do
+      expect(Article.read).to contain_exactly(read)
+    end
+  end
+
+  it "saved は liked_at か bookmarked_at のある記事" do
+    liked = create(:article, :liked)
+    bookmarked = create(:article, :bookmarked)
+    plain = create(:article)
+
+    expect(Article.saved).to contain_exactly(liked, bookmarked)
+    expect(liked).to be_saved
+    expect(bookmarked).to be_saved
+    expect(plain).not_to be_saved
+  end
+
+  it "newest_first は published_at の新しい順" do
+    oldest = create(:article, published_at: Time.zone.local(2026, 10, 1, 9))
+    newest = create(:article, published_at: Time.zone.local(2026, 10, 3, 9))
+    middle = create(:article, published_at: Time.zone.local(2026, 10, 2, 9))
+
+    expect(Article.newest_first.to_a).to eq([ newest, middle, oldest ])
+  end
+
+  it "記事を消すと読了も消える" do
+    article = create(:article, :read)
+    expect { article.destroy! }.to change(Reading, :count).by(-1)
+  end
 end
