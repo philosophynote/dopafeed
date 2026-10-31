@@ -11,13 +11,15 @@
 ## 完了の定義
 - `bin/ci` が緑。通らぬ PR は開くな
 - テストは実装前に書き、失敗を確認してから実装する
-- 画面を触った Unit は test/system/ に 390×844 のシステムテストを足し、`bin/screens` で tmp/screenshots/ に撮る
+- 画面を触った Unit は spec/system/ に 390×844 のシステムテストを足し、`bin/screens` で tmp/screenshots/ に撮る
 - PR 本文は .github/pull_request_template.md の欄を全部埋める
 
 ## 規約
+- テストは RSpec + FactoryBot（spec/。ADR 0007）。fixtures は使わない。`bin/rspec` で回す
+- Ruby のコメントは YARD（クラス・モジュール冒頭の 1 行要約、`@param` / `@return` / `@raise` / `@yield`）。日本語で書く
 - Hotwire（Turbo Frames / Streams + Stimulus）。SPA 化・React・外部 JS フレームワーク持ち込み禁止
 - Claude API は app/services/claude/ に集約し、必ず ActiveJob（Solid Queue）経由。コントローラ・モデルから直接呼ぶな
-- XP 量・確率・閾値・秒数・本数は config/dopamine.yml。コードに数字を埋めるな（test/structure/ が落とす）
+- XP 量・確率・閾値・秒数・本数は config/dopamine.yml。コードに数字を埋めるな（spec/structure/ が落とす）
 - 外部通信（Claude API、RSS）はテストで VCR / WebMock。CI は実通信ゼロ
 - DB 変更は migration のみ。設計変更は docs/decisions/ に ADR を足す
 - 一 Unit = 一ブランチ `unit-<n>-<name>` = 一 PR = 差分 300 行前後。超えるなら割って提案せよ

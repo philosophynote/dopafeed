@@ -1,7 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(bin/ci*)", "Bash(bin/rails test*)", "Bash(bin/rails db:*)", "Bash(bin/rails generate*)",
+      "Bash(bin/ci*)", "Bash(bin/rspec*)", "Bash(bundle exec rspec*)", "Bash(bin/rails db:*)", "Bash(bin/rails generate*)",
       "Bash(bin/rails routes*)", "Bash(bin/rubocop*)", "Bash(bundle exec rubocop*)", "Bash(bundle exec erb_lint*)",
       "Bash(bin/screens*)", "Bash(bin/dev*)", "Bash(bundle install*)", "Bash(bundle add*)",
       "Bash(git status*)", "Bash(git diff*)", "Bash(git log*)", "Bash(git add*)", "Bash(git commit*)",
@@ -18,7 +18,7 @@
       { "matcher": "Edit|Write", "hooks": [ { "type": "command", "command": "bin/hooks/rubocop-file" } ] }
     ],
     "Stop": [
-      { "hooks": [ { "type": "command", "command": "bin/rails test 2>&1 | tail -5" } ] }
+      { "hooks": [ { "type": "command", "command": "bin/rspec --exclude-pattern 'spec/system/**/*_spec.rb' --format progress 2>&1 | tail -5" } ] }
     ]
   }
 }

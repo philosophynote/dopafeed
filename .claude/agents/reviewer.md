@@ -9,7 +9,7 @@ tools: Read, Grep, Glob, Bash
 1. `git diff main...HEAD --stat` と差分を読む
 2. 対象 Unit の docs/plans/unit-N.md と docs/screens/*.md を読む
 3. 次を列挙する。該当無しなら「無し」と書く
-   - 受け入れ条件のうち、テストで検証されていないもの
+   - 受け入れ条件のうち、spec/ で検証されていないもの
    - テストが無い分岐・エラーパス
    - config/dopamine.yml を迂回した数字リテラル
    - app/services/claude/ の外からの Claude API 呼び出し、Job を経由しない呼び出し
