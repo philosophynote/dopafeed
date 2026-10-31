@@ -120,3 +120,4 @@ test/ 752 行の削除と spec/ ほぼ同量の追加 + 設定・文書 100 行�
 - passwords_spec の notice は body 全体ではなく div の文言で見る（Minitest 版の `assert_select "div"` と同じ強さ）
 - bin/screens は常に spec/system を回し、引数はオプションとして足す
 - 文書の例数を 41（system 込み 43）に統一、AGENTS.md の YARD タグに `@yield`
+- suite の最初に全テーブルを空にする（rails_helper の before(:suite)）。bin/ci の最終段 `db:seed:replant` が test DB に seed を残し、次の `bin/rspec` で空の DB を前提にする spec（Unit 2 の `contain_exactly`）が落ちた。Minitest は fixtures の読み込みで毎回テーブルを空にしていたので表に出なかった

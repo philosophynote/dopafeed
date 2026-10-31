@@ -16,6 +16,13 @@ Rails.root.glob("spec/support/**/*.rb").sort_by(&:to_s).each { |f| require f }
 
 RSpec.configure do |config|
   config.use_transactional_fixtures = true
+
+  # bin/ci の最終段「Tests: Seeds」（db:seed:replant）が test DB に seed を残す。fixtures と違って RSpec は
+  # テーブルを空にしないので、suite の最初に全部消して「空の DB から始まる」前提を守る
+  config.before(:suite) do
+    connection = ActiveRecord::Base.connection
+    connection.truncate_tables(*(connection.tables - %w[schema_migrations ar_internal_metadata]))
+  end
   config.infer_spec_type_from_file_location!
   config.filter_rails_from_backtrace!
 
