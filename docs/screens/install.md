@@ -15,7 +15,7 @@
 5. 注記「Safari のタブのままでは通知もバッジも使えません。ホーム画面から開いた時だけ有効になるのが iOS の仕様です」（固定）
 6. 「届く通知（1 日最大 2 件）」の例 3 枚（固定文。時刻は未決 1）
    - 7:30「今日の掘り出し物 3 本が届きました」→ タップで「あなた向け」
-   - 21:00「3 日連続が 3 時間後に消えます」→ あと 1 本読めば継続（ストリークの定義は daily_goal.md の未決 6）
+   - reset_hour の H 時間前（H = 提案鍵 `push.streak_warning_hours_before`。reset_hour 4 で H = 3 なら 01:00）「3 日連続が H 時間後に消えます」→ あと 1 本読めば継続（ストリークは `daily_goal.reset_hour` で切り替わるので、警告時刻はそこから導く。モックの 21:00 は reset_hour 4 と矛盾する。未決 7。ストリークの定義は daily_goal.md の未決 6）
    - たまに「激レアが出現しました（+50 XP）」
 
 ## 遷移
@@ -44,9 +44,10 @@ personas.yml: なし
 テストは WebMock で endpoint への POST をスタブ（200 と 410 の 2 通り。カセットは使わない）。
 
 ## 未決
-1. 通知の時刻（7:30 / 21:00）、1 日最大 2 件、ストリーク警告「3 時間前」。dopamine.yml に鍵が無い。提案: `push.digest_at: "07:30"`, `push.streak_warning_hours_before: 3`, `push.daily_max: 2`。通知は 3 種あるので上限 2 件のときどれを落とすか（案: 激レア通知を優先し、ダイジェストと警告のうち後の方を落とす）
+1. 通知の時刻（7:30）、1 日最大 2 件、ストリーク警告「3 時間前」。dopamine.yml に鍵が無い。提案: `push.digest_at: "07:30"`, `push.streak_warning_hours_before: 3`, `push.daily_max: 2`。通知は 3 種あるので上限 2 件のときどれを落とすか（案: 激レア通知を優先し、ダイジェストと警告のうち後の方を落とす）
 2. バッジは OS が永続化しない（再起動で消える）ので、service worker の push / activate で setAppBadge を再実行する。pwa-ios Skill に従う
 3. VAPID 鍵の置き場所（Rails credentials。runbook に追記）
 4. 第一の陣では「朝のダイジェスト」の 3 本選定（Claude の Sonnet）が無い。新着 3 本で代替するか、Push 自体を第二の陣に回すか
 5. アプリアイコンの画像（180×180 / 512×512）を誰が作るか
 6. standalone 判定のテスト方法。iOS Safari の `navigator.standalone` と標準の `matchMedia('(display-mode: standalone)')` の両方を見る。Selenium では CDP の `Emulation.setEmulatedMedia` が使えなければ execute_script でスタブ
+7. ストリーク警告の時刻。reset_hour（4 時）の 3 時間前は 01:00 で、深夜に通知が鳴る。モックの 21:00 を採るなら文言を「今日中に 1 本読めば継続」に変え、「H 時間後に消えます」は出さない。どちらにするかは nao が決める

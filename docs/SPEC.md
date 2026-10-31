@@ -7,7 +7,7 @@
 一人用。SNS の中毒性（可変報酬・社会的報酬・FOMO）を技術記事読みに向け、読む習慣を作る。
 
 ## 7 つの報酬要素 × 画面
-鍵の無い数字（7:30、21:00、1 日 2 件、3 時間前、3 本、0〜3 枚）はモック由来の提案で、config/dopamine.yml に入るまで確定ではない（docs/plans/unit-1.md「yml との差」）。
+鍵の無い数字（7:30、1 日 2 件、3 時間前、3 本、0〜3 枚）はモック由来の提案で、config/dopamine.yml に入るまで確定ではない（docs/plans/unit-1.md「yml との差」）。
 
 | 要素 | 画面 | 仕組み |
 |---|---|---|
@@ -17,7 +17,7 @@
 | 止まり所 | DailyGoal | 1 日 5 本（`daily_goal.articles`）で宝箱が開き、満足して閉じられる。翌日 reset_hour（午前 4 時）でリセット。SNS と逆を行く |
 | 社会的報酬 | Comments / Weekly | 著名人を模した架空 AI 8 人から 3 人（`comments.personas_shown`）がランダムにコメント（personas.yml）。はてブ数。週次レポートで過去の自分と比べ、画像で共有 |
 | FOMO | ForYou / Push（Install） / Main の今日限定 | 今日限定カード（残り時間つき）、ストリーク消滅 3 時間前の警告、未読一掃。Claude が朝 7:30 に理由付きで 3 本選ぶ |
-| 外部トリガー | Install（通知・バッジ） | Web Push の朝ダイジェスト（7:30）とストリーク警告（21:00）、1 日最大 2 件。アイコンのバッジに未読数（Badging API）。ホーム画面に追加した後だけ有効 |
+| 外部トリガー | Install（通知・バッジ） | Web Push の朝ダイジェスト（7:30）とストリーク警告（reset_hour の 3 時間前）、1 日最大 2 件。アイコンのバッジに未読数（Badging API）。ホーム画面に追加した後だけ有効 |
 | 個人最適化（8 つ目） | ForYou / Learning / Similar | フィード重みを Thompson サンプリングで学習（開封・読了・いいね・興味なし。ADR 未）。Claude には未読のタイトルと興味プロファイルだけを渡す。保存記事との内容類似は別軸（sqlite-vec か TF-IDF。ADR 未） |
 
 ## iOS PWA の制約と代替策

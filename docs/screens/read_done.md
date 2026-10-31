@@ -8,7 +8,7 @@
 1. 見出し「読了！」と「5 本連続 ・ コンボ ×2」（DB: 連続完読数。倍率は 1 + `xp.combo_multiplier_step` × 連続数、上限 `xp.combo_max_multiplier`。「連続」の定義は未決 7）
 2. 記事タイトル（DB）
 3. 計測 3 枚: 「滞在 4分12秒」（DB: 開いた時刻と戻った時刻の差）、「推定読了 3分」（未決 1）、「判定 完読」（`read.complete_after_seconds` 以上なら完読）
-4. XP 内訳: 「完読ボーナス +40 XP」「コンボ ×2 +40 XP」「合計 +80 XP」（`xp.base` × ルーレット倍率、× コンボ）
+4. XP 内訳（3 行とも導出値。モックの +40 / +40 / +80 は採らない）: 「完読ボーナス +A XP」（A = `xp.base` × ルーレットの tier.multiplier）、「コンボ ×C +B XP」（C = コンボ倍率、B = A × (C − 1)）、「合計 +A×C XP」。今の yml で rare・コンボ ×2 なら「+30」「×2 +30」「合計 +60」
 5. 注記「記事を開いてアプリに戻るまでの時間で計測。60 秒未満なら XP なし」（固定。秒数は dopamine.yml。モックの 60 と yml の 20 が違う。未決 2）
 6. 「Claude の 3 行要約（claude-haiku-5-5 ・ 約 ¥0.3）」と 3 行（DB: summary。モデル名は `claude.summary_model`。金額は出さない案、未決 3）
 7. 「ひとこと要約を残す ＋10 XP」textarea（DB: 未決 4。XP は dopamine.yml に鍵が無い）
