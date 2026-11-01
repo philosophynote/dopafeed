@@ -45,6 +45,7 @@ gem "image_processing", "~> 1.2"
 # RSS / Atom の取得と本文抽出
 gem "feedjira"
 gem "ruby-readability"
+gem "guess_html_encoding" # ArticleContentFetcher が直接呼ぶ（readability の推定は Ruby 4 で動かない）
 
 # Claude API（app/services/claude/ からだけ呼ぶ。ADR 0002）
 gem "anthropic"

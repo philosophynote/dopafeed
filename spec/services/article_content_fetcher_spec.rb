@@ -2,6 +2,17 @@
 RSpec.describe ArticleContentFetcher do
   let(:article) { create(:article, url: "https://fixtures.example.com/posts/solid-queue", content: "フィードの抜粋") }
   let(:page) { file_fixture("pages/article.html").read }
+  # 文字コードの検証用。meta で charset を宣言するかはテストごとに変える
+  let(:japanese_page) do
+    <<~HTML
+      <html><head>%{meta}<title>文字コードの罠</title></head>
+      <body><article>
+      <p>このページは UTF-8 以外で書かれている。本番の Ruby 4 では ruby-readability の文字コード推定が動かないので、自前で推定してから渡す必要がある。</p>
+      <p>ここが UTF-8 に直って保存されていれば、要約ジョブに渡したときに文字化けしない。確認のための二つ目の段落で、二十五文字より長くしてある。</p>
+      <p>三つ目の段落。readability は段落の長さで本文候補を点数づけするので、短すぎると本文として拾われない。</p>
+      </article></body></html>
+    HTML
+  end
 
   def stub_page(body: page, status: 200, content_type: "text/html; charset=utf-8")
     stub_request(:get, article.url).to_return(status: status, body: body, headers: { "Content-Type" => content_type })
@@ -19,21 +30,53 @@ RSpec.describe ArticleContentFetcher do
 
       expect(result.status).to eq(:fetched)
       expect(article.content).to include("ワーカー 1 プロセス・3 スレッド")
-      expect(article.content).to include("config.active_job.queue_adapter = :solid_queue")
+      expect(article.content).to include("<h1>").and include("<pre><code>config.active_job.queue_adapter = :solid_queue</code></pre>")
       expect(article.content).not_to include("このブログについて")
       expect(article.content).not_to include("無断転載")
       expect(article.content).not_to include("フィードの抜粋")
     end
   end
 
-  it "Shift_JIS のページも UTF-8 に直して保存する（Ruby 4 では readability の推定が動かない）" do
-    stub_page(body: file_fixture("pages/sjis.html").binread, content_type: "text/html")
+  it "抜いた本文がフィードの本文より短ければ置き換えない（Zenn の長い抜粋を守る）" do
+    article.update!(content: "<p>#{"フィードの長い抜粋。" * 100}</p>")
+    stub_page
 
-    described_class.new(article).call
+    result = described_class.new(article).call
 
-    expect(article.reload.content_error).to be_nil
-    expect(article.content.encoding).to eq(Encoding::UTF_8)
-    expect(article.content).to include("自前で推定してから渡す必要がある")
+    expect(result.status).to eq(:kept)
+    expect(article.reload).to have_attributes(content_error: nil)
+    expect(article.content).to include("フィードの長い抜粋。")
+    expect(article.content_fetched_at).to be_present
+  end
+
+  describe "文字コード（Ruby 4 では readability の推定が動かないので自前で直す）" do
+    it "meta の charset（Shift_JIS）を見て UTF-8 に直す" do
+      body = (japanese_page % { meta: '<meta http-equiv="Content-Type" content="text/html; charset=Shift_JIS">' }).encode("Shift_JIS")
+      stub_page(body: body, content_type: "text/html")
+
+      described_class.new(article).call
+
+      expect(article.reload.content_error).to be_nil
+      expect(article.content.encoding).to eq(Encoding::UTF_8)
+      expect(article.content).to include("自前で推定してから渡す必要がある")
+    end
+
+    it "ヘッダの charset（EUC-JP、meta なし）でも直す" do
+      stub_page(body: (japanese_page % { meta: "" }).encode("EUC-JP"), content_type: "text/html; charset=EUC-JP")
+
+      described_class.new(article).call
+
+      expect(article.reload.content_error).to be_nil
+      expect(article.content).to include("要約ジョブに渡したときに文字化けしない")
+    end
+
+    it "charset がどこにも無く UTF-8 でも読めなければ「文字コードを判定できません」（化けた本文で上書きしない）" do
+      stub_page(body: (japanese_page % { meta: "" }).encode("EUC-JP"), content_type: "text/html")
+
+      described_class.new(article).call
+
+      expect(article.reload).to have_attributes(content: "フィードの抜粋", content_error: "文字コードを判定できません")
+    end
   end
 
   describe "失敗" do
@@ -46,6 +89,10 @@ RSpec.describe ArticleContentFetcher do
         expect(article.reload).to have_attributes(content: "フィードの抜粋", content_fetched_at: Time.current, content_error: "HTML ではありません (application/pdf)")
       end
       expect(result).to have_attributes(status: :failed, error: "HTML ではありません (application/pdf)")
+
+      stub_request(:get, article.url).to_return(status: 200, body: "no type")
+      described_class.new(article).call
+      expect(article.reload.content_error).to eq("HTML ではありません (不明)")
     end
 
     it "本文の文字が readability の最小段落長に満たなければ「本文を抽出できません」（JS 描画のページなど）" do
@@ -55,14 +102,27 @@ RSpec.describe ArticleContentFetcher do
       expect(article.reload).to have_attributes(content: "フィードの抜粋", content_error: "本文を抽出できません")
     end
 
-    it "HTTP エラー・接続エラーは HttpGet の文言で残す" do
+    it "4xx は HttpGet の文言で残す" do
       stub_page(status: 404, body: "")
       described_class.new(article).call
       expect(article.reload.content_error).to eq("サーバーエラー (HTTP 404)")
+    end
+
+    it "5xx・接続エラーは記録せず TransientError を上げる（Job が待ってやり直す）" do
+      stub_page(status: 503, body: "")
+      expect { described_class.new(article).call }.to raise_error(HttpGet::TransientError, "サーバーエラー (HTTP 503)")
 
       stub_request(:get, article.url).to_timeout
-      described_class.new(article).call
-      expect(article.reload.content_error).to eq("接続エラー (Net::OpenTimeout)")
+      expect { described_class.new(article).call }.to raise_error(HttpGet::TransientError, "接続エラー (Net::OpenTimeout)")
+      expect(article.reload).to have_attributes(content_fetched_at: nil, content_error: nil)
+    end
+
+    it "record_failure は content を残したまま失敗を記録する" do
+      freeze_time do
+        result = described_class.new(article).record_failure("サーバーエラー (HTTP 503)")
+        expect(result).to have_attributes(status: :failed, error: "サーバーエラー (HTTP 503)")
+        expect(article.reload).to have_attributes(content: "フィードの抜粋", content_fetched_at: Time.current, content_error: "サーバーエラー (HTTP 503)")
+      end
     end
 
     it "想定外の例外はそのまま上げる" do
