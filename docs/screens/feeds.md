@@ -30,5 +30,5 @@ personas.yml: なし
 
 ## 未決
 1. フィード削除時に記事・読了記録・保存を消すか残すか
-2. 定期取得の間隔（Solid Queue recurring）。提案: `fetch.interval_minutes: 30`
+2. 定期取得の間隔（Solid Queue recurring）。提案: `fetch.interval_minutes: 30` → Unit 3 で確定: 間隔は Solid Queue が読む config/recurring.yml にだけ置く（`every 30 minutes`）。dopamine.yml には持たない（二重に持つと食い違う）
 3. 「引っ張って更新」のジェスチャー実装（Stimulus。PWA の overscroll との兼ね合い）

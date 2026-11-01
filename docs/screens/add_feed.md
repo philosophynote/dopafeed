@@ -25,9 +25,9 @@ dopamine.yml: なし
 personas.yml: なし
 
 ## 外部 API
-あり。RSS/HTML の取得（feedjira + Net::HTTP。VCR: `feeds/zenn_feed.yml`, `feeds/site_autodiscovery.yml`, `feeds/not_found.yml`）
+あり。RSS/HTML の取得（feedjira + Net::HTTP。テストは WebMock + spec/fixtures/files/feeds/*.xml。Unit 3 で VCR からこの方式に変えた。取得本体は `FeedFetcher`）
 
 ## 未決
 1. 「クリップボードから貼り付け」は iOS Safari で navigator.clipboard.readText が許可を求める。無ければ入力だけ
-2. 取得のタイムアウト（モックには無い。提案: `fetch.timeout_seconds: 10`）と再試行（Unit 3 の取得 Job と共通化）
+2. 取得のタイムアウト（モックには無い。提案: `fetch.timeout_seconds: 10`）と再試行（Unit 3 の取得 Job と共通化）。Unit 3 は Net::HTTP の既定タイムアウトのまま、再試行は次の定期実行に任せた（retry_on なし）
 3. おすすめ 6 件を yml に持つか固定文か（数字ではないので固定でよい）

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Fixture Atom</title>
+  <link href="https://fixtures.example.com/atom"/>
+  <id>tag:fixtures.example.com,2026:atom</id>
+  <updated>2026-10-03T00:00:00Z</updated>
+  <entry>
+    <title>Atom 記事 1</title>
+    <link rel="alternate" href="https://fixtures.example.com/atom/1"/>
+    <id>tag:fixtures.example.com,2026:atom/1</id>
+    <published>2026-10-03T00:00:00Z</published>
+    <updated>2026-10-03T00:00:00Z</updated>
+    <content type="html">&lt;p&gt;Atom の本文&lt;/p&gt;</content>
+  </entry>
+  <entry>
+    <title>Atom 記事 2</title>
+    <link rel="alternate" href="https://fixtures.example.com/atom/2"/>
+    <id>tag:fixtures.example.com,2026:atom/2</id>
+    <updated>2026-10-04T00:00:00Z</updated>
+    <summary>Atom の概要だけ</summary>
+  </entry>
+</feed>
