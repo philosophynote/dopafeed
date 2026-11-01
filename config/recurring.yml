@@ -10,6 +10,11 @@
 #     schedule: at 5am every day
 
 production:
+  # 全フィードの取得（Unit 3）。間隔はここにだけ置く（docs/screens/feeds.md 未決 2）
+  fetch_all_feeds:
+    class: FetchAllFeedsJob
+    queue: feeds
+    schedule: every 30 minutes
   clear_solid_queue_finished_jobs:
     command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
     schedule: every hour at minute 12

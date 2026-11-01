@@ -14,6 +14,14 @@ RSpec.describe Article, type: :model do
     expect(dup.errors[:url]).to include("has already been taken")
   end
 
+  it "[feed_id, guid] は DB で一意（guid nil は複数可）" do
+    feed = create(:feed)
+    create(:article, feed: feed, guid: "g-1")
+    expect { create(:article, feed: feed, guid: "g-1") }.to raise_error(ActiveRecord::RecordNotUnique)
+    expect { create(:article, guid: "g-1") }.not_to raise_error
+    expect { create_list(:article, 2, feed: feed, guid: nil) }.not_to raise_error
+  end
+
   it "summary が無くても保存できる（要約は Unit 4 の Job が付ける）" do
     expect(build(:article, :unsummarized)).to be_valid
   end
