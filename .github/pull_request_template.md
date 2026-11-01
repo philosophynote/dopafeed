@@ -1,5 +1,5 @@
 ## Unit
-docs/plans/unit-__.md（承認済み）
+Closes #__（Issue の計画に nao の「承認」コメントあり）
 
 ## 受け入れ条件
 docs/screens/__.md のどの条件を満たしたか。満たしていないものがあれば理由。

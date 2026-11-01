@@ -6,7 +6,7 @@
 - docs/SPEC.md            製品の芯。7 つの報酬要素と画面の対応表、iOS PWA の制約と代替策
 - docs/screens/<name>.md  作る画面の仕様と受け入れ条件（Given-When-Then）。無い画面は作るな
 - docs/decisions/         ADR。ここに無い技術選定は勝手にせず、提案して止まれ
-- docs/plans/             Unit ごとの実行計画。承認印の無い計画で実装に入るな
+- docs/plans/             陣（Milestone）の範囲と完了条件。Unit の計画と進捗は GitHub Issue（ラベル unit）。nao の「承認」コメントが無い計画で実装に入るな（ADR 0008）
 
 ## 完了の定義
 - `bin/ci` が緑。通らぬ PR は開くな
@@ -22,7 +22,7 @@
 - XP 量・確率・閾値・秒数・本数は config/dopamine.yml。コードに数字を埋めるな（spec/structure/ が落とす）
 - 外部通信（Claude API、RSS）はテストで VCR / WebMock。CI は実通信ゼロ
 - DB 変更は migration のみ。設計変更は docs/decisions/ に ADR を足す
-- 一 Unit = 一ブランチ `unit-<n>-<name>` = 一 PR = 差分 300 行前後。超えるなら割って提案せよ
+- 一 Unit = 一 Issue = 一ブランチ `unit-<n>-<name>` = 一 PR（`Closes #N`）= 差分 300 行前後。超えるなら割って提案せよ
 
 ## 禁止
 - `kamal deploy`、本番 DB、secrets（config/master.key, .env*）に触るな。人が打つ
