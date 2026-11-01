@@ -6,14 +6,14 @@ description: 「/kick #N」または「/kick Unit N」で一 Unit を GitHub Iss
 
 ## 入口
 - `/kick #N`: Issue N を読む（`gh issue view N --comments`）
-- `/kick Unit N`: Issue が無ければ `.github/ISSUE_TEMPLATE/unit.md` の体裁で `gh issue create --title "Unit N: <name>" --label unit` を先に行い、その番号で続ける
+- `/kick Unit N`: Issue が無ければ先に作る。`.github/ISSUE_TEMPLATE/unit.md` の見出し（範囲・狙い・入口）で本文をファイルに書き、`gh issue create --title "Unit N: <name>" --label unit --body-file <file>` と非対話で作る（`--body` 無しだと入力待ちで止まる）。その番号で続ける
 
 ## 手順
 1. Issue 本文、docs/SPEC.md、対象の docs/screens/<name>.md（受け入れ条件と未決）、関係する docs/decisions/ を読む。docs/plans/milestone-*.md で陣の範囲を確かめる
 2. 計画を Issue に **1 コメント**で書く。見出しは次の通り（docs/plans/unit-2.md と同じ型）: Context / 決めること（nao の承認で確定。ADR が要るもの） / 変更（ファイル単位） / 手順（テスト先行） / 差分の見込み / 触らないもの / 検証 / 持ち越し。
    未決への問いは「決めること」に番号を付けて並べ、推奨を添える
 3. **nao の「承認」コメントを待つ。** 承認の無い計画で実装に入らない。質問への答えで計画が変わったら、差分を短い追記コメントにする（元コメントの編集はしない。履歴を残す）
-4. 承認後、`git checkout -b unit-<n>-<name>`（base は main）。spec を先に書き、`bin/rspec` で赤を確かめる
+4. 承認後、`git fetch origin main && git checkout -b unit-<n>-<name> origin/main`。今いるブランチから切らない（前の Unit のコミットが混ざる。#14 の失敗）。spec を先に書き、`bin/rspec` で赤を確かめる
 5. 実装する。`bin/ci` が緑になるまで直す。同じ修正に二度失敗したら止まり、Issue に状況を書く
 6. 画面を触った Unit は `bin/screens` で tmp/screenshots/ に 390×844 の絵を撮る
 7. `reviewer` サブエージェントに差分と Issue 番号を渡し、指摘を直す。直した点は Issue に「レビューで直したこと」として 1 コメント
