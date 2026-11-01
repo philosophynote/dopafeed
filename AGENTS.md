@@ -16,7 +16,8 @@
 
 ## 規約
 - テストは RSpec + FactoryBot（spec/。ADR 0007）。fixtures は使わない。`bin/rspec` で回す
-- Ruby のコメントは YARD（クラス・モジュール冒頭の 1 行要約、`@param` / `@return` / `@raise` / `@yield`）。日本語で書く
+- Ruby のコメント（app/ と lib/）は YARD 書式・日本語で、「なぜそうするか」だけ書く（ADR 0009）。クラス・モジュール冒頭の 1 行要約は必ず書き、責務と隣のクラスとの違いを言う。`@param` / `@return` / `@raise` / `@yield` は名前と型を日本語に言い換えるだけなら書かない
+- Ruby のコメントに書かないもの: 工程（Unit 番号・陣・「別 PR で」。Issue と PR に書く）、画面名（モデル・サービス・ジョブは画面を知らない。app/views と docs/screens に書く）、呼び出し元の列挙（守らせたいなら spec/structure/ のテストで落とす）、呼ぶ側と呼ばれる側への同じ説明（定義側に残す）
 - Hotwire（Turbo Frames / Streams + Stimulus）。SPA 化・React・外部 JS フレームワーク持ち込み禁止
 - Claude API は app/services/claude/ に集約し、必ず ActiveJob（Solid Queue）経由。コントローラ・モデルから直接呼ぶな
 - XP 量・確率・閾値・秒数・本数は config/dopamine.yml。コードに数字を埋めるな（spec/structure/ が落とす）
