@@ -66,7 +66,9 @@ class FeedFetcher
 
   # 解析した entry を記事にする。title か http(s) の url の無い entry は飛ばす。
   # 重複は [feed_id, guid]（guid = entry_id、無ければ url）→ url（全フィードで一意）の順で見る。
-  # 同じフィードの Job が重なって先に入られたら（url の一意制約）その entry は飛ばす。作った記事ごとに本文取得 Job を積む
+  # 同じフィードの Job が重なって先に入られたら（url の一意制約）その entry は飛ばす。作った記事ごとに本文取得 Job を積む。
+  # 記事の作成と Job の積み込みは 1 トランザクション: 本番は queue が別 DB なので、積めなければ記事ごと戻して次の取得でやり直す
+  # （enqueue_after_transaction_commit は false。コミット後に積む設定にするとこの戻しが効かなくなる）
   #
   # @param parsed [Feedjira::Parser::RSS, Feedjira::Parser::Atom] Feedjira.parse の戻り
   # @return [Integer] 作った記事の数
@@ -79,8 +81,10 @@ class FeedFetcher
       guid = entry.entry_id.presence || url
       next false if feed.articles.exists?(guid: guid) || Article.exists?(url: url)
 
-      article = feed.articles.create!(title: title, url: url, guid: guid, published_at: entry.published, content: entry.content.presence || entry.summary)
-      FetchArticleContentJob.perform_later(article)
+      Article.transaction do
+        article = feed.articles.create!(title: title, url: url, guid: guid, published_at: entry.published, content: entry.content.presence || entry.summary)
+        FetchArticleContentJob.perform_later(article)
+      end
       true
     rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
       false

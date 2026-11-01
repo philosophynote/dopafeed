@@ -30,6 +30,13 @@ RSpec.describe FeedFetcher do
       expect(FetchArticleContentJob).to have_been_enqueued.with(feed.articles.find_by!(guid: "rss-2"))
     end
 
+    it "Job を積めなければ記事も作らない（次の取得でやり直す。本番は queue が別 DB）" do
+      allow(FetchArticleContentJob).to receive(:perform_later).and_raise(ActiveRecord::ConnectionNotEstablished, "queue db")
+
+      expect { described_class.new(feed).call }.to raise_error(ActiveRecord::ConnectionNotEstablished)
+      expect(Article.count).to eq(0)
+    end
+
     it "content:encoded が無ければ description を本文にする" do
       described_class.new(feed).call
       expect(feed.articles.find_by!(guid: "rss-2").content).to eq("2 件目の概要だけ（content:encoded なし）")
