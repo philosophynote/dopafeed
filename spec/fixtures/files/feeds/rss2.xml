@@ -3,7 +3,7 @@
   <channel>
     <title>Fixture RSS</title>
     <link>https://fixtures.example.com/rss</link>
-    <description>手書きの RSS 2.0。3 件。</description>
+    <description>手書きの RSS 2.0。記事になるのは 3 件、飛ばすのが 2 件。</description>
     <item>
       <title>RSS 記事 1</title>
       <link>https://fixtures.example.com/rss/1</link>
@@ -18,6 +18,15 @@
       <guid isPermaLink="false">rss-2</guid>
       <pubDate>Fri, 02 Oct 2026 09:00:00 +0900</pubDate>
       <description>2 件目の概要だけ（content:encoded なし）</description>
+    </item>
+    <item>
+      <title>RSS 記事 3（日付も本文も無い）</title>
+      <link>https://fixtures.example.com/rss/3</link>
+    </item>
+    <item>
+      <title>相対 URL の item。飛ばす</title>
+      <link>relative/path</link>
+      <guid isPermaLink="false">rss-relative</guid>
     </item>
     <item>
       <link>https://fixtures.example.com/rss/no-title</link>

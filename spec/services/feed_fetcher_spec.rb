@@ -11,11 +11,12 @@ RSpec.describe FeedFetcher do
   describe "200 で新しいフィードを取ったとき" do
     before { stub_feed(headers: { "ETag" => '"v1"', "Last-Modified" => "Thu, 01 Oct 2026 00:00:00 GMT" }) }
 
-    it "title のある item だけ記事にし、列を埋める" do
+    it "title と http(s) の url がある item だけ記事にし、列を埋める" do
       result = nil
-      expect { result = described_class.new(feed).call }.to change(feed.articles, :count).by(2)
+      expect { result = described_class.new(feed).call }.to change(feed.articles, :count).by(3)
       expect(result.status).to eq(:updated)
-      expect(result.created).to eq(2)
+      expect(result.created).to eq(3)
+      expect(feed.articles.pluck(:guid)).to contain_exactly("rss-1", "rss-2", "https://fixtures.example.com/rss/3")
 
       first = feed.articles.find_by!(guid: "rss-1")
       expect(first).to have_attributes(title: "RSS 記事 1", url: "https://fixtures.example.com/rss/1", summary: nil)
@@ -26,6 +27,11 @@ RSpec.describe FeedFetcher do
     it "content:encoded が無ければ description を本文にする" do
       described_class.new(feed).call
       expect(feed.articles.find_by!(guid: "rss-2").content).to eq("2 件目の概要だけ（content:encoded なし）")
+    end
+
+    it "guid・日付・本文の無い item は url を guid にして nil のまま保存する" do
+      described_class.new(feed).call
+      expect(feed.articles.find_by!(url: "https://fixtures.example.com/rss/3")).to have_attributes(guid: "https://fixtures.example.com/rss/3", published_at: nil, content: nil)
     end
 
     it "feeds に試行時刻・ETag・Last-Modified を残し、last_error を消す" do
@@ -49,6 +55,19 @@ RSpec.describe FeedFetcher do
       described_class.new(feed).call
       feed.articles.update_all(guid: "old-guid")
       expect { described_class.new(feed).call }.not_to change(Article, :count)
+    end
+
+    it "同じ url が別のフィードにあれば作らない（url は全体で一意）" do
+      create(:article, url: "https://fixtures.example.com/rss/1")
+      described_class.new(feed).call
+      expect(feed.articles.pluck(:guid)).to contain_exactly("rss-2", "https://fixtures.example.com/rss/3")
+    end
+
+    it "重なった Job に先を越されても（url の一意制約）落ちずに飛ばす" do
+      allow(Article).to receive(:exists?).and_return(false)
+      described_class.new(feed).call
+      expect { described_class.new(feed).call }.not_to raise_error
+      expect(feed.reload.last_error).to be_nil
     end
 
     it "既存の記事は更新しない（要約と読了を守る）" do
@@ -98,8 +117,22 @@ RSpec.describe FeedFetcher do
       stub_feed(status: 301, body: "", headers: { "Location" => "https://fixtures.example.com/moved.xml" })
       stub_request(:get, "https://fixtures.example.com/moved.xml").to_return(status: 200, body: rss)
 
-      expect { described_class.new(feed).call }.to change(Article, :count).by(2)
+      expect { described_class.new(feed).call }.to change(Article, :count).by(3)
       expect(feed.reload.last_error).to be_nil
+    end
+
+    it "相対パスの Location も追う" do
+      stub_feed(status: 302, body: "", headers: { "Location" => "/moved.xml" })
+      stub_request(:get, "https://fixtures.example.com/moved.xml").to_return(status: 200, body: rss)
+
+      expect { described_class.new(feed).call }.to change(Article, :count).by(3)
+    end
+
+    it "Location の無い 3xx は HTTP エラーとして残す" do
+      stub_feed(status: 301, body: "")
+
+      described_class.new(feed).call
+      expect(feed.reload.last_error).to eq("サーバーエラー (HTTP 301)")
     end
 
     it "上限を超えたら失敗として記録する" do
@@ -123,18 +156,34 @@ RSpec.describe FeedFetcher do
       end
     end
 
-    it "接続エラー（タイムアウト）は例外名つきで残す" do
+    it "接続エラー（タイムアウト・DNS・切断）は例外名つきで残す" do
       stub_request(:get, feed.url).to_timeout
-
       described_class.new(feed).call
-      expect(feed.reload.last_error).to start_with("接続エラー (")
+      expect(feed.reload.last_error).to eq("接続エラー (Net::OpenTimeout)")
+
+      stub_request(:get, feed.url).to_raise(SocketError)
+      described_class.new(feed).call
+      expect(feed.reload.last_error).to eq("接続エラー (SocketError)")
+
+      stub_request(:get, feed.url).to_raise(Errno::ECONNRESET)
+      described_class.new(feed).call
+      expect(feed.reload.last_error).to eq("接続エラー (Errno::ECONNRESET)")
     end
 
-    it "壊れた XML は「フィードを解析できません」" do
-      stub_feed(body: "<html><body>not a feed</body></html>")
+    it "http(s) でない URL は取りに行かず残す" do
+      feed.update!(url: "mailto:nao@example.com")
 
       described_class.new(feed).call
-      expect(feed.reload.last_error).to eq("フィードを解析できません")
+      expect(feed.reload.last_error).to eq("URL が http(s) ではありません")
+    end
+
+    it "フィードでない XML・途中で切れた XML・空の本文は「フィードを解析できません」" do
+      [ "<html><body>not a feed</body></html>", rss[0, rss.length / 2], "" ].each do |body|
+        stub_feed(body: body)
+        described_class.new(feed).call
+        expect(feed.reload.last_error).to eq("フィードを解析できません"), "body: #{body[0, 30].inspect}"
+      end
+      expect(Article.count).to eq(0)
     end
 
     it "想定外の例外はそのまま上げる（Solid Queue の失敗に残す）" do
