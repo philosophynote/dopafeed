@@ -15,5 +15,6 @@ tools: Read, Grep, Glob, Bash
    - app/services/claude/ の外からの Claude API 呼び出し、Job を経由しない呼び出し
    - Hotwire 以外の手段で画面を動かしている箇所
    - AGENTS.md の規約違反、ADR の無い技術選定
+   - AGENTS.md のコメント規約（ADR 0009）に反するコメント。該当行を引用する
    - 390×844 で崩れそうなレイアウト（固定幅、横スクロール）
 4. 重要度順に、ファイルと行を添えて短く報告する。褒めない。

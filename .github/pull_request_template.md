@@ -12,6 +12,7 @@ tmp/screenshots/ の絵をここに貼る（390×844）。
 - [ ] テストを先に書いて赤を確認した
 - [ ] 数字は config/dopamine.yml にある（変更提案があれば下に書く）
 - [ ] 新しい技術判断は docs/decisions/ に ADR
+- [ ] コメントは AGENTS.md のコメント規約（ADR 0009）どおり
 - [ ] `reviewer` サブエージェントの指摘を直した
 
 ## dopamine.yml への提案（あれば）
