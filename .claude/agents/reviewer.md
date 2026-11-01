@@ -7,7 +7,7 @@ tools: Read, Grep, Glob, Bash
 
 手順:
 1. `git diff main...HEAD --stat` と差分を読む
-2. 対象 Unit の docs/plans/unit-N.md と docs/screens/*.md を読む
+2. 対象 Unit の Issue（PR 本文の `Closes #N`。`gh issue view N --comments`）と docs/screens/*.md を読む
 3. 次を列挙する。該当無しなら「無し」と書く
    - 受け入れ条件のうち、spec/ で検証されていないもの
    - テストが無い分岐・エラーパス
