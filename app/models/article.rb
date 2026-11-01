@@ -1,5 +1,6 @@
 # フィードから取り込んだ記事。
-# summary は Claude の 3 行要約（Unit 4 の Job が付ける）、content はフィードの entry 本文（{FeedFetcher} が付ける。HTML のまま。記事ページの本文取得は Unit 3b）。
+# summary は Claude の 3 行要約（Unit 4 の Job が付ける）。content は HTML のまま: まず {FeedFetcher} がフィードの entry 本文を入れ、
+# {ArticleContentFetcher} が記事ページの本文で置き換える（content_fetched_at は試行時刻、content_error が nil なら成功）。
 # guid はフィード内の重複排除の鍵（entry_id、無ければ url。[feed_id, guid] は一意）。既存の記事は取得で更新しない。
 # いいね・保存は一人用なので記事に直接残す（liked_at / bookmarked_at）。読了は {Reading}（1 記事 1 行）。ADR 0006
 #

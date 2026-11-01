@@ -48,6 +48,7 @@ personas.yml: なし
 ## 未決
 1. 推定読了時間の算出（本文文字数が要る。Unit 2 で本文列を持つか）
    → **Unit 2**: `articles.content`（readability の本文）を足した。文字数 ÷ 定数の定数は鍵が無い（提案: `read.chars_per_minute`）
+   → **Unit 3b**: content は記事ページから readability で抜いた HTML（`ArticleContentFetcher`）。文字数は `Loofah.fragment(content).text` で数える。失敗した記事はフィードの抜粋のまま（`content_error` あり）
 2. 完読の下限。モックは 60 秒、dopamine.yml は 20 秒。yml が正（変えるなら PR で提案）
 3. 要約の金額「約 ¥0.3」を画面に出すか（出さない案。コストは Learning に集約）
 4. 「ひとこと要約」の保存先（articles に列？ 別テーブル？）と +10 XP の鍵
