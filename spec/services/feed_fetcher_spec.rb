@@ -53,7 +53,7 @@ RSpec.describe FeedFetcher do
 
     it "guid が変わっても url が同じなら増えない" do
       described_class.new(feed).call
-      feed.articles.update_all(guid: "old-guid")
+      feed.articles.each_with_index { |article, i| article.update_column(:guid, "old-guid-#{i}") }
       expect { described_class.new(feed).call }.not_to change(Article, :count)
     end
 
@@ -63,11 +63,18 @@ RSpec.describe FeedFetcher do
       expect(feed.articles.pluck(:guid)).to contain_exactly("rss-2", "https://fixtures.example.com/rss/3")
     end
 
-    it "重なった Job に先を越されても（url の一意制約）落ちずに飛ばす" do
+    it "重なった Job に先を越されても（url と [feed_id, guid] の一意制約）落ちずに飛ばす" do
+      create(:article, feed: feed, guid: "rss-1", url: "https://fixtures.example.com/rss/1-moved")
+      create(:article, url: "https://fixtures.example.com/rss/2")
       allow(Article).to receive(:exists?).and_return(false)
-      described_class.new(feed).call
-      expect { described_class.new(feed).call }.not_to raise_error
+      allow(feed.articles).to receive(:exists?).and_return(false)
+
+      result = nil
+      expect { result = described_class.new(feed).call }.not_to raise_error
+      expect(result).to have_attributes(status: :updated, created: 1)
       expect(feed.reload.last_error).to be_nil
+      expect(feed.articles.where(guid: "rss-1").count).to eq(1)
+      expect(Article.where(url: "https://fixtures.example.com/rss/2").count).to eq(1)
     end
 
     it "既存の記事は更新しない（要約と読了を守る）" do
