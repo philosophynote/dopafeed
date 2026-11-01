@@ -2,7 +2,7 @@
 # scheme の検査、リダイレクトの追従、2xx / 304 以外と接続エラーを {Error} に畳む（文言は feeds.last_error / articles.content_error にそのまま残る）。
 # 時間を置けば通るかもしれない失敗（408・429・5xx・接続エラー）は {TransientError}。呼ぶ側が待ってやり直すか決める。
 # content_types を渡すと、2xx でも Content-Type が合わない応答は本文を読まずに {UnexpectedContentType}（巨大な PDF や動画をメモリに載せない）。
-# タイムアウトは Net::HTTP の既定（open / read 各 60 秒。PR 本文の提案欄）。本文サイズの上限と SSRF 対策は #23
+# タイムアウトは dopamine.yml の fetch.timeout_seconds（接続・読み取りとも）。本文サイズの上限と SSRF 対策は #23
 class HttpGet
   # 記録して終わりにする失敗（HTTP エラー、不正な URL）
   class Error < StandardError; end
@@ -48,7 +48,7 @@ class HttpGet
   def get(uri, redirects = 0)
     raise Error, "URL が http(s) ではありません" unless SCHEMES.include?(uri.scheme)
 
-    response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https") do |http|
+    response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", open_timeout: timeout, read_timeout: timeout) do |http|
       http.request(Net::HTTP::Get.new(uri, @headers)) do |res|
         raise UnexpectedContentType, res.content_type.to_s if res.is_a?(Net::HTTPSuccess) && unexpected_content_type?(res)
 
@@ -72,6 +72,11 @@ class HttpGet
   end
 
   private
+
+  # @return [Integer] 接続と読み取りそれぞれの待ち時間（秒）。dopamine.yml の fetch.timeout_seconds
+  def timeout
+    Dopamine.settings.dig(:fetch, :timeout_seconds)
+  end
 
   # @param response [Net::HTTPResponse]
   # @return [Boolean] content_types が指定されていて、応答の Content-Type（大文字小文字を無視）がそこに無い

@@ -12,6 +12,17 @@ RSpec.describe HttpGet do
     expect(a_request(:get, url).with(headers: { "User-Agent" => described_class::USER_AGENT, "If-None-Match" => '"v1"' })).to have_been_made
   end
 
+  it "接続・読み取りの待ち時間は dopamine.yml の fetch.timeout_seconds" do
+    seconds = Dopamine.settings.dig(:fetch, :timeout_seconds)
+    expect(seconds).to be_a(Integer)
+    stub_request(:get, url).to_return(status: 200, body: "ok")
+    allow(Net::HTTP).to receive(:start).and_call_original
+
+    described_class.call(url)
+
+    expect(Net::HTTP).to have_received(:start).with("fixtures.example.com", 443, hash_including(open_timeout: seconds, read_timeout: seconds))
+  end
+
   it "304 もそのまま返す" do
     stub_request(:get, url).to_return(status: 304, body: "")
     expect(described_class.call(url)).to be_a(Net::HTTPNotModified)

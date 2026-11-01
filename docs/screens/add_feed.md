@@ -29,6 +29,6 @@ personas.yml: なし
 
 ## 未決
 1. 「クリップボードから貼り付け」は iOS Safari で navigator.clipboard.readText が許可を求める。無ければ入力だけ
-2. 取得のタイムアウト（モックには無い。提案: `fetch.timeout_seconds: 10`）と再試行（Unit 3 の取得 Job と共通化）。Unit 3 は Net::HTTP の既定タイムアウトのまま、再試行は次の定期実行に任せた（retry_on なし）
+2. 取得のタイムアウト（モックには無い。提案: `fetch.timeout_seconds: 10`）と再試行（Unit 3 の取得 Job と共通化）。→ **Unit 3b**: `fetch.timeout_seconds: 10` を dopamine.yml に入れた（nao 承認、PR #26）。`HttpGet` が接続・読み取りの両方に使う。再試行は 408・429・5xx・接続エラーだけ Job の retry_on（既定の回数・間隔）
 3. おすすめ 6 件を yml に持つか固定文か（数字ではないので固定でよい）
 4. URL 入力を受けるときの守り（Unit 3 の reviewer 指摘）: `FeedFetcher` は scheme を http(s) に限るだけで、ループバック・リンクローカルへのリダイレクトと本文サイズの上限は持たない。一人用で登録者が nao だけの間は刺さらないが、この画面を作る Unit で入れる
