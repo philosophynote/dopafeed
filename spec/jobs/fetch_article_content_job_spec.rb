@@ -47,12 +47,12 @@ RSpec.describe FetchArticleContentJob, type: :job do
   end
 
   it "記事が見つからなければ待ってやり直し（本番は記事のコミットより先にワーカーが取ることがある）、尽きたら捨てる" do
-    described_class.perform_later(article)
     article.destroy!
 
+    # ブロック形なら、やり直しで積まれた Job も待ち時間なしで続けて走る
     log = StringIO.new
     with_rails_logger(ActiveSupport::Logger.new(log)) do
-      expect { perform_enqueued_jobs }.not_to raise_error
+      expect { perform_enqueued_jobs { described_class.perform_later(article) } }.not_to raise_error
     end
     expect(log.string).to include("[feeds] FetchArticleContentJob discarded:")
     expect(enqueued_jobs).to be_empty
