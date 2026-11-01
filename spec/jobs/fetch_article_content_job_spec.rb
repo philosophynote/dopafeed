@@ -46,10 +46,15 @@ RSpec.describe FetchArticleContentJob, type: :job do
     expect(described_class.host_of(build(:article, url: "not a url"))).to eq("not a url")
   end
 
-  it "積んだ後に記事が消えていたら捨てる" do
+  it "記事が見つからなければ待ってやり直し（本番は記事のコミットより先にワーカーが取ることがある）、尽きたら捨てる" do
     described_class.perform_later(article)
     article.destroy!
 
-    expect { perform_enqueued_jobs }.not_to raise_error
+    log = StringIO.new
+    with_rails_logger(ActiveSupport::Logger.new(log)) do
+      expect { perform_enqueued_jobs }.not_to raise_error
+    end
+    expect(log.string).to include("[feeds] FetchArticleContentJob discarded:")
+    expect(enqueued_jobs).to be_empty
   end
 end
