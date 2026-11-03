@@ -12,9 +12,12 @@ RSpec.describe "Readings", type: :request do
     Capybara.string(response.body)
   end
 
-  it "未ログインなら読む・戻る・ReadDone はログイン画面へ" do
+  it "未ログインなら読む・戻る・ReadDone・Jackpot はログイン画面へ" do
     article = create(:article)
     post article_reading_path(article)
+    expect(response).to redirect_to(new_session_path)
+
+    get jackpot_reading_path(create(:reading, tier: Dopamine.jackpot_tier[:name]))
     expect(response).to redirect_to(new_session_path)
   end
 
@@ -70,6 +73,131 @@ RSpec.describe "Readings", type: :request do
 
         expect(response).to redirect_to(article.url)
         expect(article.reading.reload.attributes).to eq(before)
+      end
+    end
+
+    describe "Roulette（Turbo の POST /articles/:id/reading）" do
+      let(:tiers) { settings.dig(:xp, :tiers) }
+      let(:duration) { settings.dig(:xp, :roulette_duration_ms) }
+      let(:jackpot) { Dopamine.jackpot_tier }
+      let(:rare) { tiers.find { |tier| tier[:multiplier] > 1 && tier != jackpot } }
+
+      def post_turbo(article)
+        post article_reading_path(article), headers: { "Accept" => "text/vnd.turbo-stream.html, text/html" }
+      end
+
+      # turbo-stream の中身は <template> に包まれ、HTML4 の parser は template の子を捨てるので外して読む
+      def page
+        Capybara.string(response.body.gsub(%r{</?template>}, ""))
+      end
+
+      it "モーダルを #roulette に差し込む。出目の帯・出目表・長さは yml から組み、止まったら記事へのリンクを持つ" do
+        article = create(:article, url: "https://example.com/a")
+        allow(XpRoulette).to receive(:draw).and_return(common)
+
+        travel_to(noon) { post_turbo(article) }
+
+        expect(response).to have_http_status(:ok)
+        expect(response.media_type).to eq("text/vnd.turbo-stream.html")
+        expect(page).to have_css("turbo-stream[action='update'][target='roulette']")
+        expect(page).to have_css("[data-controller='roulette'][data-roulette-duration-value='#{duration}'][data-tier='#{common}']")
+        expect(page).to have_text("「読む」を押した #{duration / 1000.0} 秒間")
+        tiers.each do |tier|
+          xp = base * tier[:multiplier]
+          expect(page).to have_css(".roulette-strip li[data-tier='#{tier[:name]}']", text: "+#{xp} XP", minimum: 2)
+          expect(page).to have_css("table tr[data-tier='#{tier[:name]}']", text: /#{(tier[:probability] * 100).round}%.*×#{tier[:multiplier]}.*\+#{xp} XP/m)
+        end
+        expect(page).to have_css("table tr[data-tier='#{common}'][data-selected]")
+        expect(page).to have_css("table tr[data-selected]", count: 1)
+        link = page.find_link("記事を開く", href: "https://example.com/a")
+        expect(link["data-turbo"]).to eq("false")
+        expect(link["data-action"]).to eq("click->reading-return#opened")
+        expect(page).to have_no_text("ボーナス ×")
+        expect(article.reload.reading.opened_at).to eq(noon)
+      end
+
+      it "rare なら「掘り出し物ボーナス ×K → 合計 +M XP」が出る（K・M は yml）" do
+        allow(XpRoulette).to receive(:draw).and_return(rare[:name])
+
+        post_turbo(create(:article))
+
+        expect(page).to have_text("掘り出し物ボーナス ×#{rare[:multiplier]} → 合計 +#{base * rare[:multiplier]} XP")
+        expect(page).to have_css("table tr[data-tier='#{rare[:name]}'][data-selected]")
+      end
+
+      it "jackpot ならリンク先は Jackpot 画面で、記事へは直接出ない" do
+        allow(XpRoulette).to receive(:draw).and_return(jackpot[:name])
+        article = create(:article)
+
+        post_turbo(article)
+
+        link = page.find_link("ジャックポットへ", href: jackpot_reading_path(article.reload.reading))
+        expect(link["data-turbo"]).to be_nil
+        expect(link["data-action"]).to be_nil
+        expect(page).to have_no_link("記事を開く")
+      end
+
+      it "未完のまま再び読むと再抽選せず、前回の出目で止まる" do
+        article = create(:article)
+        create(:reading, article: article, tier: rare[:name], opened_at: noon - 1.hour, returned_at: noon - 1.hour + 5.seconds)
+        expect(XpRoulette).not_to receive(:draw)
+
+        post_turbo(article)
+
+        expect(page).to have_css("[data-controller='roulette'][data-tier='#{rare[:name]}']")
+        expect(Reading.count).to eq(1)
+      end
+
+      it "通常の POST（JS 無し）は今までどおり記事へ redirect" do
+        article = create(:article, url: "https://example.com/a")
+        allow(XpRoulette).to receive(:draw).and_return(common)
+
+        post article_reading_path(article)
+
+        expect(response).to redirect_to("https://example.com/a")
+      end
+    end
+
+    describe "Jackpot（GET /readings/:id/jackpot）" do
+      let(:jackpot) { Dopamine.jackpot_tier }
+
+      it "全画面に JACKPOT・XP（base × multiplier）・確率・記事・「受け取って読む」。閉じるは無い" do
+        article = create(:article, title: "当たり記事", url: "https://example.com/j", feed: create(:feed, title: "Ruby Weekly"))
+        reading = create(:reading, article: article, tier: jackpot[:name], opened_at: noon)
+
+        get jackpot_reading_path(reading)
+
+        expect(response).to have_http_status(:ok)
+        expect(page).to have_css("[role='dialog'][aria-label='ジャックポット']", text: "JACKPOT")
+        expect(page).to have_text("+#{base * jackpot[:multiplier]}")
+        expect(page).to have_text("XP ・ 通常 #{base} の #{jackpot[:multiplier]} 倍")
+        expect(page).to have_text("#{(jackpot[:probability] * 100).round}% のジャックポット")
+        expect(page).to have_text("Ruby Weekly")
+        expect(page).to have_text("当たり記事")
+        button = page.find_link("受け取って読む", href: "https://example.com/j")
+        expect(button["data-turbo"]).to eq("false")
+        expect(button["data-action"]).to eq("click->reading-return#opened")
+        expect(page).to have_css("form.hidden[action='#{return_readings_path}'][data-reading-return-target='form']", visible: :all)
+        expect(page).to have_no_link("閉じる")
+        expect(page).to have_no_button("閉じる")
+      end
+
+      it "完読済みでも開ける（戻るで Main に帰っても結果は保持され、再び読めば同じ画面）" do
+        reading = create(:reading, :completed, tier: jackpot[:name], opened_at: noon)
+        get jackpot_reading_path(reading)
+        expect(response).to have_http_status(:ok)
+        expect(page).to have_text("JACKPOT")
+      end
+
+      it "jackpot でない行なら Main へ" do
+        reading = create(:reading, tier: common, opened_at: noon)
+        get jackpot_reading_path(reading)
+        expect(response).to redirect_to(root_path)
+      end
+
+      it "無い行なら 404" do
+        get jackpot_reading_path(0)
+        expect(response).to have_http_status(:not_found)
       end
     end
 
@@ -235,13 +363,14 @@ RSpec.describe "Readings", type: :request do
         end
       end
 
-      it "カードの「読む」は Turbo を切った POST で、送るときに reading-return に印を付ける" do
+      it "カードの「読む」は Turbo の POST（モーダルを受ける）。記事へ出る印は submit ではなくモーダルのリンクが付ける" do
         article = create(:article)
         get root_path
         form = page.find("form[action='#{article_reading_path(article)}']")
-        expect(form["data-turbo"]).to eq("false")
-        expect(form["data-action"]).to eq("submit->reading-return#opened")
+        expect(form["data-turbo"]).to be_nil
+        expect(form["data-action"]).to be_nil
         expect(form).to have_button("読む")
+        expect(page).to have_css("main[data-controller='reading-return'] #roulette")
       end
 
       it "Main と ReadDone は画面全体を reading-return が包み、戻りの合図で送る隠し form を持つ" do

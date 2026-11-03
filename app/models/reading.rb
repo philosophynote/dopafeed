@@ -29,6 +29,11 @@ class Reading < ApplicationRecord
     completed_at.present?
   end
 
+  # 抽選の頂点を引いたか。頂点は {Dopamine.jackpot_tier}（倍率が最も高い出目）
+  def jackpot?
+    tier == Dopamine.jackpot_tier[:name]
+  end
+
   # 記事を開いてアプリに戻るまでの秒数
   #
   # @return [Integer, nil] 戻っていなければ nil

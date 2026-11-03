@@ -9,15 +9,6 @@ RSpec.describe "ReadDone", type: :system do
 
   before { allow(XpRoulette).to receive(:draw).and_return(common) }
 
-  def sign_in
-    user = create(:user)
-    visit new_session_path
-    fill_in "email_address", with: user.email_address
-    fill_in "password", with: "password"
-    click_on "Sign in"
-    expect(page).to have_current_path(root_path)
-  end
-
   def article_on_this_server
     create(:article, title: "読む記事", url: "#{Capybara.current_session.server.base_url}/up")
   end

@@ -4,15 +4,6 @@ RSpec.describe "Main", type: :system do
   let(:reset_hour) { Dopamine.settings.dig(:daily_goal, :reset_hour) }
   let(:noon) { Time.zone.local(2026, 10, 20, reset_hour) + 8.hours }
 
-  def sign_in
-    user = create(:user)
-    visit new_session_path
-    fill_in "email_address", with: user.email_address
-    fill_in "password", with: "password"
-    click_on "Sign in"
-    expect(page).to have_current_path(root_path)
-  end
-
   it "未読 3 本と今日のゴール 3 / N が出て、横スクロールが無く、タップ領域は 44px 以上" do
     feed = create(:feed, title: "Ruby Weekly")
     3.times { |i| create(:article, feed: feed, title: "記事 #{i + 1} のとても長い見出しが 390 幅で折り返されること", published_at: noon - i.hours) }
