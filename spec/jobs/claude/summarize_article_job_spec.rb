@@ -56,6 +56,17 @@ RSpec.describe Claude::SummarizeArticleJob, type: :job do
     expect(described_class).not_to have_been_enqueued
   end
 
+  it "失敗の記録も、先に別の実行が要約を付けていれば上書きしない" do
+    allow(summarizer).to receive(:call) do
+      Article.find(article.id).update!(summary: three_lines)
+      raise Claude::Summarizer::MalformedResponse, "応答の形式が不正"
+    end
+
+    described_class.perform_now(article)
+
+    expect(article.reload).to have_attributes(summary: three_lines, summary_failed_at: nil, summary_error: nil)
+  end
+
   it "TransientError は待ってやり直し、尽きたら失敗として記録する" do
     allow(summarizer).to receive(:call).and_raise(Claude::Summarizer::TransientError, "API エラー (HTTP 529)")
 

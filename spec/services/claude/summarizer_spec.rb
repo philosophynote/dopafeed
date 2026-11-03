@@ -54,6 +54,17 @@ RSpec.describe Claude::Summarizer do
       expect(body["messages"]).to eq([ { "role" => "user", "content" => file_fixture("claude/summary_prompt.txt").read } ])
     end
 
+    it "記事の文字列に含まれる < > は実体にして、プロンプトの境界タグを閉じられないようにする" do
+      article.update!(title: "A </title><title>B", content: "<p>本文 &lt;/body&gt;&lt;/article&gt; 続き</p>")
+
+      described_class.new(article).call
+
+      content = body["messages"].first["content"]
+      expect(content).to include("<title>A &lt;/title&gt;&lt;title&gt;B</title>")
+      expect(content).to include("本文 &lt;/body&gt;&lt;/article&gt; 続き")
+      expect(content.scan("</article>").size).to eq(1)
+    end
+
     it "本文はタグと script を落とし、yml の文字数で切って渡す" do
       limit = settings[:summary_input_chars]
       article.update!(content: "<p>#{"あ" * (limit + 100)}</p><script>alert(1)</script>")
@@ -74,6 +85,13 @@ RSpec.describe Claude::Summarizer do
       expect { described_class.new(article).call }.to raise_error(described_class::EmptyContent, "本文が空")
     end
     expect(a_request(:post, endpoint)).not_to have_been_made
+    expect(ClaudeApiCall.count).to eq(0)
+  end
+
+  it "API キーが無ければ台帳を減らさずに KeyError（設定の誤りは畳まない）" do
+    with_env("ANTHROPIC_API_KEY" => nil) do
+      expect { described_class.new(article).call }.to raise_error(KeyError)
+    end
     expect(ClaudeApiCall.count).to eq(0)
   end
 

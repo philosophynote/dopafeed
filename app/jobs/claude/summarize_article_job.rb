@@ -14,7 +14,7 @@ module Claude
     end
 
     retry_on Summarizer::TransientError, wait: :polynomially_longer do |job, error|
-      job.arguments.first.update!(summary_failed_at: Time.current, summary_error: error.message)
+      record_failure(job.arguments.first, error.message)
     end
 
     limits_concurrency key: ->(article) { article.id }
@@ -29,7 +29,14 @@ module Claude
     rescue Summarizer::TransientError
       raise
     rescue Summarizer::Error => e
-      article.update!(summary_failed_at: Time.current, summary_error: e.message)
+      self.class.record_failure(article, e.message)
+    end
+
+    # 失敗の記録も、先に要約を付けた実行があれば上書きしない
+    def self.record_failure(article, message)
+      article.with_lock do
+        article.update!(summary_failed_at: Time.current, summary_error: message) if article.summary.blank?
+      end
     end
   end
 end

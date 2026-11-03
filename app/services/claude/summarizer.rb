@@ -36,6 +36,7 @@ module Claude
       text = input_text
       raise EmptyContent, "本文が空" if text.blank?
 
+      client # API キーの無い箱で台帳だけ減っていかないよう、記録の前に作る
       budget.record!(purpose: PURPOSE, model: model)
       parse(request(text))
     end
@@ -80,8 +81,14 @@ module Claude
       PROMPTS.join("summary_system.txt").read.strip
     end
 
+    # 記事の文字列はタグで囲んで渡すので、中の < > を実体にして境界を偽装できなくする（& や引用符はコード片の読みやすさのため残す）
     def user_prompt(text)
-      ERB.new(PROMPTS.join("summary.erb").read, trim_mode: "-").result_with_hash(title: article.title, url: article.url, content: text)
+      ERB.new(PROMPTS.join("summary.erb").read, trim_mode: "-")
+         .result_with_hash(title: escape(article.title), url: escape(article.url), content: escape(text))
+    end
+
+    def escape(string)
+      string.to_s.gsub("<", "&lt;").gsub(">", "&gt;")
     end
 
     def model
