@@ -5,6 +5,10 @@ module SystemScreen
   SCREEN_SIZE = [ 390, 844 ].freeze
   # スクショの保存先
   SCREENSHOT_DIR = Rails.root.join("tmp/screenshots")
+  # chromedriver からの応答を待つ上限（秒）。Selenium の既定は 120 秒で、ブラウザが応答しなくなると
+  # 残りの例と after（スクショ・reset）の 1 操作ごとにこれだけ待ち、CI が数十分になる。
+  # 正常な操作は Chrome の起動を含めても数秒なので、短くして失敗の報告まで早く着かせる
+  DRIVER_READ_TIMEOUT_SECONDS = 20
   # iPhone Safari の UA。standalone 判定などで iOS 向けの分岐を踏ませる
   IPHONE_USER_AGENT = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1".freeze
 
@@ -96,7 +100,8 @@ RSpec.configure do |config|
   config.include SystemScreen, type: :system
 
   config.before(:each, type: :system) do
-    driven_by :selenium, using: :headless_chrome, screen_size: SystemScreen::SCREEN_SIZE do |options|
+    http_client = Selenium::WebDriver::Remote::Http::Default.new(read_timeout: SystemScreen::DRIVER_READ_TIMEOUT_SECONDS)
+    driven_by :selenium, using: :headless_chrome, screen_size: SystemScreen::SCREEN_SIZE, options: { http_client: http_client } do |options|
       # window-size だけだとブラウザ枠の分だけ viewport が狭くなる。端末エミュレーションで CSS 幅を 390 に固定する
       options.add_emulation(
         device_metrics: { width: SystemScreen::SCREEN_SIZE[0], height: SystemScreen::SCREEN_SIZE[1], pixelRatio: 3, touch: true },
