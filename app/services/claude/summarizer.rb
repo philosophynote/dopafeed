@@ -2,7 +2,7 @@ module Claude
   # 記事 1 本を日本語 3 行に要約する。SDK を呼ぶのはここだけで、呼ぶ前に {Budget} の台帳を 1 行進める。
   # DB には書かない。入出力は文字列と例外で、保存と失敗の記録は Job の仕事。
   # 本文はタグを落として先頭の summary_input_chars 文字だけ渡す（長文はトークン代が嵩むわりに 3 行の質が上がらない）。
-  # 応答は「・」で始まる 3 行以外を受け付けない。崩れた応答を保存して画面を崩すより、失敗として残して人の目に触れる方がよい。
+  # 応答は「・」で始まる 3 行以外を受け付けない。崩れた応答を保存して読む側を崩すより、失敗として残して人の目に触れる方がよい。
   # SDK の例外はここで自前の例外に畳む。Job とモデルは Anthropic:: を知らない
   class Summarizer
     # 記録して終わりにする失敗（本文なし・形式不正・4xx・SDK の設定や変換の失敗）
@@ -16,7 +16,7 @@ module Claude
 
     PURPOSE = "summary".freeze
     BULLET = "・".freeze
-    # 要約の行数。画面が 3 行を前提に組む（docs/SPEC.md）。報酬の数字ではないので dopamine.yml には置かない。
+    # 要約の行数。docs/SPEC.md が 3 行と定め、読む側もそれを前提に組む。報酬の数字ではないので dopamine.yml には置かない。
     # prompts/summary_system.txt の「3 行」と対で、変えるなら両方
     LINES = 3
     PROMPTS = Rails.root.join("app/services/claude/prompts")

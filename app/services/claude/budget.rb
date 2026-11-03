@@ -7,7 +7,7 @@ module Claude
     attr_reader :limit
 
     def self.default_limit
-      Rails.application.config_for(:dopamine).dig(:claude, :daily_call_limit)
+      Dopamine.settings.dig(:claude, :daily_call_limit)
     end
 
     def initialize(limit: self.class.default_limit)
