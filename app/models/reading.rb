@@ -9,6 +9,9 @@
 # @!method self.on(day)
 #   その読書日（{ReadingDay}）に完読した行
 #   @return [ActiveRecord::Relation<Reading>]
+# @!method self.pending
+#   開いたまま戻っていない行。新しく開いた順
+#   @return [ActiveRecord::Relation<Reading>]
 class Reading < ApplicationRecord
   belongs_to :article
 
@@ -20,6 +23,7 @@ class Reading < ApplicationRecord
 
   scope :completed, -> { where.not(completed_at: nil) }
   scope :on, ->(day) { completed.where(completed_at: ReadingDay.range(day)) }
+  scope :pending, -> { where(returned_at: nil).order(opened_at: :desc) }
 
   def completed?
     completed_at.present?
@@ -35,7 +39,7 @@ class Reading < ApplicationRecord
   end
 
   # 記事から戻った。滞在が read.complete_after_seconds 以上なら完読として XP を確定する。
-  # 2 回目以降の戻りは無視する（1 記事 1 回。visibilitychange と pageshow が両方飛んでも二重に付けない）。
+  # 2 回目以降の戻りは無視する（1 記事 1 回。ADR 0006）。
   # 未完なら returned_at だけ残し、xp は 0 のまま未読に戻る
   #
   # @param at [Time] 戻った時刻。サーバーの時計で決める（端末の時計は信用しない）
@@ -64,8 +68,6 @@ class Reading < ApplicationRecord
   end
 
   # 完読ボーナス = xp.base × ルーレットの倍率。コンボを掛ける前の値
-  #
-  # @return [Integer]
   def base_xp
     Dopamine.settings.dig(:xp, :base) * Dopamine.tier(tier)[:multiplier]
   end

@@ -25,7 +25,8 @@
   </head>
 
   <body class="min-h-dvh bg-gray-100 text-gray-900 antialiased">
-    <main class="mx-auto w-full max-w-md px-4 pt-4 pb-24">
+    <%# reading-return は「読む」の form と読了を記録する form の両方を見るので、画面全体を包む %>
+    <main class="mx-auto w-full max-w-md px-4 pt-4 pb-24" data-controller="reading-return">
       <%= yield %>
     </main>
   </body>

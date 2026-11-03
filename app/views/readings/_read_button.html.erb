@@ -1,2 +1,3 @@
-<%# 「読む」。Turbo を切った通常の POST で Reading を作り、記事の URL へ redirect させる（iPhone の standalone ではアプリ内シートが開く） %>
-<%= button_to "読む", article_reading_path(article), form: { data: { turbo: false } }, class: "inline-flex h-11 min-w-24 items-center justify-center rounded-full bg-orange-500 px-5 text-sm font-bold text-white active:bg-orange-600" %>
+<%# 「読む」。Turbo を切った通常の POST で Reading を作り、記事の URL へ redirect させる（iPhone の standalone ではアプリ内シートが開く）。
+    submit で reading-return に印を付け、戻ってきたときに読了を記録してもらう %>
+<%= button_to "読む", article_reading_path(article), form: { data: { turbo: false, action: "submit->reading-return#opened" } }, class: "inline-flex h-11 min-w-24 items-center justify-center rounded-full bg-orange-500 px-5 text-sm font-bold text-white active:bg-orange-600" %>

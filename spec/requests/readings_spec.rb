@@ -47,6 +47,21 @@ RSpec.describe "Readings", type: :request do
         expect(reading.tier).to eq(common)
       end
 
+      it "開いたまま戻っていない記事をもう一度読むと opened_at を今にする" do
+        article = create(:article)
+        reading = create(:reading, article: article, tier: common, opened_at: noon - 1.hour)
+
+        travel_to(noon) { post article_reading_path(article) }
+
+        expect(reading.reload.opened_at).to eq(noon)
+        expect(reading.returned_at).to be_nil
+      end
+
+      it "無い記事なら 404" do
+        post article_reading_path(0)
+        expect(response).to have_http_status(:not_found)
+      end
+
       it "完読済みの記事をもう一度読んでも行は変わらず、記事へ redirect するだけ" do
         article = create(:article, :read)
         before = article.reading.attributes
@@ -58,11 +73,11 @@ RSpec.describe "Readings", type: :request do
       end
     end
 
-    describe "戻る（POST /readings/:id/return）" do
+    describe "戻る（POST /readings/return）" do
       it "complete_after_seconds 以上なら完読で XP を確定し、ReadDone へ" do
         reading = create(:reading, tier: common, opened_at: noon)
 
-        travel_to(noon + threshold + 5.seconds) { post return_reading_path(reading) }
+        travel_to(noon + threshold + 5.seconds) { post return_readings_path }
 
         expect(response).to redirect_to(reading_path(reading))
         expect(reading.reload).to be_completed
@@ -72,20 +87,37 @@ RSpec.describe "Readings", type: :request do
       it "未満なら未完で XP 0" do
         reading = create(:reading, tier: common, opened_at: noon)
 
-        travel_to(noon + threshold - 10.seconds) { post return_reading_path(reading) }
+        travel_to(noon + threshold - 10.seconds) { post return_readings_path }
 
         expect(reading.reload).not_to be_completed
         expect(reading.xp).to eq(0)
       end
 
-      it "2 回目は何も変えない" do
+      it "開いた行が無ければ Main へ戻すだけ" do
+        create(:article, :read)
+        post return_readings_path
+        expect(response).to redirect_to(root_path)
+      end
+
+      it "開いたまま戻っていない行が複数あれば最新だけを閉じる" do
+        older = create(:reading, tier: common, opened_at: noon - 1.hour)
+        newer = create(:reading, tier: common, opened_at: noon)
+
+        travel_to(noon + threshold) { post return_readings_path }
+
+        expect(response).to redirect_to(reading_path(newer))
+        expect(newer.reload.returned_at).to be_present
+        expect(older.reload.returned_at).to be_nil
+      end
+
+      it "閉じた後にもう一度送っても行は変わらず Main へ" do
         reading = create(:reading, tier: common, opened_at: noon)
-        travel_to(noon + threshold) { post return_reading_path(reading) }
+        travel_to(noon + threshold) { post return_readings_path }
         first = reading.reload.attributes
 
-        travel_to(noon + 1.hour) { post return_reading_path(reading) }
+        travel_to(noon + 1.hour) { post return_readings_path }
 
-        expect(response).to redirect_to(reading_path(reading))
+        expect(response).to redirect_to(root_path)
         expect(reading.reload.attributes).to eq(first)
       end
     end
@@ -94,7 +126,7 @@ RSpec.describe "Readings", type: :request do
       it "完読なら滞在・判定・XP の内訳・3 行要約・ゴール・次の 1 本が出る" do
         article = create(:article, title: "読んだ記事", summary: "・一\n・二\n・三")
         reading = create(:reading, article: article, tier: common, opened_at: noon)
-        travel_to(noon + 4.minutes + 12.seconds) { post return_reading_path(reading) }
+        travel_to(noon + 4.minutes + 12.seconds) { post return_readings_path }
         create(:article, title: "次の記事", published_at: noon)
 
         get reading_path(reading)
@@ -114,9 +146,26 @@ RSpec.describe "Readings", type: :request do
         expect(page).to have_link("閉じる", href: root_path)
       end
 
+      it "コンボが付いていれば内訳に「コンボ ×C +B XP」の行が出て、合計は完読ボーナス × C" do
+        rare = Dopamine.tier_names.second
+        step = settings.dig(:xp, :combo_multiplier_step)
+        2.times { |i| create(:reading, :completed, opened_at: noon - (i + 1).hours, returned_at: noon - (i + 1).hours + 5.minutes, completed_at: noon - (i + 1).hours + 5.minutes) }
+        reading = create(:reading, tier: rare, opened_at: noon)
+        travel_to(noon + threshold) { post return_readings_path }
+
+        get reading_path(reading)
+
+        multiplier = (1 + step * 2).round(1)
+        bonus = base * Dopamine.tier(rare)[:multiplier]
+        expect(page).to have_text("3 本連続 ・ コンボ ×#{multiplier}")
+        expect(page).to have_text(/完読ボーナス\s*\+#{bonus} XP/)
+        expect(page).to have_text(/コンボ ×#{multiplier}\s*\+#{(bonus * multiplier).round - bonus} XP/)
+        expect(page).to have_text(/合計\s*\+#{(bonus * multiplier).round} XP/)
+      end
+
       it "未完なら判定「未完」で合計 +0 XP" do
         reading = create(:reading, tier: common, opened_at: noon)
-        travel_to(noon + 5.seconds) { post return_reading_path(reading) }
+        travel_to(noon + 5.seconds) { post return_readings_path }
 
         get reading_path(reading)
 
@@ -127,7 +176,7 @@ RSpec.describe "Readings", type: :request do
 
       it "要約が無ければ「要約を準備中」" do
         reading = create(:reading, article: create(:article, :unsummarized), tier: common, opened_at: noon)
-        travel_to(noon + threshold) { post return_reading_path(reading) }
+        travel_to(noon + threshold) { post return_readings_path }
 
         get reading_path(reading)
 
@@ -138,7 +187,7 @@ RSpec.describe "Readings", type: :request do
       it "今日 N 本目の完読なら「読み切った」、未読 0 なら「全部読んだ」" do
         (goal_articles - 1).times { |i| create(:reading, :completed, opened_at: noon - (i + 1).hours) }
         reading = create(:reading, tier: common, opened_at: noon)
-        travel_to(noon + threshold) { post return_reading_path(reading) }
+        travel_to(noon + threshold) { post return_readings_path }
 
         get reading_path(reading)
 
@@ -161,10 +210,11 @@ RSpec.describe "Readings", type: :request do
 
         get root_path
 
-        pill = page.find("form[action='#{return_reading_path(reading)}']")
+        pill = page.find("form[action='#{return_readings_path}']:not(.hidden)")
         expect(pill).to have_text("読みかけ")
         expect(pill).to have_button("読了を記録")
-        expect(pill["data-controller"]).to eq("reading-return")
+        expect(pill["data-action"]).to eq("submit->reading-return#returned")
+        expect(reading.reload.returned_at).to be_nil
       end
 
       it "戻った記事しか無ければピルは出ない" do
@@ -185,12 +235,22 @@ RSpec.describe "Readings", type: :request do
         end
       end
 
-      it "カードの「読む」は Turbo を切った POST" do
+      it "カードの「読む」は Turbo を切った POST で、送るときに reading-return に印を付ける" do
         article = create(:article)
         get root_path
         form = page.find("form[action='#{article_reading_path(article)}']")
         expect(form["data-turbo"]).to eq("false")
+        expect(form["data-action"]).to eq("submit->reading-return#opened")
         expect(form).to have_button("読む")
+      end
+
+      it "Main と ReadDone は画面全体を reading-return が包み、戻りの合図で送る隠し form を持つ" do
+        reading = create(:reading, :completed)
+        [ root_path, reading_path(reading) ].each do |path|
+          get path
+          expect(page).to have_css("main[data-controller='reading-return']")
+          expect(page).to have_css("form.hidden[action='#{return_readings_path}'][data-reading-return-target='form']", visible: :all)
+        end
       end
     end
   end

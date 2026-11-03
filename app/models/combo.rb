@@ -9,7 +9,6 @@ class Combo
     @before = before
   end
 
-  # @return [Integer] 直前まで続いた完読の本数
   def count
     @count ||= Reading.where(returned_at: ReadingDay.range(ReadingDay.of(@before)).begin...@before)
                       .order(returned_at: :desc)

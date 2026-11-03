@@ -5,18 +5,23 @@ class ReadingsController < ApplicationController
     article = Article.find(params[:article_id])
     reading = article.reading || article.build_reading(tier: XpRoulette.draw, opened_at: Time.current)
     reading.new_record? ? reading.save! : reading.reopen!
-    # Turbo を切った通常の POST なので、他オリジンへの redirect で記事そのものが開く（iPhone の standalone ではアプリ内シート）
+    redirect_to article.url, allow_other_host: true
+  rescue ActiveRecord::RecordNotUnique
+    # 二重タップで同じ記事の行が同時に作られたら、先に入った方を使って記事へ進む
     redirect_to article.url, allow_other_host: true
   end
 
+  # 開いたまま戻っていない行のうち最新を閉じる。無ければ Main へ戻すだけ
   def finish
-    reading = Reading.find(params[:id])
+    reading = Reading.pending.first
+    return redirect_to root_path if reading.nil?
+
     reading.return!
     redirect_to reading_path(reading)
   end
 
   def show
-    @reading = Reading.includes(:article).find(params[:id])
+    @reading = Reading.includes(article: :feed).find(params[:id])
     return redirect_to root_path if @reading.returned_at.nil?
 
     @article = @reading.article

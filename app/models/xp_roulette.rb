@@ -2,7 +2,6 @@
 # 倍率は返さない（保存するのは名前だけ、倍率は常に yml から。ADR 0006）
 module XpRoulette
   # @param random [Random] テストで seed を固定するために差し替えられる
-  # @return [String] tier の名前
   def self.draw(random: Random.new)
     tiers = Dopamine.settings.dig(:xp, :tiers)
     roll = random.rand

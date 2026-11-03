@@ -17,8 +17,9 @@ Rails.application.routes.draw do
   resources :articles, only: [] do
     resource :reading, only: :create
   end
-  # return は Ruby の予約語なのでアクション名は finish
+  # return は Ruby の予約語なのでアクション名は finish。
+  # id を取らないのは、戻り先が「読む」を押す前に描いた文書のままで、どの行を開いたか文書が知らないから
   resources :readings, only: :show do
-    post :return, on: :member, action: :finish
+    post :return, on: :collection, action: :finish
   end
 end
