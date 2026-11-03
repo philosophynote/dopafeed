@@ -24,6 +24,8 @@ RSpec.describe "Main", type: :system do
       expect(page).to have_text("今日のゴール 3 / #{goal_articles}")
       expect(page).to have_text("1日連続")
 
+      # CSS が当たっていないと以下の寸法検査が全部落ちて原因が読めないので、先に 1 つのユーティリティで確かめる
+      expect(page.evaluate_script("getComputedStyle(document.body).backgroundColor")).not_to eq("rgba(0, 0, 0, 0)"), "Tailwind の CSS が当たっていない（bin/rails tailwindcss:build を先に）"
       expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "横スクロールが出ている"
       small = page.evaluate_script(<<~JS)
         Array.from(document.querySelectorAll("a, button")).map(el => {
