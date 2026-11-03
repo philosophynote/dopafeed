@@ -1,14 +1,13 @@
 # 読了。1 記事 1 行（ADR 0006）。
 # 「読む」のタップで作られ（opened_at と抽選結果 tier）、記事から戻ると returned_at、完読なら completed_at と xp が入る。
 # tier は名前だけ持つ。倍率・確率は常に config/dopamine.yml から導く。確定した XP だけ xp に数値で残す。
-# XP の計算・抽選・コンボはここに書かない（使う側が受け入れ条件と一緒に持つ）。
+# XP の計算・抽選・コンボはここに書かない。
 #
 # @!method self.completed
 #   完読した行（completed_at あり）
 #   @return [ActiveRecord::Relation<Reading>]
 # @!method self.on(day)
 #   その読書日（{ReadingDay}）に完読した行
-#   @param day [Date] 読書日
 #   @return [ActiveRecord::Relation<Reading>]
 class Reading < ApplicationRecord
   belongs_to :article

@@ -6,7 +6,6 @@ class FetchFeedJob < ApplicationJob
 
   discard_on ActiveJob::DeserializationError
 
-  # @return [FeedFetcher::Result]
   def perform(feed)
     FeedFetcher.new(feed).call
   end

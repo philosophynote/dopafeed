@@ -1,6 +1,6 @@
 # 記事ページの本文を取る Job。{FeedFetcher} が記事を作るたびに 1 本積む。
 # 取得済み（content_fetched_at あり）なら何もしない。4xx・HTML 以外・本文なしは {ArticleContentFetcher} が content_error に残す。
-# 待てば通るかもしれない失敗（{HttpGet::TransientError}: 408・429・5xx・接続エラー）は ActiveJob の既定の回数・間隔で
+# 待てば通るかもしれない失敗（{HttpGet::TransientError}）は ActiveJob の既定の回数・間隔で
 # やり直し、尽きたら失敗として記録する。同じホストへは 1 本ずつ（新しいフィードの初回に 20〜30 本を同時に叩いて 429 にならないため。
 # 待ち時間は Solid Queue の既定）。
 # 記事が見つからない（DeserializationError）のは 2 通り: 本番は queue が別 DB なので記事のコミットより先にワーカーが取ることがある

@@ -2,8 +2,8 @@
 # フィードの entry 本文は Zenn なら抜粋、Hacker News ならほぼ空なので、要約の入力には記事ページの本文が要る。
 # 抜いた本文がフィードの本文より短ければ置き換えない（Zenn の長い抜粋を Cookie バナーで潰さない）。
 # 失敗（HTTP 4xx・HTML 以外・本文なし・文字コード不明）は例外にせず content_error に日本語で残し、content はフィードの本文のまま。
-# 待てば通るかもしれない失敗（{HttpGet::TransientError}）はそのまま上げ、Job が数回やり直してから {#record_failure} する。
-# content_fetched_at は成功・失敗を問わず試行時刻（Job の冪等の鍵。やり直すなら nil に戻す）。
+# {HttpGet::TransientError} は握らずそのまま上げる（やり直すかどうかは Job が決める）。
+# content_fetched_at は失敗でも入れる（Job の冪等の鍵。やり直すなら nil に戻す）。
 # 文字コードは GuessHtmlEncoding で自前で推定して UTF-8 に直す（ruby-readability の推定は RUBY_VERSION 1.9〜3 でしか動かず、本番の Ruby 4 では素通りする）。
 # 想定外の例外（バグ）はそのまま上げ、Solid Queue の失敗に残す
 class ArticleContentFetcher
@@ -28,9 +28,6 @@ class ArticleContentFetcher
   end
 
   # 取得して content を置き換え、articles の取得状態を更新する
-  #
-  # @return [Result]
-  # @raise [HttpGet::TransientError] 待てば通るかもしれない失敗。Job が retry_on で受ける
   def call
     response = HttpGet.call(article.url, headers: { "Accept" => "text/html, application/xhtml+xml" }, content_types: HTML_TYPES)
     content = extract(utf8(response.body.to_s, response["Content-Type"]))
@@ -48,7 +45,6 @@ class ArticleContentFetcher
 
   # 失敗を記録する。content はフィードの本文のまま
   #
-  # @param message [String] content_error に残す文言
   # @return [Result] :failed
   def record_failure(message)
     article.update!(content_fetched_at: Time.current, content_error: message)
@@ -85,7 +81,6 @@ class ArticleContentFetcher
     content
   end
 
-  # @param html [String]
   # @return [String] タグを除いた文字列（& などは実体参照に戻さない）
   def text_of(html)
     Loofah.fragment(html).text(encode_special_chars: false).strip

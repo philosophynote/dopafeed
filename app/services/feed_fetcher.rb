@@ -1,6 +1,6 @@
 # 購読フィードを 1 本取りに行き、新しい記事を作る。
 # 条件付き GET（If-None-Match / If-Modified-Since）で変わっていなければ解析しない。
-# 取得・解析の失敗は例外にせず feeds.last_error に日本語で残す（nil なら前回は成功）。再試行は次の定期実行に任せる。
+# 取得・解析の失敗は例外にせず feeds.last_error に日本語で残す。再試行は次の定期実行に任せる。
 # last_fetched_at は失敗でも更新する（取得が止まっているのか、失敗し続けているのかを見分けるため）。
 # 既存の記事は更新しない（要約と読了を守る）。本文はまず feedjira の entry.content か summary を入れ、記事ごとに {FetchArticleContentJob} を積んで
 # 記事ページの本文で置き換える。HTTP は {HttpGet}。想定外の例外（バグ）はそのまま上げ、Solid Queue の失敗に残す
@@ -52,7 +52,6 @@ class FeedFetcher
 
   # 本文を Feedjira で解析する。Feedjira は途中で切れた XML も黙って entries 空で返すので、先に Nokogiri の strict で閉じを確かめる
   #
-  # @param body [String] 応答本文
   # @return [Feedjira::Parser::RSS, Feedjira::Parser::Atom]
   # @raise [FetchError] XML として壊れている
   # @raise [Feedjira::NoParserAvailable] XML だがフィードではない
@@ -69,7 +68,6 @@ class FeedFetcher
   # 記事の作成と Job の積み込みは 1 トランザクション: 本番は queue が別 DB なので、積めなければ記事ごと戻して次の取得でやり直す
   # （enqueue_after_transaction_commit は false。コミット後に積む設定にするとこの戻しが効かなくなる）
   #
-  # @param parsed [Feedjira::Parser::RSS, Feedjira::Parser::Atom] Feedjira.parse の戻り
   # @return [Integer] 作った記事の数
   def import(parsed)
     parsed.entries.count do |entry|
@@ -96,7 +94,6 @@ class FeedFetcher
     Result.new(status: :not_modified, created: 0, error: nil)
   end
 
-  # @param message [String] last_error に残す文言
   # @return [Result] :failed
   def failed(message)
     feed.update!(last_fetched_at: Time.current, last_error: message)

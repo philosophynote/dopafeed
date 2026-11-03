@@ -26,14 +26,15 @@ RSpec.describe "AGENTS.md の規約" do
   end
 
   it "app/ と lib/ のコメントに工程・画面の語を書かない（ADR 0009）" do
-    # 工程（Unit 番号・陣・別 PR・Issue / PR 番号）は Issue と PR に書く。画面はモデル・サービス・ジョブが知らない。
-    # 「ADR 0002」のような文書参照は通す（#\d の前に PR / Issue か空白が来る形だけ落とす）
-    process = /Unit\s?\d|第.の陣|別\s?PR|(?:PR|Issue)\s?#\d|\s#\d/
+    # 工程（Unit・陣・PR・Issue と、#23 のような番号）は Issue と PR に書く。画面はモデル・サービス・ジョブが知らない。
+    # 「ADR 0002」「1 回」「#{...}」「URL の /#top」は通す。行頭が # のコメントだけ見る（行末コメントと =begin は見ない）
+    process = /\bUnit(?:\s*\d|\b)|陣|\bPR\b|\bIssue\b|(?<![\w\/])#\d/i
     screen = /画面/
     offenders = Dir[Rails.root.join("{app,lib}/**/*.rb")].flat_map do |f|
-      forbidden = f.match?(%r{/(app/(models|services|jobs)|lib)/}) ? Regexp.union(process, screen) : process
+      path = f.delete_prefix("#{Rails.root}/")
+      forbidden = path.match?(%r{\A(app/(models|services|jobs)|lib)/}) ? Regexp.union(process, screen) : process
       File.foreach(f).with_index(1).filter_map do |line, no|
-        "#{f.delete_prefix("#{Rails.root}/")}:#{no}: #{line.strip}" if line.match?(/^\s*#/) && line.match?(forbidden)
+        "#{path}:#{no}: #{line.strip}" if line.match?(/^\s*#/) && line.match?(forbidden)
       end
     end
     expect(offenders).to be_empty, "工程は Issue と PR に、画面名は app/views と docs/screens に書き、コメントには「なぜ」だけ残せ（ADR 0009）:\n#{offenders.join("\n")}"
