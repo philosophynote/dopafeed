@@ -1,4 +1,4 @@
-# 相対時刻（time_ago_in_words）の日本語だけ。既定ロケールは en のまま、必要な箇所で locale: :ja を渡す。
+# 相対時刻（time_ago_in_words）と出目の名前の日本語だけ。既定ロケールは en のまま、必要な箇所で locale: :ja を渡す。
 # rails-i18n を入れて全部を ja にするのは、ActiveRecord のエラー文言まで変わるので別に決める
 ja:
   dopamine:

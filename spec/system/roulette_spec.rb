@@ -59,6 +59,17 @@ RSpec.describe "Roulette", type: :system do
     expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "紙吹雪が横スクロールを生んでいる"
     screenshot!("jackpot")
 
+    # 戻るで Main に帰っても、モーダルは蘇らず、読了も勝手に送られない。結果は保持され、再び読めば同じ Jackpot
+    page.go_back
+    expect(page).to have_current_path(root_path)
+    expect(page).to have_css("article", text: "読む記事")
+    expect(page).to have_no_css("[data-controller='roulette']")
+    expect(page).to have_no_text("読了！")
+    expect(article.reading.reload.returned_at).to be_nil
+    click_on "読む"
+    expect(page).to have_text("JACKPOT")
+    expect(page).to have_current_path(jackpot_reading_path(article.reading))
+
     click_on "受け取って読む"
     expect(page).to have_current_path("/up")
 

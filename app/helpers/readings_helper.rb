@@ -18,8 +18,6 @@ module ReadingsHelper
   end
 
   # 出目の確率を百分率で。0.05 → 5、0.003 → 0.3（整数なら小数を出さない）
-  #
-  # @return [String]
   def tier_percent(tier)
     number_with_precision(tier[:probability] * 100, precision: 1, strip_insignificant_zeros: true)
   end

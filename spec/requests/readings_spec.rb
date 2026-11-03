@@ -148,6 +148,37 @@ RSpec.describe "Readings", type: :request do
         expect(Reading.count).to eq(1)
       end
 
+      # 二重タップで同じ記事の行が同時に作られた: 読み込み時は行が無く、INSERT が一意制約で落ちる
+      def race_on(article, existing_tier:)
+        create(:reading, article: article, tier: existing_tier, opened_at: noon - 1.hour)
+        allow(Article).to receive(:find).and_return(article)
+        allow(article).to receive(:reading).and_return(nil)
+        ghost = Reading.new(article: article, tier: common, opened_at: noon)
+        allow(article).to receive(:build_reading).and_return(ghost)
+        allow(ghost).to receive(:save!).and_raise(ActiveRecord::RecordNotUnique.new("二重タップ"))
+      end
+
+      it "二重タップで行が同時に作られたら、先に入った行の出目でモーダルを返す" do
+        article = create(:article)
+        race_on(article, existing_tier: rare[:name])
+
+        post_turbo(article)
+
+        expect(response).to have_http_status(:ok)
+        expect(page).to have_css("[data-controller='roulette'][data-tier='#{rare[:name]}']")
+        expect(Reading.count).to eq(1)
+      end
+
+      it "二重タップの JS 無し経路も先に入った行を使って記事へ redirect" do
+        article = create(:article, url: "https://example.com/a")
+        race_on(article, existing_tier: common)
+
+        post article_reading_path(article)
+
+        expect(response).to redirect_to("https://example.com/a")
+        expect(Reading.count).to eq(1)
+      end
+
       it "通常の POST（JS 無し）は今までどおり記事へ redirect" do
         article = create(:article, url: "https://example.com/a")
         allow(XpRoulette).to receive(:draw).and_return(common)
