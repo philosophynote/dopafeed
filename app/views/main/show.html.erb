@@ -11,6 +11,10 @@
 
 <%= render "status_card" %>
 
+<% if @pending_reading %>
+  <%= render "pending_reading", reading: @pending_reading %>
+<% end %>
+
 <section class="mt-4" aria-label="記事">
   <% if @articles.empty? %>
     <%= render "empty" %>

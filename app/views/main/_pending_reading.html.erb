@@ -1,0 +1,5 @@
+<%# 開いたが戻っていない記事。記事から戻ると reading-return が自動で送り、JS が無くてもボタンで同じことができる %>
+<%= form_with url: return_reading_path(reading), method: :post, data: { controller: "reading-return" }, class: "mt-3 flex items-center justify-between gap-3 rounded-full bg-white py-2 pl-4 pr-2 shadow-sm" do |form| %>
+  <p class="min-w-0 truncate text-sm text-gray-700">「<%= reading.article.title %>」を読み終えた？</p>
+  <%= form.button "読了を記録", type: :submit, class: "shrink-0 rounded-full bg-orange-500 px-4 py-2.5 text-sm font-bold text-white active:bg-orange-600" %>
+<% end %>

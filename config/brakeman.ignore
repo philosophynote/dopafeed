@@ -1,0 +1,26 @@
+{
+  "ignored_warnings": [
+    {
+      "warning_type": "Redirect",
+      "warning_code": 18,
+      "fingerprint": "33db0a8c91593f72148b879d5abb687f16124ca0cd0eca50f8bb77b69e6c2fe1",
+      "check_name": "Redirect",
+      "message": "Possible unprotected redirect",
+      "file": "app/controllers/readings_controller.rb",
+      "line": 9,
+      "link": "https://brakemanscanner.org/docs/warning_types/redirect/",
+      "code": "redirect_to(Article.find(params[:article_id]).url, :allow_other_host => true)",
+      "render_path": null,
+      "location": {
+        "type": "method",
+        "class": "ReadingsController",
+        "method": "create"
+      },
+      "user_input": "params[:article_id]",
+      "confidence": "Weak",
+      "cwe_id": [601],
+      "note": "記事の URL へ飛ぶのが「読む」の仕様。params は id の検索にだけ使い、URL は DB の articles.url（FeedFetcher が http(s) だけ保存し、Article も format で http(s) に限る）"
+    }
+  ],
+  "brakeman_version": "8.1.0"
+}

@@ -9,5 +9,7 @@ class MainController < ApplicationController
     @today_count = Reading.on(ReadingDay.of).count
     @goal_articles = Dopamine.settings.dig(:daily_goal, :articles)
     @streak_days = ReadingStreak.days
+    @combo_multiplier = Combo.new.multiplier
+    @pending_reading = Reading.where(returned_at: nil).order(opened_at: :desc).includes(:article).first
   end
 end

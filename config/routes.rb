@@ -14,4 +14,11 @@ Rails.application.routes.draw do
   # ログイン後の着地点（after_authentication_url が root_url を使う）
   root "main#show"
   resource :learning, only: :show, controller: :learning
+  resources :articles, only: [] do
+    resource :reading, only: :create
+  end
+  # return は Ruby の予約語なのでアクション名は finish
+  resources :readings, only: :show do
+    post :return, on: :member, action: :finish
+  end
 end
