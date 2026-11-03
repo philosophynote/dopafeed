@@ -78,11 +78,11 @@ RSpec.describe Claude::SummarizeArticleJob, type: :job do
     expect(article.reload).to have_attributes(summary: nil, summary_failed_at: nil, summary_error: nil)
   end
 
-  it "同じ記事の Job が重なったら 2 本目を捨てる（concurrency key は記事 id）" do
+  it "同じ記事の Job は 1 本ずつ走らせ、重なった分は捨てずに待たせる（concurrency key は記事 id）" do
     job = described_class.new(article)
     expect(job).to be_concurrency_limited
     expect(job.concurrency_key).to end_with("/#{article.id}")
-    expect(described_class.concurrency_on_conflict).to eq(:discard)
+    expect(described_class.concurrency_on_conflict).to eq(:block)
   end
 
   it "記事が消えていたら捨てる" do
