@@ -8,7 +8,12 @@
     <p class="text-sm text-gray-500">未読 <%= @unread_count %> 件 ・ 読了 <%= @read_count %></p>
   </div>
 
-  <p class="mt-2 text-sm font-semibold text-gray-700">累計 <%= @total_xp %> XP</p>
+  <div class="mt-2 flex items-center justify-between">
+    <p class="text-sm font-semibold text-gray-700">累計 <%= @total_xp %> XP</p>
+    <% if @combo_multiplier > 1 %>
+      <p class="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-bold text-orange-700">コンボ ×<%= number_with_precision(@combo_multiplier, precision: 1) %></p>
+    <% end %>
+  </div>
 
   <div class="mt-3 flex items-center justify-between">
     <p class="text-sm font-semibold">今日のゴール <%= @today_count %> / <%= @goal_articles %></p>

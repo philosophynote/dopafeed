@@ -38,7 +38,7 @@ RSpec.describe "Main", type: :request do
       expect(card).to have_text("Ruby Weekly")
       expect(card).to have_text("約3時間前")
       expect(card).to have_css("p.line-clamp-2", text: "・一")
-      expect(card).to have_link("読む", href: "https://example.com/a")
+      expect(card).to have_button("読む")
     end
 
     it "published_at が無い記事は相対時刻を出さない" do

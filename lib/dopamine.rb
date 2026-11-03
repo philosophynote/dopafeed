@@ -13,4 +13,9 @@ module Dopamine
   def self.tier_names
     settings.dig(:xp, :tiers).map { |tier| tier[:name] }
   end
+
+  # 名前で引いた tier（name / multiplier / probability）。無い名前なら nil
+  def self.tier(name)
+    settings.dig(:xp, :tiers).find { |tier| tier[:name] == name }
+  end
 end

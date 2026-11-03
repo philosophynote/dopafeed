@@ -26,7 +26,8 @@ class Article < ApplicationRecord
   has_one :reading, dependent: :destroy
 
   validates :title, presence: true
-  validates :url, presence: true, uniqueness: true
+  # http(s) 以外を弾くのは、url がそのまま「読む」の redirect 先になるため（javascript: などを通さない）
+  validates :url, presence: true, uniqueness: true, format: { with: %r{\Ahttps?://\S+\z}i }
 
   scope :unread, -> { where.not(id: Reading.completed.select(:article_id)) }
   scope :read, -> { where(id: Reading.completed.select(:article_id)) }

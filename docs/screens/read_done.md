@@ -54,5 +54,8 @@ personas.yml: なし
 4. 「ひとこと要約」の保存先（articles に列？ 別テーブル？）と +10 XP の鍵
    → **Unit 2**: `readings.note`（読了 1 行に 1 つ）。XP の鍵は無い（提案: `read.note_xp`）
 5. 「記事から戻った」の検出方法（visibilitychange / pageshow / 記事を開く前にサーバーへ開始時刻を記録して戻り時に差分）。pwa-ios Skill を読んで決める
+    → **決定（Unit 5、#35）**: 「読む」は Turbo を切った POST で `readings` に開始時刻（サーバー時計）を記録してから記事へ redirect。戻りは Stimulus `reading-return` が検出する。「読む」の submit で sessionStorage に印を付け、visibilitychange（standalone のアプリ内シートを閉じた）/ pageshow の bfcache 復元 / back_forward の再読込のいずれかで印があれば `POST /readings/return` を 1 回だけ送る。印を文書に持たないのは、戻り先が「読む」を押す前に描いた文書のままだから。取りこぼしは Main の白ピル「読了を記録」で手で送る。滞在は開始と戻りのサーバー時刻の差。ReadDone は full page（`GET /readings/:id`）。iPhone の standalone で visibilitychange が来るかは実機で確かめる（持ち越し）
 6. 5 本目の読了で DailyGoal に自動遷移するか、ボタンを出すか
+    → **Unit 5（#35）**: 第一の陣では文言「今日のゴール 5 / 5 ・ 読み切った！」だけ。遷移は DailyGoal を作る Unit 7 で決める
 7. コンボの「連続」の定義。鍵が無い間は「同日内（reset_hour 基準）で完読が途切れない限り。未完読で途切れる」とする。時間窓（モックの「あと 2:14」）を入れるなら main.md 未決 3 の `xp.combo_window_seconds`
+    → **決定（Unit 5、#35）**: 時間窓は持たない。同じ読書日の中で、戻った順に見て完読が途切れない本数 n に対し倍率 = min(1 + `xp.combo_multiplier_step` × n, `xp.combo_max_multiplier`)。未完で 0 に戻る。開いたまま戻っていない行は数えない。見出しの「N 本連続」は n + 1（この記事を含む）。同じ記事を未完のまま開き直して完読したときは、失敗した戻りは残らず（1 記事 1 行。ADR 0006）、途切れなかったものとして前の完読から続く。短い誤タップで鎖が切れないようにする意図。別の記事の未完は今までどおり途切れさせる
