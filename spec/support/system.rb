@@ -12,17 +12,6 @@ module SystemScreen
   # chromedriver のログ（命令と応答）。ブラウザが応答しなくなったとき、どの命令で止まったかを
   # 失敗した例の後にジョブのログへ出す（#38。CI の artifact は箱から開けないので標準エラーで読む）
   CHROMEDRIVER_LOG = Rails.root.join("log/chromedriver.log")
-  # Chrome が裏で落としてきて動かす機械学習モデル（言語判定・フィッシング判定・最適化ガイド）を止める。
-  # CI の Google Chrome は「読む」の click の直後に TensorFlow Lite のモデルを動かし始め、そのまま描画プロセスが
-  # 応答しなくなった（click が返らず、POST もサーバーに届かない。#38 の無応答も同じ形）。Playwright と Puppeteer が
-  # 既定で付けている止め方に揃える。テストは画面の振る舞いを見るので、これらの機能は要らない
-  QUIET_CHROME_ARGS = %w[
-    --disable-background-networking
-    --disable-component-update
-    --disable-client-side-phishing-detection
-    --disable-field-trial-config
-    --disable-features=Translate,OptimizationHints,OptimizationGuideModelDownloading,OptimizationHintsFetching,OptimizationTargetPrediction
-  ].freeze
   # iPhone Safari の UA。standalone 判定などで iOS 向けの分岐を踏ませる
   IPHONE_USER_AGENT = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1".freeze
 
@@ -132,7 +121,6 @@ RSpec.configure do |config|
     http_client = Selenium::WebDriver::Remote::Http::Default.new(read_timeout: SystemScreen::DRIVER_READ_TIMEOUT_SECONDS)
     service = Selenium::WebDriver::Service.chrome(args: [ "--log-path=#{SystemScreen::CHROMEDRIVER_LOG}" ])
     driven_by :selenium, using: :headless_chrome, screen_size: SystemScreen::SCREEN_SIZE, options: { http_client: http_client, service: service } do |options|
-      SystemScreen::QUIET_CHROME_ARGS.each { |arg| options.add_argument(arg) }
       # window-size だけだとブラウザ枠の分だけ viewport が狭くなる。端末エミュレーションで CSS 幅を 390 に固定する
       options.add_emulation(
         device_metrics: { width: SystemScreen::SCREEN_SIZE[0], height: SystemScreen::SCREEN_SIZE[1], pixelRatio: 3, touch: true },
