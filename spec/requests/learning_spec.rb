@@ -14,7 +14,7 @@ RSpec.describe "Learning", type: :request do
     expect(response).to have_http_status(:ok)
     expect(page).to have_css("h1", text: "設定")
     expect(page).to have_button("サインアウト")
-    expect(page).to have_css("[aria-disabled=true]", text: "ホーム画面に追加")
+    expect(page).to have_button("ホーム画面に追加", disabled: true)
     expect(page).to have_link("戻る", href: root_path)
   end
 end

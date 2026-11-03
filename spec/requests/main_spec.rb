@@ -41,6 +41,16 @@ RSpec.describe "Main", type: :request do
       expect(card).to have_link("読む", href: "https://example.com/a")
     end
 
+    it "published_at が無い記事は相対時刻を出さない" do
+      create(:article, title: "日付なし", published_at: nil)
+
+      get root_path
+
+      card = page.find("article")
+      expect(card).to have_css("h2", text: "日付なし")
+      expect(card).to have_no_css("time")
+    end
+
     it "要約が無い記事は見出しだけで、要約欄が無い" do
       create(:article, :unsummarized, title: "要約前")
 
@@ -111,7 +121,8 @@ RSpec.describe "Main", type: :request do
       get root_path
 
       expect(page.find("nav[aria-label='タブバー']")).to have_no_css("[data-unread-badge]")
-      expect(page).to have_text("全部読んだ")
+      expect(page).to have_text("全部読んだ。")
+      expect(page).to have_text("次の記事が届くまで、今日はここまで。")
       expect(page).to have_no_css("article")
     end
 

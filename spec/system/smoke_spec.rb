@@ -35,6 +35,6 @@ RSpec.describe "Smoke", type: :system do
     click_on "Sign in"
 
     expect(page).to have_current_path(root_path)
-    expect(page).to have_text("Dopafeed")
+    expect(page).to have_text("DopaFeed")
   end
 end

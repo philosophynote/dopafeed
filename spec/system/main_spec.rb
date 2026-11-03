@@ -39,7 +39,8 @@ RSpec.describe "Main", type: :system do
     create(:article, :read)
     sign_in
 
-    expect(page).to have_text("全部読んだ")
+    expect(page).to have_text("全部読んだ。")
+    expect(page).to have_text("次の記事が届くまで、今日はここまで。")
     expect(page).to have_no_css("article")
   end
 
