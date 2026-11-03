@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_01_121538) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_03_000001) do
   create_table "articles", force: :cascade do |t|
     t.integer "feed_id", null: false
     t.string "title", null: false
@@ -25,6 +25,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_121538) do
     t.datetime "bookmarked_at"
     t.datetime "content_fetched_at"
     t.string "content_error"
+    t.datetime "summary_failed_at"
+    t.string "summary_error"
     t.index ["bookmarked_at"], name: "index_articles_on_bookmarked_at"
     t.index ["feed_id", "guid"], name: "index_articles_on_feed_id_and_guid", unique: true
     t.index ["feed_id"], name: "index_articles_on_feed_id"

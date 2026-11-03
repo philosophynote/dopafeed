@@ -43,7 +43,7 @@ dopamine.yml: `read.complete_after_seconds`, `xp.base`, `xp.combo_multiplier_ste
 personas.yml: なし
 
 ## 外部 API
-なし（要約は Unit 4 の `Claude::SummarizeJob`（仮）が事前に付ける。画面は読むだけ）
+なし（要約は Unit 4 の `Claude::SummarizeArticleJob` が事前に付ける。失敗は `articles.summary_failed_at` / `summary_error`。画面は読むだけ）
 
 ## 未決
 1. 推定読了時間の算出（本文文字数が要る。Unit 2 で本文列を持つか）
