@@ -32,7 +32,7 @@ RSpec.describe "ReadDone", type: :system do
       page.go_back
       expect(page).to have_text("読了！"), "戻る（back_forward）で reading-return が自動送信するはず"
       expect(page).to have_text("判定 完読")
-      expect(page).to have_text("合計 +#{base} XP")
+      expect(page).to have_text(/合計\s*\+#{base} XP/)
       expect(page).to have_text("今日のゴール 1 / #{goal_articles}")
       expect(page).to have_text("全部読んだ")
 
