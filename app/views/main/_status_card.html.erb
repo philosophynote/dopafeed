@@ -1,0 +1,21 @@
+<%# ステータスカード。ストリーク・未読/読了・累計 XP・今日のゴール。数字はコントローラが集め、本数の上限は dopamine.yml %>
+<section class="mt-4 rounded-2xl bg-white p-4 shadow-sm" aria-label="今日の進み">
+  <div class="flex items-baseline justify-between">
+    <p class="flex items-center gap-1 text-lg font-bold">
+      <span aria-hidden="true">🔥</span>
+      <span><%= @streak_days %>日連続</span>
+    </p>
+    <p class="text-sm text-gray-500">未読 <%= @unread_count %> 件 ・ 読了 <%= @read_count %></p>
+  </div>
+
+  <p class="mt-2 text-sm font-semibold text-gray-700">累計 <%= @total_xp %> XP</p>
+
+  <div class="mt-3 flex items-center justify-between">
+    <p class="text-sm font-semibold">今日のゴール <%= @today_count %> / <%= @goal_articles %></p>
+    <ol class="flex gap-1.5" aria-label="今日のゴールの進み">
+      <% @goal_articles.times do |i| %>
+        <li class="goal-dot h-3 w-3 rounded-full <%= i < @today_count ? "bg-orange-500" : "bg-gray-200" %>" data-filled="<%= i < @today_count %>"></li>
+      <% end %>
+    </ol>
+  </div>
+</section>
