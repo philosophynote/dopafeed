@@ -1,7 +1,9 @@
-タイトル: RSpec で Claude を試す
-URL: https://fixtures.example.com/articles/claude
-
-本文:
+<article>
+<title>RSpec で Claude を試す</title>
+<url>https://fixtures.example.com/articles/claude</url>
+<body>
 見出し
 最初の段落。
 二つ目の段落。
+</body>
+</article>

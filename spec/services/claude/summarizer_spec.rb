@@ -77,6 +77,11 @@ RSpec.describe Claude::Summarizer do
     expect(ClaudeApiCall.count).to eq(0)
   end
 
+  it "本文が nil でも EmptyContent" do
+    article.update!(content: nil)
+    expect { described_class.new(article).call }.to raise_error(described_class::EmptyContent)
+  end
+
   it "予算切れなら API を呼ばずに Exhausted" do
     stub_claude
 
@@ -92,6 +97,12 @@ RSpec.describe Claude::Summarizer do
 
     it "「・」で始まらない行があれば MalformedResponse" do
       stub_claude(body: message_body("要約です。\n・2 行目\n・3 行目"))
+      expect { described_class.new(article).call }.to raise_error(described_class::MalformedResponse)
+    end
+
+    it "テキストのブロックが無ければ MalformedResponse" do
+      body = JSON.parse(message_body("x")).merge("content" => [ { "type" => "tool_use", "id" => "toolu_1", "name" => "noop", "input" => {} } ]).to_json
+      stub_claude(body: body)
       expect { described_class.new(article).call }.to raise_error(described_class::MalformedResponse)
     end
 
@@ -127,6 +138,11 @@ RSpec.describe Claude::Summarizer do
     it "接続エラーは TransientError" do
       stub_request(:post, endpoint).to_raise(Errno::ECONNREFUSED)
       expect { described_class.new(article).call }.to raise_error(described_class::TransientError, /接続エラー/)
+    end
+
+    it "タイムアウトは TransientError" do
+      stub_request(:post, endpoint).to_timeout
+      expect { described_class.new(article).call }.to raise_error(described_class::TransientError, "接続エラー (APITimeoutError)")
     end
 
     it "失敗した呼び出しも台帳には 1 回と数える（呼ぶ前に記録する）" do

@@ -26,6 +26,26 @@ RSpec.describe Claude::SummarizeArticleJob, type: :job do
     expect(Claude::Summarizer).not_to have_received(:new)
   end
 
+  it "積まれた後に別の経路で要約が付いていても呼ばない（呼ぶ直前に読み直す）" do
+    Article.find(article.id).update!(summary: three_lines)
+
+    described_class.perform_now(article)
+
+    expect(Claude::Summarizer).not_to have_received(:new)
+  end
+
+  it "同じ記事の Job が同時に走っても、先に付いた要約を上書きしない" do
+    other = "・別\n・の\n・要約"
+    allow(summarizer).to receive(:call) do
+      Article.find(article.id).update!(summary: other)
+      three_lines
+    end
+
+    described_class.perform_now(article)
+
+    expect(article.reload.summary).to eq(other)
+  end
+
   it "本文なし・形式不正・4xx は失敗として記録し、やり直さない" do
     allow(summarizer).to receive(:call).and_raise(Claude::Summarizer::EmptyContent, "本文が空")
 
