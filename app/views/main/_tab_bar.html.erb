@@ -1,0 +1,22 @@
+<%# 下タブ。フィードだけ有効で現在地。保存・レポート・購読は画面ができるまで無効（見た目とタップ領域は保つ） %>
+<nav class="fixed inset-x-0 bottom-0 border-t border-gray-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur" aria-label="タブバー">
+  <ul class="mx-auto grid max-w-md grid-cols-4">
+    <li>
+      <%= link_to root_path, class: "relative flex h-14 flex-col items-center justify-center text-xs font-semibold text-orange-600", "aria-current": "page" do %>
+        <span class="text-xl" aria-hidden="true">📰</span>
+        <span>フィード</span>
+        <% if @unread_count.positive? %>
+          <span class="absolute right-1/4 top-1 rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white" data-unread-badge><%= @unread_count %></span>
+        <% end %>
+      <% end %>
+    </li>
+    <% [ [ "🔖", "保存" ], [ "📈", "レポート" ], [ "📡", "購読" ] ].each do |icon, label| %>
+      <li>
+        <span class="flex h-14 flex-col items-center justify-center text-xs text-gray-400" aria-disabled="true">
+          <span class="text-xl" aria-hidden="true"><%= icon %></span>
+          <span><%= label %></span>
+        </span>
+      </li>
+    <% end %>
+  </ul>
+</nav>

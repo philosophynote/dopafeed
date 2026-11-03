@@ -11,7 +11,7 @@ Rails.application.routes.draw do
   # get "manifest" => "rails/pwa#manifest", as: :pwa_manifest
   # get "service-worker" => "rails/pwa#service_worker", as: :pwa_service_worker
 
-  # Defines the root path route ("/")
-  # Unit 5 で Main に差し替える。認証ジェネレータの after_authentication_url が root_url を要求するための仮置き
-  root "home#show"
+  # ログイン後の着地点（after_authentication_url が root_url を使う）
+  root "main#show"
+  resource :learning, only: :show, controller: :learning
 end

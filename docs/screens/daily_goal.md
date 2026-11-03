@@ -48,3 +48,4 @@ personas.yml: なし
 5. `config.time_zone`（Unit 0 の持ち越し）。reset_hour の基準タイムゾーンは Asia/Tokyo にする
    → **Unit 2 で入れた**: `config.time_zone = "Tokyo"`。境界は `ReadingDay.of` / `ReadingDay.range`、宝箱の行は `daily_goals`（day unique）
 6. ストリークの単位。この文書群では「1 本以上完読した日が連続」で統一（Main の「3日連続」、Install の「あと 1 本読めば継続」と一致）。モックの宝箱の「ストリーク 4 日目 確定」を「ゴール達成日が連続」と読むなら変える。main.md / install.md はここを参照
+    → **決定（Unit 5、#35）**: 「1 本以上完読した読書日（reset_hour 基準）が連続」。今日 0 本でも昨日まで続いていれば数え、昨日も 0 なら 0（`ReadingStreak`）

@@ -38,3 +38,4 @@ personas.yml: なし
 2. 「学習をリセット」の範囲（フィード重みだけ？ 興味なし履歴も？）
 3. ユーザー設定の置き場所（users に列 / settings テーブル / Solid Cache は不可）
 4. 第一の陣では「サインアウト」と「ホーム画面に追加（→ Install）」への導線だけの最小版を Unit 5 で置く（main.md / install.md / login.md はこの前提で書いた）。通知トグル・学習状態・Claude 利用状況は第二の陣
+    → **Unit 5 で置いた**: `/learning`（`LearningController#show`）。「ホーム画面に追加」は Install ができるまで無効のボタン

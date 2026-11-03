@@ -8,6 +8,9 @@ CI.run do
   step "Security: Brakeman", "bin/brakeman --quiet --no-pager --exit-on-warn --exit-on-error"
   step "Structure: 規約テスト", "bin/rspec spec/structure"
   step "Tests: Rails", "bin/rspec --exclude-pattern 'spec/system/**/*_spec.rb'"
+  # bin/rspec は tailwindcss:build を呼ばない（呼ぶのは bin/rails test と assets:precompile）。
+  # 無いまま system を回すと CSS 無しの画面を検査してしまう
+  step "Assets: Tailwind", "bin/rails tailwindcss:build"
   step "Tests: System (390x844)", "bin/rspec spec/system"
   step "Tests: Seeds", "env RAILS_ENV=test bin/rails db:seed:replant"
 
