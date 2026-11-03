@@ -1,4 +1,4 @@
-# root の仮置き。Unit 5 で Main（記事一覧）に置き換える
+# root の仮置き。記事一覧ができるまでの空ページ
 class HomeController < ApplicationController
   def show
   end

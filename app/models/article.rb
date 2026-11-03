@@ -1,8 +1,9 @@
 # フィードから取り込んだ記事。
-# summary は Claude の 3 行要約。summary_failed_at / summary_error は要約の失敗。自動では再試行せず、人が summary_failed_at を nil に戻したときだけ拾い直す。content は HTML: まず {FeedFetcher} がフィードの entry 本文をそのまま入れ、
+# summary は Claude の 3 行要約（Job が後から付ける。取り込み直後は nil）。summary_failed_at / summary_error は要約の失敗。
+# 自動では再試行せず、人が summary_failed_at を nil に戻したときだけ拾い直す。content は HTML: まず {FeedFetcher} がフィードの entry 本文をそのまま入れ、
 # {ArticleContentFetcher} が記事ページから readability で抜いた本文（段落・見出し・コード・リンクだけ残る）で置き換える。
 # content_fetched_at は試行時刻、content_error が nil なら成功。
-# guid はフィード内の重複排除の鍵（entry_id、無ければ url。[feed_id, guid] は一意）。既存の記事は取得で更新しない。
+# guid はフィード内の重複排除の鍵（entry_id、無ければ url。[feed_id, guid] は一意）。
 # いいね・保存は一人用なので記事に直接残す（liked_at / bookmarked_at）。読了は {Reading}（1 記事 1 行）。ADR 0006
 #
 # @!method self.unread
@@ -12,7 +13,7 @@
 #   完読した記事
 #   @return [ActiveRecord::Relation<Article>]
 # @!method self.saved
-#   いいねか保存が付いた記事（Saved 画面はこの 2 つを束ねて出す）
+#   いいねか保存が付いた記事
 #   @return [ActiveRecord::Relation<Article>]
 # @!method self.newest_first
 #   published_at の新しい順（同時刻は id の大きい順）
