@@ -48,6 +48,16 @@ RSpec.describe Article, type: :model do
     end
   end
 
+  it "awaiting_summary は要約も失敗も無く、本文取得を試した記事だけ（取得に失敗した記事は含む）" do
+    waiting = create(:article, :awaiting_summary)
+    failed_fetch = create(:article, :awaiting_summary, content_error: "本文を抽出できません")
+    create(:article, :awaiting_summary, summary: "・a\n・b\n・c")
+    create(:article, :awaiting_summary, summary_failed_at: Time.current, summary_error: "本文が空")
+    create(:article, :unsummarized)
+
+    expect(Article.awaiting_summary).to contain_exactly(waiting, failed_fetch)
+  end
+
   it "saved は liked_at か bookmarked_at のある記事" do
     liked = create(:article, :liked)
     bookmarked = create(:article, :bookmarked)

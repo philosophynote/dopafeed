@@ -1,0 +1,28 @@
+# 手書きのカセット（Messages API の応答の形）。本物に置き換えるには spec/support/vcr.rb の冒頭を見よ
+---
+http_interactions:
+- request:
+    method: post
+    uri: https://api.anthropic.com/v1/messages
+    body:
+      encoding: UTF-8
+      string: '{"model":"claude-haiku-5-5","max_tokens":300,"system":"(summary_system.txt)","messages":[{"role":"user","content":"(summary.erb)"}]}'
+    headers:
+      Content-Type:
+      - application/json
+      X-Api-Key:
+      - "<ANTHROPIC_API_KEY>"
+      Anthropic-Version:
+      - '2026-10-21'
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+    body:
+      encoding: UTF-8
+      string: '{"id":"msg_01Fixture0000000000000000","type":"message","role":"assistant","model":"claude-haiku-5-5","content":[{"type":"text","text":"・RSpec から Claude API を VCR のカセットで再生する手順を示す\n・リクエストは method と URI で照合し、本文の差は無視する\n・実キーを持たない CI でも要約の正常系を検証できる"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":412,"output_tokens":88}}'
+  recorded_at: Tue, 03 Nov 2026 02:00:00 GMT
+recorded_with: VCR 6.4.0

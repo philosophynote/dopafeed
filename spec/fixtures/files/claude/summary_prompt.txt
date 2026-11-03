@@ -1,0 +1,7 @@
+タイトル: RSpec で Claude を試す
+URL: https://fixtures.example.com/articles/claude
+
+本文:
+見出し
+最初の段落。
+二つ目の段落。
