@@ -498,6 +498,7 @@ DEPENDENCIES
   factory_bot_rails
   faraday-retry
   feedjira
+  guess_html_encoding
   image_processing (~> 1.2)
   importmap-rails
   jbuilder

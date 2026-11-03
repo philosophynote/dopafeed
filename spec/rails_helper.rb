@@ -30,4 +30,6 @@ RSpec.configure do |config|
   config.include ActiveSupport::Testing::TimeHelpers
   config.include ActiveJob::TestHelper, type: :job
   config.include ActiveJob::TestHelper, type: :request
+  # サービス（spec/services）は Job を積むので、例ごとに enqueued_jobs を空にする TestHelper を入れる
+  config.include ActiveJob::TestHelper, file_path: %r{spec/services/}
 end
