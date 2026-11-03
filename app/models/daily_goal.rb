@@ -3,7 +3,6 @@
 class DailyGoal < ApplicationRecord
   validates :day, presence: true, uniqueness: true
 
-  # @return [Boolean] 宝箱を開いたか
   def achieved?
     achieved_at.present?
   end

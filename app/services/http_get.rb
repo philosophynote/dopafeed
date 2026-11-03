@@ -2,7 +2,7 @@
 # scheme の検査、リダイレクトの追従、2xx / 304 以外と接続エラーを {Error} に畳む（文言は feeds.last_error / articles.content_error にそのまま残る）。
 # 時間を置けば通るかもしれない失敗（408・429・5xx・接続エラー）は {TransientError}。呼ぶ側が待ってやり直すか決める。
 # content_types を渡すと、2xx でも Content-Type が合わない応答は本文を読まずに {UnexpectedContentType}（巨大な PDF や動画をメモリに載せない）。
-# タイムアウトは dopamine.yml の fetch.timeout_seconds（接続・読み取りとも）。本文サイズの上限と SSRF 対策は #23
+# タイムアウトは dopamine.yml の fetch.timeout_seconds（接続・読み取りとも）
 class HttpGet
   # 記録して終わりにする失敗（HTTP エラー、不正な URL）
   class Error < StandardError; end
@@ -11,7 +11,7 @@ class HttpGet
   # content_types に無い Content-Type の応答。message は応答の Content-Type（無ければ空）
   class UnexpectedContentType < Error; end
 
-  # 追うリダイレクトの上限。インフラの定数で報酬の数字ではないので dopamine.yml には置かない（PR #19 の提案欄）
+  # 追うリダイレクトの上限。インフラの定数で報酬の数字ではないので dopamine.yml には置かない
   MAX_REDIRECTS = 3
   # 接続エラー（TransientError）に畳む例外（DNS・接続・切断・TLS・壊れた gzip）。これ以外は上げる
   NETWORK_ERRORS = [ SocketError, SystemCallError, IOError, Timeout::Error, OpenSSL::SSL::SSLError, Net::ProtocolError, Zlib::Error ].freeze

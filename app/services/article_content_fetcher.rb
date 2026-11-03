@@ -1,5 +1,5 @@
-# 記事ページを取りに行き、readability で本文を抜いて articles.content を置き換える（Unit 3b）。{FetchArticleContentJob} からだけ呼ぶ。
-# フィードの entry 本文は Zenn なら抜粋、Hacker News ならほぼ空なので、要約（Unit 4）の入力には記事ページの本文が要る。
+# 記事ページを取りに行き、readability で本文を抜いて articles.content を置き換える。
+# フィードの entry 本文は Zenn なら抜粋、Hacker News ならほぼ空なので、要約の入力には記事ページの本文が要る。
 # 抜いた本文がフィードの本文より短ければ置き換えない（Zenn の長い抜粋を Cookie バナーで潰さない）。
 # 失敗（HTTP 4xx・HTML 以外・本文なし・文字コード不明）は例外にせず content_error に日本語で残し、content はフィードの本文のまま。
 # 待てば通るかもしれない失敗（{HttpGet::TransientError}）はそのまま上げ、Job が数回やり直してから {#record_failure} する。
@@ -23,7 +23,6 @@ class ArticleContentFetcher
   TAGS = %w[div p pre code h1 h2 h3 h4 ul ol li blockquote a img table thead tbody tr th td].freeze
   ATTRIBUTES = %w[href src].freeze
 
-  # @param article [Article] 本文を取りに行く記事
   def initialize(article)
     @article = article
   end
