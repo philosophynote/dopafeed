@@ -3,7 +3,6 @@
 class FetchAllFeedsJob < ApplicationJob
   queue_as :feeds
 
-  # @return [void]
   def perform
     Feed.find_each { |feed| FetchFeedJob.perform_later(feed) }
   end
