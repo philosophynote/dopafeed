@@ -20,6 +20,11 @@ RSpec.describe Reading, type: :model do
     expect(bogus.errors[:tier]).to include("is not included in the list")
   end
 
+  it "jackpot? は tier が Dopamine.jackpot_tier のときだけ" do
+    expect(build(:reading, tier: Dopamine.jackpot_tier[:name])).to be_jackpot
+    expect(build(:reading, tier: Dopamine.tier_names.first)).not_to be_jackpot
+  end
+
   it "1 記事 1 行（同じ記事に 2 行目は作れない）" do
     existing = create(:reading)
     dup = build(:reading, article: existing.article)

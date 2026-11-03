@@ -1,7 +1,9 @@
 import { Controller } from "@hotwired/stimulus"
 
 // 記事から戻ってきた瞬間に、読了を記録する form を送る。
-// 「読む」の送信で sessionStorage に印を付け、戻りの合図があったとき印があれば 1 回だけ送る。
+// 記事へ出るリンク（ルーレットが止まって踏むもの、Jackpot の「受け取って読む」）の click で sessionStorage に印を付け、
+// 戻りの合図があったとき印があれば 1 回だけ送る。「読む」の submit で付けないのは、Jackpot から戻るで Main に帰った
+// だけの人を、次に画面が見えた拍子に読了扱いにしないため。
 // 合図は iOS の standalone ならアプリ内シートを閉じたときの visibilitychange、Safari の戻るなら
 // pageshow（bfcache 復元）か back_forward の再読込。
 // 印を文書に持たないのは、戻り先が「読む」を押す前に描いた文書のままで、押した事実を文書が知らないから。
@@ -24,7 +26,7 @@ export default class extends Controller {
     window.removeEventListener("pageshow", this.onPageShow)
   }
 
-  // 「読む」の form が送られた。これから記事へ出る
+  // 記事へ出るリンクが踏まれた
   opened() {
     this.mark(true)
   }

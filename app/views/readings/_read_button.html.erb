@@ -1,3 +1,3 @@
-<%# 「読む」。Turbo を切った通常の POST で Reading を作り、記事の URL へ redirect させる（iPhone の standalone ではアプリ内シートが開く）。
-    submit で reading-return に印を付け、戻ってきたときに読了を記録してもらう %>
-<%= button_to "読む", article_reading_path(article), form: { data: { turbo: false, action: "submit->reading-return#opened" } }, class: "inline-flex h-11 min-w-24 items-center justify-center rounded-full bg-orange-500 px-5 text-sm font-bold text-white active:bg-orange-600" %>
+<%# 「読む」。Turbo の POST で Reading を作り、ルーレットのモーダルを一覧の上に重ねる（JS が無ければ記事へ redirect）。
+    記事へ出る印（reading-return）は submit ではなく、モーダルが止まって記事へのリンクを踏む瞬間に付ける %>
+<%= button_to "読む", article_reading_path(article), class: "inline-flex h-11 min-w-24 items-center justify-center rounded-full bg-orange-500 px-5 text-sm font-bold text-white active:bg-orange-600" %>
