@@ -26,7 +26,7 @@ class Article < ApplicationRecord
   has_one :reading, dependent: :destroy
 
   validates :title, presence: true
-  # http(s) 以外を弾くのは、url がそのまま「元記事で読む」のリンク先になるため（javascript: などを通さない）
+  # http(s) 以外を弾くのは、url がリンクの href にそのまま入るため（javascript: などを通さない）
   validates :url, presence: true, uniqueness: true, format: { with: %r{\Ahttps?://\S+\z}i }
 
   scope :unread, -> { where.not(id: Reading.completed.select(:article_id)) }

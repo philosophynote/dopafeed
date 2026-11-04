@@ -51,7 +51,7 @@ RSpec.describe Reading, type: :model do
     expect(build(:reading)).not_to be_completed
   end
 
-  it "dwell_seconds は戻った時刻 − 開いた時刻。戻っていなければ nil" do
+  it "dwell_seconds は読み終えた時刻 − 開いた時刻。判定前なら nil" do
     completed = build(:reading, :completed)
     expect(completed.dwell_seconds).to eq(4 * 60 + 12)
     expect(build(:reading).dwell_seconds).to be_nil

@@ -1,4 +1,4 @@
-# 記事から戻ったときの判定と XP の確定（docs/screens/read_done.md の受け入れ条件）。
+# 記事の末尾まで読んだときの判定と XP の確定（docs/screens/reader.md の受け入れ条件）。
 # 数字はすべて dopamine.yml から組み立てる
 RSpec.describe Reading, "#return!" do
   let(:settings) { Dopamine.settings }
@@ -11,17 +11,17 @@ RSpec.describe Reading, "#return!" do
   let(:common) { Dopamine.tier_names.first }
   let(:rare) { Dopamine.settings.dig(:xp, :tiers).find { |t| t[:multiplier] > 1 }[:name] }
 
-  # 完読 1 本（noon の少し前に戻った）
+  # 完読 1 本（noon の少し前に判定した）
   def completed_before(time, tier: common)
     create(:reading, tier: tier, opened_at: time - threshold - 1.minute).return!(at: time)
   end
 
-  # 未完 1 本（threshold 未満で戻った）
+  # 未完 1 本（threshold 未満で判定した）
   def incomplete_before(time)
     create(:reading, tier: common, opened_at: time - threshold + 5.seconds).return!(at: time)
   end
 
-  it "complete_after_seconds + 5 秒で戻れば完読で XP が付く" do
+  it "complete_after_seconds + 5 秒で読み終えれば完読で XP が付く" do
     reading = create(:reading, tier: common, opened_at: noon)
     reading.return!(at: noon + threshold + 5.seconds)
 
@@ -31,13 +31,13 @@ RSpec.describe Reading, "#return!" do
     expect(reading.xp).to eq(base)
   end
 
-  it "complete_after_seconds ちょうどで戻れば完読" do
+  it "complete_after_seconds ちょうどで読み終えれば完読" do
     reading = create(:reading, tier: common, opened_at: noon)
     reading.return!(at: noon + threshold)
     expect(reading).to be_completed
   end
 
-  it "complete_after_seconds − 10 秒で戻れば未完で XP 0、記事は未読のまま" do
+  it "complete_after_seconds − 10 秒で読み終えれば未完で XP 0、記事は未読のまま" do
     reading = create(:reading, tier: common, opened_at: noon)
     reading.return!(at: noon + threshold - 10.seconds)
 
@@ -105,7 +105,7 @@ RSpec.describe Reading, "#return!" do
     expect(reading.combo_multiplier).to eq(1.0)
   end
 
-  it "開いたまま戻っていない行はコンボを切らない" do
+  it "判定前の行はコンボを切らない" do
     completed_before(noon - 20.minutes)
     create(:reading, tier: common, opened_at: noon - 10.minutes)
     reading = create(:reading, tier: common, opened_at: noon)
@@ -114,7 +114,7 @@ RSpec.describe Reading, "#return!" do
     expect(reading.combo_multiplier).to eq((1 + step).round(1))
   end
 
-  it "2 回目の戻りは何も変えない（冪等）" do
+  it "2 回目の判定は何も変えない（冪等）" do
     reading = create(:reading, tier: common, opened_at: noon)
     reading.return!(at: noon + threshold)
     first = reading.attributes

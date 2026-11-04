@@ -50,7 +50,7 @@ RSpec.describe "Readings", type: :request do
         expect(reading.tier).to eq(common)
       end
 
-      it "開いたまま戻っていない記事をもう一度読むと opened_at を今にする" do
+      it "開いたまま判定前の記事をもう一度読むと opened_at を今にする" do
         article = create(:article)
         reading = create(:reading, article: article, tier: common, opened_at: noon - 1.hour)
 
@@ -246,7 +246,7 @@ RSpec.describe "Readings", type: :request do
         following = create(:article, title: "次の記事", published_at: noon - 1.hour)
         allow(XpRoulette).to receive(:draw).and_return(common)
 
-        travel_to(noon + threshold + 5.seconds) { post_turbo(reading) }
+        travel_to(noon + 4.minutes + 12.seconds) { post_turbo(reading) }
 
         expect(response.media_type).to eq("text/vnd.turbo-stream.html")
         expect(reading.reload).to be_completed
@@ -254,13 +254,14 @@ RSpec.describe "Readings", type: :request do
         divider = page.find("turbo-stream[action='replace'][target='end_reading_#{reading.id}']")
         expect(divider).to have_css("section[aria-label='判定']", text: "読了！")
         expect(divider).to have_text("+#{base} XP")
+        expect(divider).to have_text("滞在 4分12秒 ・ 1 本連続")
         expect(divider).to have_text("今日のゴール 1 / #{goal_articles}")
         appended = page.find("turbo-stream[action='append'][target='reader']")
         expect(appended).to have_css("h1", text: "次の記事")
         expect(appended).to have_no_text("新しい記事")
         next_reading = following.reload.reading
         expect(next_reading.tier).to eq(common)
-        expect(next_reading.opened_at).to eq(noon + threshold + 5.seconds)
+        expect(next_reading.opened_at).to eq(noon + 4.minutes + 12.seconds)
         expect(appended).to have_css("form#end_reading_#{next_reading.id}")
       end
 
@@ -275,8 +276,10 @@ RSpec.describe "Readings", type: :request do
         multiplier = (1 + step * 2).round(1)
         total = (base * Dopamine.tier(rare)[:multiplier] * multiplier).round
         divider = page.find("section[aria-label='判定']")
+        bonus = base * Dopamine.tier(rare)[:multiplier]
         expect(divider).to have_text("読了！ +#{total} XP")
-        expect(divider).to have_text("3 本連続 ・ コンボ ×#{multiplier}")
+        expect(divider).to have_text("完読ボーナス +#{bonus} ・ コンボ ×#{multiplier} +#{total - bonus}")
+        expect(divider).to have_text("3 本連続")
       end
 
       it "未満なら未完で +0 XP。それでも次へは進む" do
@@ -291,7 +294,7 @@ RSpec.describe "Readings", type: :request do
         expect(page).to have_css("turbo-stream[action='append'][target='reader'] h1", text: "次の記事")
       end
 
-      it "次の記事が前に開いて戻っていない行を持つなら、再抽選せず開き直す" do
+      it "次の記事が前に開いて判定前の行を持つなら、再抽選せず開き直す" do
         following = create(:article, published_at: noon - 1.hour)
         rare = Dopamine.tier_names.second
         pending = create(:reading, article: following, tier: rare, opened_at: noon - 1.day)
@@ -368,7 +371,7 @@ RSpec.describe "Readings", type: :request do
     end
 
     describe "Main のコンボと「読む」" do
-      it "開いて戻っていない記事があっても「読了を記録」のピルは出ない（判定はリーダーの末尾だけ）" do
+      it "判定前の記事があっても「読了を記録」のピルは出ない（判定はリーダーの末尾だけ）" do
         create(:reading, article: create(:article, title: "読みかけ"), tier: common, opened_at: noon)
 
         get root_path
