@@ -10,6 +10,7 @@
 | 1 | Roulette | roulette.md | Roulette.dc.html | 6 | 深 |
 | 1 | Jackpot | jackpot.md | Jackpot.dc.html | 6 | 深 |
 | 1 | ReadDone | read_done.md | ReadDone.dc.html | 5 | 深 |
+| 1 | Reader | reader.md | （モックに無い。ADR 0010） | 5c | 深 |
 | 1 | DailyGoal | daily_goal.md | DailyGoal.dc.html | 7 | 深 |
 | 1 | Comments | comments.md | Comments.dc.html | 未定（案: 9） | 浅 |
 | 2 個人最適化 | ForYou | for_you.md | ForYou.dc.html | 未定（案: 11） | 浅 |

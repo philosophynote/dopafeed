@@ -49,6 +49,36 @@
   to { transform: translateY(110vh) rotate(720deg); }
 }
 
+/* リーダーの本文。他人のサイトの HTML をそのまま流すので、要素ごとに最低限の体裁だけ付け、横にはみ出させない
+   （はみ出しはコードと表だけ、その要素の中で横に流す） */
+.reader-body {
+  font-size: 1rem;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.reader-body > * + * { margin-top: 1em; }
+.reader-body h1, .reader-body h2 { margin-top: 1.5em; font-size: 1.2rem; font-weight: 700; line-height: 1.4; }
+.reader-body h3, .reader-body h4 { margin-top: 1.25em; font-size: 1.05rem; font-weight: 700; line-height: 1.4; }
+.reader-body a { color: var(--color-orange-600); text-decoration: underline; }
+.reader-body ul { padding-left: 1.5em; list-style: disc; }
+.reader-body ol { padding-left: 1.5em; list-style: decimal; }
+.reader-body blockquote { border-left: 3px solid var(--color-gray-300); padding-left: 1em; color: var(--color-gray-600); }
+.reader-body pre {
+  overflow-x: auto;
+  overflow-wrap: normal;
+  border-radius: 0.5rem;
+  background: var(--color-gray-900);
+  padding: 0.75rem;
+  color: var(--color-gray-100);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+.reader-body code { font-family: var(--font-mono); font-size: 0.9em; }
+.reader-body :not(pre) > code { border-radius: 0.25rem; background: var(--color-gray-100); padding: 0.1em 0.3em; }
+.reader-body img { max-width: 100%; height: auto; border-radius: 0.5rem; }
+.reader-body table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; font-size: 0.875rem; }
+.reader-body th, .reader-body td { border: 1px solid var(--color-gray-200); padding: 0.25rem 0.5rem; }
+
 @media (prefers-reduced-motion: reduce) {
   .roulette-strip { animation-duration: 1ms; }
   .roulette-result { animation-delay: 0ms; }

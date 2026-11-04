@@ -25,6 +25,20 @@ class Reading < ApplicationRecord
   scope :on, ->(day) { completed.where(completed_at: ReadingDay.range(day)) }
   scope :pending, -> { where(returned_at: nil).order(opened_at: :desc) }
 
+  # 記事を開く。行が無ければ抽選して作り、未完の行は抽選を使い回して開き直す（ADR 0006）。
+  # 同時に作られて一意制約で落ちたら、先に入った行を使う（二重タップ）
+  #
+  # @return [Reading]
+  def self.open!(article, at: Time.current)
+    reading = find_or_initialize_by(article: article)
+    return reading.reopen!(at: at) if reading.persisted?
+
+    reading.update!(tier: XpRoulette.draw, opened_at: at)
+    reading
+  rescue ActiveRecord::RecordNotUnique
+    find_by!(article: article)
+  end
+
   def completed?
     completed_at.present?
   end

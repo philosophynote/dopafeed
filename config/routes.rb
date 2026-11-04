@@ -16,11 +16,14 @@ Rails.application.routes.draw do
   resource :learning, only: :show, controller: :learning
   resources :articles, only: [] do
     resource :reading, only: :create
+    # アプリ内のリーダー。描くだけで書き込まない（行は「読む」と advance が作る）
+    get :read, on: :member
   end
   # return は Ruby の予約語なのでアクション名は finish。
   # id を取らないのは、戻り先が「読む」を押す前に描いた文書のままで、どの行を開いたか文書が知らないから
   resources :readings, only: :show do
     post :return, on: :collection, action: :finish
+    post :advance, on: :member
     get :jackpot, on: :member
   end
 end

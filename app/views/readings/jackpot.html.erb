@@ -16,8 +16,7 @@
       <h1 class="mt-1 text-base font-bold leading-snug"><%= @article.title %></h1>
     </div>
 
-    <%= link_to "受け取って読む", @article.url, data: { turbo: false, action: "click->reading-return#opened" }, class: "mt-6 flex h-12 w-full items-center justify-center rounded-full bg-[#FFD166] text-base font-bold text-gray-900 active:bg-yellow-300" %>
+    <%= link_to "受け取って読む", read_article_path(@article), class: "mt-6 flex h-12 w-full items-center justify-center rounded-full bg-[#FFD166] text-base font-bold text-gray-900 active:bg-yellow-300" %>
     <p class="mt-4 text-balance text-xs text-gray-400">全画面演出は読み始めるまで閉じられない。頻度が低いから効く</p>
   </div>
 </div>
-<%= render "return_form" %>

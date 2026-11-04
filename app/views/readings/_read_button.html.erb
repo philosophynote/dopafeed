@@ -1,3 +1,2 @@
-<%# 「読む」。Turbo の POST で Reading を作り、ルーレットのモーダルを一覧の上に重ねる（JS が無ければ記事へ redirect）。
-    記事へ出る印（reading-return）は submit ではなく、モーダルが止まって記事へのリンクを踏む瞬間に付ける %>
+<%# 「読む」。Turbo の POST で Reading を作り、ルーレットのモーダルを一覧の上に重ねる。止まるとリーダーへ進む（JS が無ければ直接 redirect） %>
 <%= button_to "読む", article_reading_path(article), class: "inline-flex h-11 min-w-24 items-center justify-center rounded-full bg-orange-500 px-5 text-sm font-bold text-white active:bg-orange-600" %>
