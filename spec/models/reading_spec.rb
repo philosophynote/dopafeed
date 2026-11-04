@@ -131,4 +131,24 @@ RSpec.describe Reading, type: :model do
       expect(Reading.open!(article, at: at)).to eq(existing)
     end
   end
+
+  describe "#start!" do
+    let(:at) { Time.zone.local(2026, 10, 20, 12) }
+
+    it "判定前なら opened_at を記事を開いた時刻にする（カードを眺めていた時間は滞在に入れない）" do
+      reading = create(:reading, opened_at: at - 10.minutes)
+
+      expect(reading.start!(at: at)).to eq(reading)
+      expect(reading.reload.opened_at).to eq(at)
+      expect(reading.returned_at).to be_nil
+    end
+
+    it "判定済みなら未完でも何もしない（区切りの滞在を書き換えない）" do
+      incomplete = create(:reading, opened_at: at - 1.minute, returned_at: at - 50.seconds)
+      completed = create(:reading, :completed)
+
+      expect { incomplete.start!(at: at) }.not_to(change { incomplete.reload.attributes })
+      expect { completed.start!(at: at) }.not_to(change { completed.reload.attributes })
+    end
+  end
 end

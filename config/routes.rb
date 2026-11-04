@@ -20,6 +20,8 @@ Rails.application.routes.draw do
     get :read, on: :member
   end
   resources :readings, only: [] do
+    # 「記事を開く」を押した。滞在を数え始める時刻を記録するだけ
+    post :start, on: :member
     post :advance, on: :member
     get :jackpot, on: :member
   end

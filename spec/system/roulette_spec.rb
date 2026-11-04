@@ -7,7 +7,7 @@ RSpec.describe "Roulette", type: :system do
   let(:jackpot) { Dopamine.jackpot_tier }
 
   def create_article(title = "読む記事")
-    create(:article, title: title)
+    create(:article, title: title, url: "#{Capybara.current_session.server.base_url}/up?#{title}")
   end
 
   it "読むと止まった出目の帯つきでリーダーが開き、モーダルは残らない" do
@@ -40,7 +40,7 @@ RSpec.describe "Roulette", type: :system do
     expect(article.reload.reading.tier).to eq(common)
   end
 
-  it "jackpot なら全画面に進み、受け取って読むでリーダーが開き、読み終えると jackpot の倍率で XP が付く" do
+  it "jackpot なら全画面に進み、受け取って読むでリーダーが開き、記事を開いて戻ると jackpot の倍率で XP が付く" do
     allow(XpRoulette).to receive(:draw).and_return(jackpot[:name])
     article = create_article
     sign_in
@@ -66,9 +66,18 @@ RSpec.describe "Roulette", type: :system do
 
     click_on "受け取って読む"
     expect(page).to have_current_path(read_article_path(article))
+    opened = article.reading.reload.opened_at
 
-    article.reading.reload.update_columns(opened_at: Time.current - threshold - 5)
-    click_on "読み終えた"
+    # 元サイトの代わりに /up を別窓で開き、そこにいる間に滞在を作って戻る（戻った瞬間に判定が走る）
+    reader = current_window
+    source = window_opened_by { click_on "記事を開く" }
+    within_window(source) do
+      expect(page).to have_current_path("/up", ignore_query: true)
+      Timeout.timeout(Capybara.default_max_wait_time) { sleep 0.05 until article.reading.reload.opened_at > opened }
+      article.reading.update_columns(opened_at: Time.current - threshold - 5)
+    end
+    source.close
+    switch_to_window(reader)
     expect(page).to have_css("section[aria-label='判定']", text: "読了！ +#{base * jackpot[:multiplier]} XP")
     expect(article.reading.reload).to be_completed
   end
