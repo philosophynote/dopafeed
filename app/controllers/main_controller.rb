@@ -10,6 +10,5 @@ class MainController < ApplicationController
     @goal_articles = Dopamine.settings.dig(:daily_goal, :articles)
     @streak_days = ReadingStreak.days
     @combo_multiplier = Combo.new.multiplier
-    @pending_reading = Reading.pending.includes(:article).first
   end
 end

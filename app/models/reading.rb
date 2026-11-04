@@ -1,16 +1,13 @@
 # 読了。1 記事 1 行（ADR 0006）。
-# 「読む」のタップで作られ（opened_at と抽選結果 tier）、記事から戻ると returned_at、完読なら completed_at と xp が入る。
+# 「読む」のタップか、前の記事を読み終えたときに作られ（opened_at と抽選結果 tier）、記事の末尾まで読むと returned_at（判定した時刻）、完読なら completed_at と xp が入る。
 # tier は名前だけ持つ。倍率・確率は常に config/dopamine.yml から導く。確定した XP だけ xp に数値で残す。
-# 判定と XP の確定は {#return!}（戻った時刻で決める）。抽選は {XpRoulette}、コンボは {Combo}。
+# 判定と XP の確定は {#return!}（読み終えた時刻で決める）。抽選は {XpRoulette}、コンボは {Combo}。
 #
 # @!method self.completed
 #   完読した行（completed_at あり）
 #   @return [ActiveRecord::Relation<Reading>]
 # @!method self.on(day)
 #   その読書日（{ReadingDay}）に完読した行
-#   @return [ActiveRecord::Relation<Reading>]
-# @!method self.pending
-#   開いたまま戻っていない行。新しく開いた順
 #   @return [ActiveRecord::Relation<Reading>]
 class Reading < ApplicationRecord
   belongs_to :article
@@ -23,7 +20,6 @@ class Reading < ApplicationRecord
 
   scope :completed, -> { where.not(completed_at: nil) }
   scope :on, ->(day) { completed.where(completed_at: ReadingDay.range(day)) }
-  scope :pending, -> { where(returned_at: nil).order(opened_at: :desc) }
 
   # 記事を開く。行が無ければ抽選して作り、未完の行は抽選を使い回して開き直す（ADR 0006）。
   # 同時に作られて一意制約で落ちたら、先に入った行を使う（二重タップ）
@@ -48,20 +44,20 @@ class Reading < ApplicationRecord
     tier == Dopamine.jackpot_tier[:name]
   end
 
-  # 記事を開いてアプリに戻るまでの秒数
+  # 記事を開いてから末尾まで読み終えるまでの秒数
   #
-  # @return [Integer, nil] 戻っていなければ nil
+  # @return [Integer, nil] 判定の前なら nil
   def dwell_seconds
     return nil if returned_at.nil?
 
     (returned_at - opened_at).to_i
   end
 
-  # 記事から戻った。滞在が read.complete_after_seconds 以上なら完読として XP を確定する。
-  # 2 回目以降の戻りは無視する（1 記事 1 回。ADR 0006）。
+  # 記事の末尾まで読んだ。滞在が read.complete_after_seconds 以上なら完読として XP を確定する。
+  # 2 回目以降は無視する（1 記事 1 回。ADR 0006）。
   # 未完なら returned_at だけ残し、xp は 0 のまま未読に戻る
   #
-  # @param at [Time] 戻った時刻。サーバーの時計で決める（端末の時計は信用しない）
+  # @param at [Time] 読み終えた時刻。サーバーの時計で決める（端末の時計は信用しない）
   # @return [Reading] self
   def return!(at: Time.current)
     return self if returned_at.present?

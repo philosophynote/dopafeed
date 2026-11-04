@@ -18,7 +18,7 @@
    - 注記「結果と同時に効果音が鳴り、記事がアプリ内で開きます」（固定）
 
 ## 遷移
-- Main / ReadDone の「読む」→ Roulette（Turbo Frame のモーダル。Stimulus で回転アニメーション）
+- Main の「読む」→ Roulette（Turbo Frame のモーダル。Stimulus で回転アニメーション）
 - Roulette → 記事（common / rare: 0.5 秒後に自動で記事を開く）
 - Roulette → Jackpot（jackpot のときは全画面演出へ。記事はその後）
 - 抽選はサーバーで行い、結果を HTML に埋めて返す。クライアントは演出だけ
@@ -51,3 +51,4 @@ personas.yml: なし
 4. 激レア（1.5% +50 XP 紫の全画面）を tier として持つか。yml には無い
    → **決定（Unit 6、#42）**: 持たない。全画面に進む出目は `Dopamine.jackpot_tier`（倍率が最も高い tier）の 1 つだけ
 5. 実装の形（Unit 6、#42）: 「読む」は Turbo の POST。サーバーが抽選済みの `readings.tier` を埋めたモーダルを Turbo Stream で layout の `#roulette` に差し込む。帯は CSS の `@keyframes`（長さと止まる行は CSS 変数で yml の値を渡す）、Stimulus `roulette` は `roulette_duration_ms` 経過で結果のリンク（記事 or Jackpot）を踏むだけ。JS 無しの POST は今までどおり記事へ redirect。記事へ出る印（`reading-return`）は「読む」の submit ではなく、このリンクの click で付ける（Jackpot から戻るで Main に帰っただけの人を読了扱いにしないため）。`prefers-reduced-motion` なら帯は回さず結果だけ出す
+   → **#43（ADR 0010）**: 結果のリンク先は記事の URL ではなくアプリ内の Reader（`/articles/:id/read`、Turbo で進む）。`reading-return` の印は消した。JS 無しの POST も Reader へ redirect

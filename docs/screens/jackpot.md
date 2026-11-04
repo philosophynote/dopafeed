@@ -18,13 +18,13 @@
 
 ## 遷移
 - Roulette（jackpot）→ Jackpot（full page か Turbo Frame で全画面）
-- Jackpot → 記事（「受け取って読む」のみ。戻るボタン・背景タップで閉じない）
-- 記事 → ReadDone（通常の流れ。XP 内訳にジャックポット倍率が出る）
+- Jackpot → Reader（「受け取って読む」のみ。戻るボタン・背景タップで閉じない）
+- Reader の末尾 → 区切り（通常の流れ。XP にジャックポット倍率が掛かる）
 
 ## 受け入れ条件（Given-When-Then）
 - Given Roulette で jackpot が出た When 画面が切り替わる Then 全画面で「JACKPOT」と xp.base × multiplier の XP が出る
 - Given Jackpot 画面 When 背景をタップ Then 閉じない
-- Given Jackpot 画面 When 「受け取って読む」Then 記事が開き、ReadDone の内訳に jackpot 倍率が出る
+- Given Jackpot 画面 When 「受け取って読む」Then Reader で記事が開き、読み終えると区切りの XP に jackpot 倍率が掛かる
 - Given Jackpot 画面 When ブラウザの戻る Then Main に戻るが、抽選結果は保持され同じ記事を再度読むと Jackpot 画面が再表示される（未決 3）
 - Given jackpot を引いた When 24 時間以内に次の抽選 Then レア確率が 2 倍になる（未決 2。鍵が無ければこの条件は落とす）
 - Given 390 幅 When Jackpot を開く Then 紙吹雪が横スクロールを生まない

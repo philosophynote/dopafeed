@@ -1,8 +1,8 @@
-# 読了まわり（ReadDone・Roulette・Jackpot・リーダーの判定）の表示だけの整形。判定と XP はモデルが決め、ここでは数を言葉にするだけ
+# 読了まわり（Roulette・Jackpot・リーダーの判定）の表示だけの整形。判定と XP はモデルが決め、ここでは数を言葉にするだけ
 module ReadingsHelper
   # 滞在時間の表示。秒数だけだと長さが掴めないので分と秒に分ける
   #
-  # @return [String] 例: 4分12秒。戻っていなければ空
+  # @return [String] 例: 4分12秒。判定の前なら空
   def dwell_in_words(seconds)
     return "" if seconds.nil?
 

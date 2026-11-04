@@ -2,8 +2,10 @@
 <% completed = reading.completed? %>
 <section id="<%= dom_id(reading, :result) %>" class="rounded-2xl p-4 text-center <%= completed ? "bg-orange-500 text-white" : "bg-gray-200 text-gray-700" %>" aria-label="判定">
   <% if completed %>
-    <p class="text-2xl font-black">読了！ +<%= reading.xp %> XP</p>
-    <p class="mt-1 text-sm">滞在 <%= dwell_in_words(reading.dwell_seconds) %> ・ <%= reading.combo_count %> 本連続 ・ コンボ ×<%= number_with_precision(reading.combo_multiplier, precision: 1) %></p>
+    <% breakdown = reading.xp_breakdown %>
+    <p class="text-2xl font-black">読了！ +<%= breakdown[:total] %> XP</p>
+    <p class="mt-1 text-sm">完読ボーナス +<%= breakdown[:bonus] %> ・ コンボ ×<%= number_with_precision(reading.combo_multiplier, precision: 1) %> +<%= breakdown[:combo] %></p>
+    <p class="mt-1 text-sm">滞在 <%= dwell_in_words(reading.dwell_seconds) %> ・ <%= reading.combo_count %> 本連続</p>
   <% else %>
     <p class="text-2xl font-black">未完 ・ +0 XP</p>
     <p class="mt-1 text-sm">滞在 <%= dwell_in_words(reading.dwell_seconds) %>。<%= Dopamine.settings.dig(:read, :complete_after_seconds) %> 秒未満なら XP なし</p>

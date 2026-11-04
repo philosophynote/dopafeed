@@ -1,3 +1,0 @@
-<%# 記事から戻った合図で reading-return が送る form。画面には出さずボタンも持たない（requestSubmit で送る）。開いた行が無ければサーバーが Main へ戻す %>
-<%= form_with url: return_readings_path, method: :post, data: { reading_return_target: "form" }, class: "hidden", "aria-hidden": true do %>
-<% end %>

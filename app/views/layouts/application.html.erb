@@ -25,8 +25,7 @@
   </head>
 
   <body class="min-h-dvh bg-gray-100 text-gray-900 antialiased">
-    <%# reading-return は「読む」の form と読了を記録する form の両方を見るので、画面全体を包む %>
-    <main class="mx-auto w-full max-w-md px-4 pt-4 pb-24" data-controller="reading-return">
+    <main class="mx-auto w-full max-w-md px-4 pt-4 pb-24">
       <%= yield %>
       <%# 「読む」の Turbo Stream がルーレットのモーダルを差し込む先 %>
       <div id="roulette"></div>

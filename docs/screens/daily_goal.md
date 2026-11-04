@@ -17,7 +17,7 @@ SNS には無い「止まり所」。今日の 5 本を読み切ったら宝箱�
 7. 注記（固定）
 
 ## 遷移
-- ReadDone（5 本目の完読）→ DailyGoal（自動。未決は ReadDone の 6）
+- Reader の区切り（5 本目の完読）→ DailyGoal（自動にするかは未決。read_done.md 未決 6）
 - Main のゴール表示をタップ → DailyGoal（達成前は進捗だけの軽い表示。未決 4）
 - DailyGoal → Main
 

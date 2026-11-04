@@ -1,5 +1,5 @@
 RSpec.describe Article, type: :model do
-  it "url は http(s) だけ（redirect 先になるので javascript: などを通さない）" do
+  it "url は http(s) だけ（リンク先になるので javascript: などを通さない）" do
     expect(build(:article, url: "https://example.com/ok")).to be_valid
     expect(build(:article, url: "javascript:alert(1)")).not_to be_valid
     expect(build(:article, url: "ftp://example.com/x")).not_to be_valid

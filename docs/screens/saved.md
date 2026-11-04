@@ -30,4 +30,4 @@ personas.yml: なし
 1. いいねとブックマークの違い（学習への寄与が違う？ 表示は同じ？）。Unit 2 で列を決めるときに要る
    → **決定（Unit 2、ADR 0006）**: 別の列 `articles.liked_at` / `articles.bookmarked_at`。表示は `Article.saved` で束ねる。学習への寄与の違いは第二の陣
 2. 保存記事を開いたときに読了判定・XP を出すか（モックは「読み返す +5 XP」が Swipe にある）
-3. ひとこと要約（ReadDone）をここで見返す（ReadDone の注記「あとで保存タブから見返せます」）
+3. ひとこと要約（モックの ReadDone。今は Reader の区切りに畳んだので、置き場は未決）をここで見返す（ReadDone の注記「あとで保存タブから見返せます」）
