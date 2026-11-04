@@ -1,5 +1,6 @@
 # 読了。1 記事 1 行（ADR 0006）。
-# 「読む」のタップか、前の記事を読み終えたときに作られ（opened_at と抽選結果 tier）、記事の末尾まで読むと returned_at（判定した時刻）、完読なら completed_at と xp が入る。
+# 「読む」のタップか、前の記事を読み終えたときに作られ（opened_at と抽選結果 tier）、元の記事を開くと opened_at をその時刻に直し、
+# 読み終えると returned_at（判定した時刻）、完読なら completed_at と xp が入る。
 # tier は名前だけ持つ。倍率・確率は常に config/dopamine.yml から導く。確定した XP だけ xp に数値で残す。
 # 判定と XP の確定は {#return!}（読み終えた時刻で決める）。抽選は {XpRoulette}、コンボは {Combo}。
 #
@@ -69,6 +70,17 @@ class Reading < ApplicationRecord
       self.xp = (base_xp * combo_multiplier).round
     end
     save!
+  end
+
+  # 元の記事を開いた。滞在は開いた時刻から数える（行ができてから開くまでの、要約を眺めていた時間は読んだうちに入れない）。
+  # 判定済みなら何もしない。未完の行も区切りに出した滞在を書き換えない（読み直しは {#reopen!}）
+  #
+  # @return [Reading] self
+  def start!(at: Time.current)
+    return self if returned_at
+
+    update!(opened_at: at)
+    self
   end
 
   # 未完のまま同じ記事をもう一度開いた。滞在を測り直すために opened_at を今にし、tier は使い回す（再抽選しない。ADR 0006）。

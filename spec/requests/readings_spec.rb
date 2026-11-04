@@ -229,7 +229,7 @@ RSpec.describe "Readings", type: :request do
       end
     end
 
-    describe "末尾まで読んだ（POST /readings/:id/advance）" do
+    describe "読み終えた（POST /readings/:id/advance）" do
       def post_turbo(reading)
         post advance_reading_path(reading), headers: { "Accept" => "text/vnd.turbo-stream.html, text/html" }
       end
@@ -355,6 +355,39 @@ RSpec.describe "Readings", type: :request do
         delete session_path
         post advance_reading_path(reading)
         expect(response).to redirect_to(new_session_path)
+      end
+    end
+
+    describe "記事を開いた（POST /readings/:id/start）" do
+      it "判定前なら opened_at を今にして 204" do
+        reading = create(:reading, opened_at: noon)
+
+        travel_to(noon + 5.minutes) { post start_reading_path(reading) }
+
+        expect(response).to have_http_status(:no_content)
+        expect(reading.reload.opened_at).to eq(noon + 5.minutes)
+      end
+
+      it "判定済みの行は変えない" do
+        reading = create(:reading, opened_at: noon, returned_at: noon + 5.seconds)
+
+        travel_to(noon + 5.minutes) { post start_reading_path(reading) }
+
+        expect(response).to have_http_status(:no_content)
+        expect(reading.reload.opened_at).to eq(noon)
+      end
+
+      it "無い行なら 404" do
+        post start_reading_path(0)
+        expect(response).to have_http_status(:not_found)
+      end
+
+      it "未ログインならログイン画面へ" do
+        reading = create(:reading, opened_at: noon)
+        delete session_path
+        post start_reading_path(reading)
+        expect(response).to redirect_to(new_session_path)
+        expect(reading.reload.opened_at).to eq(noon)
       end
     end
 

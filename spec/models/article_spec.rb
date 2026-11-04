@@ -118,13 +118,4 @@ RSpec.describe Article, type: :model do
       expect(Article.next_unread_after(undated_old)).to be_nil
     end
   end
-
-  describe "#full_text?" do
-    it "記事ページから本文を取れたときだけ true（フィードの抜粋のまま・取得失敗・本文なしは false）" do
-      expect(build(:article, content: "<p>本文</p>", content_fetched_at: Time.current)).to be_full_text
-      expect(build(:article, content: "<p>抜粋</p>", content_fetched_at: nil)).not_to be_full_text
-      expect(build(:article, content: "<p>抜粋</p>", content_fetched_at: Time.current, content_error: "HTTP 404")).not_to be_full_text
-      expect(build(:article, content: nil, content_fetched_at: Time.current)).not_to be_full_text
-    end
-  end
 end

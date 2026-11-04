@@ -53,11 +53,6 @@ class Article < ApplicationRecord
     unread.newest_first.where(older).first
   end
 
-  # 記事ページから本文を取れたか。取る前と取れなかった記事の content はフィードの抜粋のままで、全文ではない
-  def full_text?
-    content.present? && content_fetched_at.present? && content_error.nil?
-  end
-
   # @return [Boolean] いいねか保存のどちらかが付いているか
   def saved?
     liked_at.present? || bookmarked_at.present?

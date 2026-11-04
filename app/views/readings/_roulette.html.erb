@@ -40,9 +40,9 @@
       </tbody>
     </table>
 
-    <p class="mt-3 text-center text-xs text-gray-500">止まると記事がアプリ内で開きます</p>
+    <p class="mt-3 text-center text-xs text-gray-500">止まると記事のカードが開きます</p>
 
-    <%# 止まった瞬間に roulette が踏むリンク。どちらも Turbo で進む（記事はアプリ内のリーダーで開く） %>
+    <%# 止まった瞬間に roulette が踏むリンク。どちらも Turbo で進む（元サイトは Reader のカードから開く） %>
     <% if reading.jackpot? %>
       <%= link_to "ジャックポットへ", jackpot_reading_path(reading), class: "sr-only", data: { roulette_target: "link" } %>
     <% else %>

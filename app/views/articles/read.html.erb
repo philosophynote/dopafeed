@@ -1,4 +1,4 @@
-<%# Reader（docs/screens/reader.md）。最初の 1 本を描き、末尾まで読むと判定と次の 1 本が #reader の下に継ぎ足される（readings/advance） %>
+<%# Reader（docs/screens/reader.md）。最初の 1 本を描き、元の記事から戻ると判定と次の 1 本が #reader の下に継ぎ足される（readings/advance） %>
 <% content_for :title, @article.title %>
 <header class="sticky top-0 z-10 -mx-4 -mt-4 flex items-center justify-between bg-gray-100/90 px-4 py-1 backdrop-blur">
   <%= link_to "閉じる", root_path, class: "inline-flex h-11 items-center rounded-full px-3 text-sm font-semibold text-gray-700 active:bg-white" %>

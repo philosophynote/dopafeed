@@ -52,3 +52,4 @@ personas.yml: なし
    → **決定（Unit 6、#42）**: 持たない。全画面に進む出目は `Dopamine.jackpot_tier`（倍率が最も高い tier）の 1 つだけ
 5. 実装の形（Unit 6、#42）: 「読む」は Turbo の POST。サーバーが抽選済みの `readings.tier` を埋めたモーダルを Turbo Stream で layout の `#roulette` に差し込む。帯は CSS の `@keyframes`（長さと止まる行は CSS 変数で yml の値を渡す）、Stimulus `roulette` は `roulette_duration_ms` 経過で結果のリンク（記事 or Jackpot）を踏むだけ。JS 無しの POST は今までどおり記事へ redirect。記事へ出る印（`reading-return`）は「読む」の submit ではなく、このリンクの click で付ける（Jackpot から戻るで Main に帰っただけの人を読了扱いにしないため）。`prefers-reduced-motion` なら帯は回さず結果だけ出す
    → **#43（ADR 0010）**: 結果のリンク先は記事の URL ではなくアプリ内の Reader（`/articles/:id/read`、Turbo で進む）。`reading-return` の印は消した。JS 無しの POST も Reader へ redirect
+   → **#50（ADR 0011）**: Reader は本文を描かず、カードの「記事を開く」で元サイトをシートに開く。止まった瞬間に元サイトを自動で開くことはしない（タップ無しの新しい窓はポップアップとして止められる）。注記は「止まると記事のカードが開きます」
