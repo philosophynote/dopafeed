@@ -12,7 +12,7 @@ class ReadingsController < ApplicationController
     end
   end
 
-  # 元の記事を開いた。fetch から呼ばれ、画面は変えないので本文は返さない
+  # 元の記事を開いた。画面は変えないので本文は返さない
   def start
     reading = Reading.find(params[:id])
     # 読み終えた判定と行き違っても判定済みの滞在を書き換えないよう、行を読み直してから見る

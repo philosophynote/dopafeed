@@ -1,4 +1,4 @@
-# 「読む」→ Roulette / Jackpot → リーダーで末尾まで読む → 判定と次の記事（docs/screens/reader.md・roulette.md・jackpot.md）
+# 「読む」→ Roulette / Jackpot → Reader で記事を開いて読み終える → 判定と次の記事（docs/screens/reader.md・roulette.md・jackpot.md）
 RSpec.describe "Readings", type: :request do
   let(:settings) { Dopamine.settings }
   let(:threshold) { settings.dig(:read, :complete_after_seconds) }
@@ -241,7 +241,7 @@ RSpec.describe "Readings", type: :request do
       let(:current) { create(:article, title: "今の記事", published_at: noon) }
       let!(:reading) { create(:reading, article: current, tier: common, opened_at: noon) }
 
-      it "complete_after_seconds 以上なら完読。末尾の form を判定で置き換え、古い方の次の未読を開いて継ぎ足す" do
+      it "complete_after_seconds 以上なら完読。「読み終えた」の form を判定で置き換え、古い方の次の未読を開いて継ぎ足す" do
         create(:article, title: "新しい記事", published_at: noon + 1.hour)
         following = create(:article, title: "次の記事", published_at: noon - 1.hour)
         allow(XpRoulette).to receive(:draw).and_return(common)
@@ -377,6 +377,22 @@ RSpec.describe "Readings", type: :request do
         expect(reading.reload.opened_at).to eq(noon)
       end
 
+      it "CSRF トークンをヘッダで受け取る（fetch で送るので form の hidden は無い）" do
+        reading = create(:reading, opened_at: noon)
+        ActionController::Base.allow_forgery_protection = true
+        get read_article_path(reading.article)
+        token = page.find("meta[name='csrf-token']", visible: :all)[:content]
+
+        post start_reading_path(reading)
+        expect(response).to have_http_status(:unprocessable_content)
+
+        travel_to(noon + 5.minutes) { post start_reading_path(reading), headers: { "X-CSRF-Token" => token } }
+        expect(response).to have_http_status(:no_content)
+        expect(reading.reload.opened_at).to eq(noon + 5.minutes)
+      ensure
+        ActionController::Base.allow_forgery_protection = false
+      end
+
       it "無い行なら 404" do
         post start_reading_path(0)
         expect(response).to have_http_status(:not_found)
@@ -404,7 +420,7 @@ RSpec.describe "Readings", type: :request do
     end
 
     describe "Main のコンボと「読む」" do
-      it "判定前の記事があっても「読了を記録」のピルは出ない（判定はリーダーの末尾だけ）" do
+      it "判定前の記事があっても「読了を記録」のピルは出ない（判定は Reader の「読み終えた」だけ）" do
         create(:reading, article: create(:article, title: "読みかけ"), tier: common, opened_at: noon)
 
         get root_path

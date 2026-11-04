@@ -45,7 +45,7 @@ class Reading < ApplicationRecord
     tier == Dopamine.jackpot_tier[:name]
   end
 
-  # 記事を開いてから末尾まで読み終えるまでの秒数
+  # 記事を開いてから読み終えるまでの秒数
   #
   # @return [Integer, nil] 判定の前なら nil
   def dwell_seconds
@@ -54,7 +54,7 @@ class Reading < ApplicationRecord
     (returned_at - opened_at).to_i
   end
 
-  # 記事の末尾まで読んだ。滞在が read.complete_after_seconds 以上なら完読として XP を確定する。
+  # 記事を読み終えた。滞在が read.complete_after_seconds 以上なら完読として XP を確定する。
   # 2 回目以降は無視する（1 記事 1 回。ADR 0006）。
   # 未完なら returned_at だけ残し、xp は 0 のまま未読に戻る
   #
@@ -72,8 +72,8 @@ class Reading < ApplicationRecord
     save!
   end
 
-  # 元の記事を開いた。滞在は開いた時刻から数える（行ができてから開くまでの、要約を眺めていた時間は読んだうちに入れない）。
-  # 判定済みなら何もしない。未完の行も区切りに出した滞在を書き換えない（読み直しは {#reopen!}）
+  # 元の記事を開いた。滞在は開いた時刻から数える（行ができてから開くまでの時間は読んだうちに入れない）。
+  # 判定済みなら何もしない。未完の行も判定済みの滞在は書き換えない（読み直しは {#reopen!}）
   #
   # @return [Reading] self
   def start!(at: Time.current)

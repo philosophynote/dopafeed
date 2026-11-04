@@ -1,4 +1,4 @@
-# 記事の末尾まで読んだときの判定と XP の確定（docs/screens/reader.md の受け入れ条件）。
+# 記事を読み終えたときの判定と XP の確定（docs/screens/reader.md の受け入れ条件）。
 # 数字はすべて dopamine.yml から組み立てる
 RSpec.describe Reading, "#return!" do
   let(:settings) { Dopamine.settings }

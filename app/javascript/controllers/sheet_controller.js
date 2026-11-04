@@ -27,13 +27,14 @@ export default class extends Controller {
   }
 
   // 既定の遷移（target=_blank）は止めない。滞在は開いた時刻から数えるので、サーバーに知らせる。
-  // keepalive: 開いた直後にページが凍っても（iOS）送り切らせる
+  // keepalive: 開いた直後にページが凍っても（iOS）送り切らせる。
+  // 届かなくても読むのは止めない（滞在が行を作った時刻から数えられ、長めに出るだけ）
   open() {
     fetch(this.startUrlValue, {
       method: "POST",
       keepalive: true,
       headers: { "X-CSRF-Token": document.querySelector("meta[name=csrf-token]")?.content }
-    })
+    }).catch(() => {})
     this.opened = true
     this.away = false
     this.finishTargets.forEach((form) => { form.hidden = false })

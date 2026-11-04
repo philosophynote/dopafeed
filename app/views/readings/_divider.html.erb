@@ -1,4 +1,4 @@
-<%# 判定の区切り（docs/screens/reader.md）。末尾の form と置き換わり、XP を見せてから次の 1 本へ流す %>
+<%# 判定の区切り（docs/screens/reader.md）。「読み終えた」の form と置き換わり、XP を見せてから次の 1 本へ流す %>
 <% completed = reading.completed? %>
 <section id="<%= dom_id(reading, :result) %>" class="rounded-2xl p-4 text-center <%= completed ? "bg-orange-500 text-white" : "bg-gray-200 text-gray-700" %>" aria-label="判定">
   <% if completed %>

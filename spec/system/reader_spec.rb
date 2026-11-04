@@ -62,6 +62,7 @@ RSpec.describe "Reader", type: :system do
     expect(page).to have_css("h1", text: "次の記事")
     expect(page).to have_current_path(read_article_path(first))
     expect(first.reload.reading).to be_completed
+    expect(page).to have_no_button("読み終えた") # 継ぎ足された次のカードも、開くまでは隠す
     screenshot!("divider")
 
     # 次の記事はすぐ戻ると未完。未読が尽きたら「全部読んだ」
