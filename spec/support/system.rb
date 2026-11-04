@@ -131,6 +131,21 @@ module SystemScreen
   end
 end
 
+# click は chromedriver に合成させず、要素の click() で送る。
+# chromedriver が送る mouse click（Input.dispatchMouseEvent）は、Turbo が body を差し替えた直後などに
+# 文書へ届かないことがある（手元で 8 回中 3〜5 回、CI でも再現）。touch で送ると Chrome が touchEnd の応答を返さず固まる。
+# 要素が見えて押せることは Capybara が先に確かめるので、検査の意味は変わらない。
+# 修飾キーや座標付きの click は chromedriver に任せる（今の spec には無い）
+module SystemJsClick
+  def click(keys = [], **options)
+    plain = keys.empty? && !(options[:x] && options[:y]) && options.fetch(:delay, 0).zero?
+    return super unless plain
+
+    driver.execute_script("arguments[0].click()", native)
+  end
+end
+Capybara::Selenium::Node.prepend(SystemJsClick)
+
 RSpec.configure do |config|
   config.include SystemScreen, type: :system
 

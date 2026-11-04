@@ -13,6 +13,20 @@ RSpec.describe "Selenium driver", type: :system do
     expect(page.evaluate_script("navigator.maxTouchPoints")).to eq(0)
   end
 
+  # chromedriver の合成 mouse click は届かないことがある（spec/support/system.rb）。JS の click() で送っていることを保つ
+  it "click は要素の click() で送る（pointer イベントは起きない）" do
+    visit new_session_path
+    page.execute_script(<<~JS)
+      window.__events = [];
+      for (const type of ["pointerdown", "mousedown", "click"]) document.addEventListener(type, (e) => window.__events.push(type), true);
+    JS
+
+    click_on "Forgot password?"
+
+    expect(page).to have_current_path(new_password_path)
+    expect(page.evaluate_script("window.__events")).to eq([ "click" ])
+  end
+
   it "restart_browser! は新しい driver と Chrome に切り替える" do
     visit new_session_path
     old_driver = page.driver
