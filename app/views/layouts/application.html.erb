@@ -28,7 +28,7 @@
     <%# reading-return は「読む」の form と読了を記録する form の両方を見るので、画面全体を包む %>
     <main class="mx-auto w-full max-w-md px-4 pt-4 pb-24" data-controller="reading-return">
       <%= yield %>
-      <%# 「読む」の Turbo Stream がルーレットのモーダルを差し込む先。reading-return の中に置くのは、モーダル内のリンクが記事へ出る印を付けるため %>
+      <%# 「読む」の Turbo Stream がルーレットのモーダルを差し込む先 %>
       <div id="roulette"></div>
     </main>
   </body>

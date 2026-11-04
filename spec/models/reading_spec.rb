@@ -90,4 +90,45 @@ RSpec.describe Reading, type: :model do
   def complete(at:)
     create(:reading, :completed, opened_at: at - 1.minute, returned_at: at, completed_at: at)
   end
+
+  describe ".open!" do
+    let(:at) { Time.zone.local(2026, 10, 20, 12) }
+    let(:rare) { Dopamine.tier_names.second }
+
+    it "行が無ければ抽選して opened_at を今にして作る" do
+      article = create(:article)
+      allow(XpRoulette).to receive(:draw).and_return(rare)
+
+      reading = Reading.open!(article, at: at)
+
+      expect(reading).to be_persisted
+      expect(reading.tier).to eq(rare)
+      expect(reading.opened_at).to eq(at)
+    end
+
+    it "未完の行があれば再抽選せず開き直す" do
+      reading = create(:reading, tier: rare, opened_at: at - 1.hour, returned_at: at - 1.hour + 5.seconds)
+      expect(XpRoulette).not_to receive(:draw)
+
+      expect(Reading.open!(reading.article, at: at)).to eq(reading)
+      expect(reading.reload.opened_at).to eq(at)
+      expect(reading.returned_at).to be_nil
+    end
+
+    it "完読済みの行は変えない" do
+      reading = create(:reading, :completed)
+      before = reading.attributes
+      expect(Reading.open!(reading.article, at: at).attributes).to eq(before)
+    end
+
+    it "同時に作られて一意制約で落ちたら、先に入った行を返す" do
+      article = create(:article)
+      existing = create(:reading, article: article, tier: rare, opened_at: at - 1.minute)
+      ghost = Reading.new(article: article)
+      allow(Reading).to receive(:find_or_initialize_by).and_return(ghost)
+      allow(ghost).to receive(:save!).and_raise(ActiveRecord::RecordNotUnique.new("二重タップ"))
+
+      expect(Reading.open!(article, at: at)).to eq(existing)
+    end
+  end
 end

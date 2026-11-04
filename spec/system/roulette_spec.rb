@@ -1,5 +1,4 @@
-# 読む → Roulette → 記事 → 戻る → ReadDone と、jackpot → Jackpot → 受け取って読む → 戻る → ReadDone を 390×844 で通す。
-# 記事の URL は Capybara のサーバー（/up）にして、外に出ずに「記事を開いて戻る」を再現する
+# 読む → Roulette → リーダーと、jackpot → Jackpot → 受け取って読む → リーダーを 390×844 で通す
 RSpec.describe "Roulette", type: :system do
   let(:settings) { Dopamine.settings }
   let(:threshold) { settings.dig(:read, :complete_after_seconds) }
@@ -8,24 +7,19 @@ RSpec.describe "Roulette", type: :system do
   let(:jackpot) { Dopamine.jackpot_tier }
 
   def article_on_this_server(title = "読む記事")
-    create(:article, title: title, url: "#{Capybara.current_session.server.base_url}/up")
+    create(:article, title: title)
   end
 
-  it "読むと止まった出目で記事が開き、戻ると ReadDone にモーダルは残らない" do
+  it "読むと止まった出目の帯つきでリーダーが開き、モーダルは残らない" do
     allow(XpRoulette).to receive(:draw).and_return(common)
     article = article_on_this_server
     sign_in
 
     click_on "読む"
-    expect(page).to have_current_path("/up")
-
-    travel_to(Time.current + threshold + 5.seconds) do
-      page.go_back
-      expect(page).to have_text("読了！")
-      expect(page).to have_text(/合計\s*\+#{base} XP/)
-      expect(page).to have_no_css("[data-controller='roulette']")
-    end
-    expect(article.reload.reading).to be_completed
+    expect(page).to have_current_path(read_article_path(article))
+    expect(page).to have_text("出目 通常 ×1 ・ 完読で +#{base} XP")
+    expect(page).to have_no_css("[data-controller='roulette']")
+    expect(article.reload.reading.returned_at).to be_nil
   end
 
   it "回っている間は一覧の上にモーダルが重なり、背景のカードは残る（絵のためにこの例だけ長く回す）" do
@@ -46,7 +40,7 @@ RSpec.describe "Roulette", type: :system do
     expect(article.reload.reading.tier).to eq(common)
   end
 
-  it "jackpot なら全画面に進み、受け取って読むで記事が開き、戻ると ReadDone の内訳に jackpot の倍率が出る" do
+  it "jackpot なら全画面に進み、受け取って読むでリーダーが開き、読み終えると jackpot の倍率で XP が付く" do
     allow(XpRoulette).to receive(:draw).and_return(jackpot[:name])
     article = article_on_this_server
     sign_in
@@ -71,13 +65,11 @@ RSpec.describe "Roulette", type: :system do
     expect(page).to have_current_path(jackpot_reading_path(article.reading))
 
     click_on "受け取って読む"
-    expect(page).to have_current_path("/up")
+    expect(page).to have_current_path(read_article_path(article))
 
-    travel_to(Time.current + threshold + 5.seconds) do
-      page.go_back
-      expect(page).to have_text("読了！")
-      expect(page).to have_text(/完読ボーナス\s*\+#{base * jackpot[:multiplier]} XP/)
-    end
+    article.reading.reload.update_columns(opened_at: Time.current - threshold - 5)
+    click_on "読み終えた"
+    expect(page).to have_css("section[aria-label='判定']", text: "読了！ +#{base * jackpot[:multiplier]} XP")
     expect(article.reading.reload).to be_completed
   end
 end

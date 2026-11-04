@@ -87,4 +87,44 @@ RSpec.describe Article, type: :model do
     article = create(:article, :read)
     expect { article.destroy! }.to change(Reading, :count).by(-1)
   end
+
+  describe "next_unread_after" do
+    let(:at) { Time.zone.local(2026, 10, 20, 12) }
+
+    it "published_at が古い方の未読を 1 本返し、完読は飛ばす" do
+      current = create(:article, published_at: at)
+      older = create(:article, published_at: at - 1.hour)
+      create(:article, :read, published_at: at - 30.minutes)
+      create(:article, published_at: at + 1.hour)
+
+      expect(Article.next_unread_after(current)).to eq(older)
+      expect(Article.next_unread_after(older)).to be_nil
+    end
+
+    it "同時刻なら id の小さい方へ進む" do
+      first = create(:article, published_at: at)
+      second = create(:article, published_at: at)
+      expect(Article.next_unread_after(second)).to eq(first)
+      expect(Article.next_unread_after(first)).to be_nil
+    end
+
+    it "published_at の無い記事は日付のある記事の後に、id の降順で続く" do
+      dated = create(:article, published_at: at)
+      undated_old = create(:article, published_at: nil)
+      undated_new = create(:article, published_at: nil)
+
+      expect(Article.next_unread_after(dated)).to eq(undated_new)
+      expect(Article.next_unread_after(undated_new)).to eq(undated_old)
+      expect(Article.next_unread_after(undated_old)).to be_nil
+    end
+  end
+
+  describe "#full_text?" do
+    it "記事ページから本文を取れたときだけ true（フィードの抜粋のまま・取得失敗・本文なしは false）" do
+      expect(build(:article, content: "<p>本文</p>", content_fetched_at: Time.current)).to be_full_text
+      expect(build(:article, content: "<p>抜粋</p>", content_fetched_at: nil)).not_to be_full_text
+      expect(build(:article, content: "<p>抜粋</p>", content_fetched_at: Time.current, content_error: "HTTP 404")).not_to be_full_text
+      expect(build(:article, content: nil, content_fetched_at: Time.current)).not_to be_full_text
+    end
+  end
 end

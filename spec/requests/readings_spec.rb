@@ -25,13 +25,13 @@ RSpec.describe "Readings", type: :request do
     before { sign_in_as(create(:user)) }
 
     describe "読む（POST /articles/:id/reading）" do
-      it "Reading を作って抽選し、記事の URL へ redirect する" do
+      it "Reading を作って抽選し、アプリ内のリーダーへ redirect する" do
         article = create(:article, url: "https://example.com/a")
         allow(XpRoulette).to receive(:draw).and_return(common)
 
         travel_to(noon) { post article_reading_path(article) }
 
-        expect(response).to redirect_to("https://example.com/a")
+        expect(response).to redirect_to(read_article_path(article))
         reading = article.reload.reading
         expect(reading.tier).to eq(common)
         expect(reading.opened_at).to eq(noon)
@@ -65,13 +65,13 @@ RSpec.describe "Readings", type: :request do
         expect(response).to have_http_status(:not_found)
       end
 
-      it "完読済みの記事をもう一度読んでも行は変わらず、記事へ redirect するだけ" do
+      it "完読済みの記事をもう一度読んでも行は変わらず、リーダーへ redirect するだけ" do
         article = create(:article, :read)
         before = article.reading.attributes
 
         post article_reading_path(article)
 
-        expect(response).to redirect_to(article.url)
+        expect(response).to redirect_to(read_article_path(article))
         expect(article.reading.reload.attributes).to eq(before)
       end
     end
@@ -91,7 +91,7 @@ RSpec.describe "Readings", type: :request do
         Capybara.string(response.body.gsub(%r{</?template>}, ""))
       end
 
-      it "モーダルを #roulette に差し込む。出目の帯・出目表・長さは yml から組み、止まったら記事へのリンクを持つ" do
+      it "モーダルを #roulette に差し込む。出目の帯・出目表・長さは yml から組み、止まったらリーダーへのリンクを持つ" do
         article = create(:article, url: "https://example.com/a")
         allow(XpRoulette).to receive(:draw).and_return(common)
 
@@ -109,9 +109,9 @@ RSpec.describe "Readings", type: :request do
         end
         expect(page).to have_css("table tr[data-tier='#{common}'][data-selected]")
         expect(page).to have_css("table tr[data-selected]", count: 1)
-        link = page.find_link("記事を開く", href: "https://example.com/a")
-        expect(link["data-turbo"]).to eq("false")
-        expect(link["data-action"]).to eq("click->reading-return#opened")
+        link = page.find_link("記事を開く", href: read_article_path(article))
+        expect(link["data-turbo"]).to be_nil
+        expect(link["data-action"]).to be_nil
         expect(page).to have_no_text("ボーナス ×")
         expect(article.reload.reading.opened_at).to eq(noon)
       end
@@ -151,10 +151,8 @@ RSpec.describe "Readings", type: :request do
       # 二重タップで同じ記事の行が同時に作られた: 読み込み時は行が無く、INSERT が一意制約で落ちる
       def race_on(article, existing_tier:)
         create(:reading, article: article, tier: existing_tier, opened_at: noon - 1.hour)
-        allow(Article).to receive(:find).and_return(article)
-        allow(article).to receive(:reading).and_return(nil)
-        ghost = Reading.new(article: article, tier: common, opened_at: noon)
-        allow(article).to receive(:build_reading).and_return(ghost)
+        ghost = Reading.new(article: article)
+        allow(Reading).to receive(:find_or_initialize_by).and_return(ghost)
         allow(ghost).to receive(:save!).and_raise(ActiveRecord::RecordNotUnique.new("二重タップ"))
       end
 
@@ -169,23 +167,23 @@ RSpec.describe "Readings", type: :request do
         expect(Reading.count).to eq(1)
       end
 
-      it "二重タップの JS 無し経路も先に入った行を使って記事へ redirect" do
+      it "二重タップの JS 無し経路も先に入った行を使ってリーダーへ redirect" do
         article = create(:article, url: "https://example.com/a")
         race_on(article, existing_tier: common)
 
         post article_reading_path(article)
 
-        expect(response).to redirect_to("https://example.com/a")
+        expect(response).to redirect_to(read_article_path(article))
         expect(Reading.count).to eq(1)
       end
 
-      it "通常の POST（JS 無し）は今までどおり記事へ redirect" do
+      it "通常の POST（JS 無し）は演出なしでリーダーへ redirect" do
         article = create(:article, url: "https://example.com/a")
         allow(XpRoulette).to receive(:draw).and_return(common)
 
         post article_reading_path(article)
 
-        expect(response).to redirect_to("https://example.com/a")
+        expect(response).to redirect_to(read_article_path(article))
       end
     end
 
@@ -205,10 +203,9 @@ RSpec.describe "Readings", type: :request do
         expect(page).to have_text("#{(jackpot[:probability] * 100).round}% のジャックポット")
         expect(page).to have_text("Ruby Weekly")
         expect(page).to have_text("当たり記事")
-        button = page.find_link("受け取って読む", href: "https://example.com/j")
-        expect(button["data-turbo"]).to eq("false")
-        expect(button["data-action"]).to eq("click->reading-return#opened")
-        expect(page).to have_css("form.hidden[action='#{return_readings_path}'][data-reading-return-target='form']", visible: :all)
+        button = page.find_link("受け取って読む", href: read_article_path(article))
+        expect(button["data-turbo"]).to be_nil
+        expect(button["data-action"]).to be_nil
         expect(page).to have_no_link("閉じる")
         expect(page).to have_no_button("閉じる")
       end
@@ -229,6 +226,100 @@ RSpec.describe "Readings", type: :request do
       it "無い行なら 404" do
         get jackpot_reading_path(0)
         expect(response).to have_http_status(:not_found)
+      end
+    end
+
+    describe "末尾まで読んだ（POST /readings/:id/advance）" do
+      def post_turbo(reading)
+        post advance_reading_path(reading), headers: { "Accept" => "text/vnd.turbo-stream.html, text/html" }
+      end
+
+      def page
+        Capybara.string(response.body.gsub(%r{</?template>}, ""))
+      end
+
+      let(:current) { create(:article, title: "今の記事", published_at: noon) }
+      let!(:reading) { create(:reading, article: current, tier: common, opened_at: noon) }
+
+      it "complete_after_seconds 以上なら完読。末尾の form を判定で置き換え、古い方の次の未読を開いて継ぎ足す" do
+        create(:article, title: "新しい記事", published_at: noon + 1.hour)
+        following = create(:article, title: "次の記事", published_at: noon - 1.hour)
+        allow(XpRoulette).to receive(:draw).and_return(common)
+
+        travel_to(noon + threshold + 5.seconds) { post_turbo(reading) }
+
+        expect(response.media_type).to eq("text/vnd.turbo-stream.html")
+        expect(reading.reload).to be_completed
+        expect(reading.xp).to eq(base)
+        divider = page.find("turbo-stream[action='replace'][target='end_reading_#{reading.id}']")
+        expect(divider).to have_css("section[aria-label='判定']", text: "読了！")
+        expect(divider).to have_text("+#{base} XP")
+        expect(divider).to have_text("今日のゴール 1 / #{goal_articles}")
+        appended = page.find("turbo-stream[action='append'][target='reader']")
+        expect(appended).to have_css("h1", text: "次の記事")
+        expect(appended).to have_no_text("新しい記事")
+        next_reading = following.reload.reading
+        expect(next_reading.tier).to eq(common)
+        expect(next_reading.opened_at).to eq(noon + threshold + 5.seconds)
+        expect(appended).to have_css("form#end_reading_#{next_reading.id}")
+      end
+
+      it "未満なら未完で +0 XP。それでも次へは進む" do
+        create(:article, title: "次の記事", published_at: noon - 1.hour)
+
+        travel_to(noon + threshold - 10.seconds) { post_turbo(reading) }
+
+        expect(reading.reload).not_to be_completed
+        expect(page).to have_css("section[aria-label='判定']", text: "未完")
+        expect(page).to have_text("+0 XP")
+        expect(page).to have_text("#{threshold} 秒未満なら XP なし")
+        expect(page).to have_css("turbo-stream[action='append'][target='reader'] h1", text: "次の記事")
+      end
+
+      it "次の記事が前に開いて戻っていない行を持つなら、再抽選せず開き直す" do
+        following = create(:article, published_at: noon - 1.hour)
+        rare = Dopamine.tier_names.second
+        pending = create(:reading, article: following, tier: rare, opened_at: noon - 1.day)
+        expect(XpRoulette).not_to receive(:draw)
+
+        travel_to(noon + threshold) { post_turbo(reading) }
+
+        expect(pending.reload.opened_at).to eq(noon + threshold)
+        expect(pending.tier).to eq(rare)
+      end
+
+      it "古い未読が尽きたら「全部読んだ」と閉じるを継ぎ足す" do
+        travel_to(noon + threshold) { post_turbo(reading) }
+
+        appended = page.find("turbo-stream[action='append'][target='reader']")
+        expect(appended).to have_text("全部読んだ")
+        expect(appended).to have_link("閉じる", href: root_path)
+      end
+
+      it "二度目は何もしない（判定も次の記事も足さない）" do
+        create(:article, published_at: noon - 1.hour)
+        travel_to(noon + threshold) { post_turbo(reading) }
+        first = reading.reload.attributes
+
+        travel_to(noon + 1.hour) { post_turbo(reading) }
+
+        expect(response).to have_http_status(:no_content)
+        expect(reading.reload.attributes).to eq(first)
+      end
+
+      it "JS 無しの POST は次の記事のリーダーへ redirect、尽きたら Main へ" do
+        following = create(:article, published_at: noon - 1.hour)
+        travel_to(noon + threshold) { post advance_reading_path(reading) }
+        expect(response).to redirect_to(read_article_path(following))
+
+        travel_to(noon + threshold * 2) { post advance_reading_path(following.reload.reading) }
+        expect(response).to redirect_to(root_path)
+      end
+
+      it "未ログインならログイン画面へ" do
+        delete session_path
+        post advance_reading_path(reading)
+        expect(response).to redirect_to(new_session_path)
       end
     end
 

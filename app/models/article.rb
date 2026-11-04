@@ -35,6 +35,29 @@ class Article < ApplicationRecord
   scope :newest_first, -> { order(published_at: :desc, id: :desc) }
   scope :awaiting_summary, -> { where(summary: nil, summary_failed_at: nil).where.not(content_fetched_at: nil) }
 
+  # 記事の流れで次に出す未読。Main と同じ新しい順に並べたとき、article のすぐ後ろ（古い方）の 1 本。
+  # 古い方へしか進まないので、未完で区切った記事が同じ流れに二度出ない。published_at の無い記事は SQLite の降順どおり最後に来る
+  #
+  # @return [Article, nil] 尽きたら nil
+  def self.next_unread_after(article)
+    published_at = arel_table[:published_at]
+    id = arel_table[:id]
+    older =
+      if article.published_at
+        published_at.lt(article.published_at)
+          .or(published_at.eq(article.published_at).and(id.lt(article.id)))
+          .or(published_at.eq(nil))
+      else
+        published_at.eq(nil).and(id.lt(article.id))
+      end
+    unread.newest_first.where(older).first
+  end
+
+  # 記事ページから本文を取れたか。取る前（フィードの抜粋のまま）と取れなかった記事は、全文の代わりに要約を出す
+  def full_text?
+    content.present? && content_fetched_at.present? && content_error.nil?
+  end
+
   # @return [Boolean] いいねか保存のどちらかが付いているか
   def saved?
     liked_at.present? || bookmarked_at.present?
