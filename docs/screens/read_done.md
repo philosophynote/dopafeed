@@ -1,5 +1,7 @@
 # ReadDone（Unit 5）
 
+> **#43（ADR 0010）で Reader の区切りに畳んだ。** 元サイトへ出て戻る経路と full page の ReadDone（`GET /readings/:id`）は無い。判定・滞在・XP・コンボ・今日のゴールは docs/screens/reader.md の要素 4（区切り）が出す。3 行要約と「次の 1 本」は、本文と継ぎ足される次の記事が代わる。以下は Unit 5 の記録として残す。
+
 ## 目的
 「止まり所」と「報酬距離」を担う。記事から戻ってきた瞬間に、滞在時間・判定・XP の内訳・3 行要約を一枚で見せ、
 「閉じる」が次の「開く」になる構造（次の 1 本を下に置く）で無限供給へ繋ぐ。ドゥームスクロールにならないよう、滞在が短ければ XP を出さない。
@@ -55,6 +57,7 @@ personas.yml: なし
    → **Unit 2**: `readings.note`（読了 1 行に 1 つ）。XP の鍵は無い（提案: `read.note_xp`）
 5. 「記事から戻った」の検出方法（visibilitychange / pageshow / 記事を開く前にサーバーへ開始時刻を記録して戻り時に差分）。pwa-ios Skill を読んで決める
     → **決定（Unit 5、#35）**: 「読む」は Turbo を切った POST で `readings` に開始時刻（サーバー時計）を記録してから記事へ redirect。戻りは Stimulus `reading-return` が検出する。「読む」の submit で sessionStorage に印を付け、visibilitychange（standalone のアプリ内シートを閉じた）/ pageshow の bfcache 復元 / back_forward の再読込のいずれかで印があれば `POST /readings/return` を 1 回だけ送る。印を文書に持たないのは、戻り先が「読む」を押す前に描いた文書のままだから。取りこぼしは Main の白ピル「読了を記録」で手で送る。滞在は開始と戻りのサーバー時刻の差。ReadDone は full page（`GET /readings/:id`）。iPhone の standalone で visibilitychange が来るかは実機で確かめる（持ち越し）
+    → **撤去（#43、ADR 0010）**: 戻りの検出（`reading-return`、Main の「読了を記録」ピル、`POST /readings/return`）は消した。判定はリーダーの末尾で行う。#40 は不要になった
 6. 5 本目の読了で DailyGoal に自動遷移するか、ボタンを出すか
     → **Unit 5（#35）**: 第一の陣では文言「今日のゴール 5 / 5 ・ 読み切った！」だけ。遷移は DailyGoal を作る Unit 7 で決める
 7. コンボの「連続」の定義。鍵が無い間は「同日内（reset_hour 基準）で完読が途切れない限り。未完読で途切れる」とする。時間窓（モックの「あと 2:14」）を入れるなら main.md 未決 3 の `xp.combo_window_seconds`

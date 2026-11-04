@@ -28,7 +28,7 @@
 - Main → DailyGoal（ゴール表示をタップ、または 5 本目の読了後に自動）
 - Main → Comments / Similar / ForYou / Learning / AddFeed / Saved / Weekly / Feeds（full page。第一の陣では無い）
 - 第一の陣の導線: 設定ボタンは Learning の最小版（`/learning`。サインアウト + Install への導線だけ。Unit 5 で置いた）へ。フィード追加の「+」は出さない（5 フィードは seed と Unit 3 で入る。AddFeed は第二の陣）
-- 読了後に ReadDone → Main に戻ると、読んだカードは一覧から消え、ステータスカードが Turbo Stream で更新される
+- Reader から「閉じる」で Main に戻ると、完読したカードは一覧から消え、ステータスカードが更新される（Reader が判定する。ADR 0010）
 
 ## 受け入れ条件（Given-When-Then）
 - Given 未読記事が 3 本ある When Main を開く Then 3 本が published_at の新しい順に並ぶ

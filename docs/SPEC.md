@@ -12,7 +12,7 @@
 | 要素 | 画面 | 仕組み |
 |---|---|---|
 | 可変報酬 | Roulette / Jackpot | 「読む」1 タップで XP の出目が回る（0.5 秒）。レア 3 段階（common / rare / jackpot、確率と倍率は dopamine.yml `xp.tiers`）。ジャックポットは閉じられない全画面演出。段 4 では知識ガチャ（0〜3 枚）、コメントが付くか分からない、も同じ要素 |
-| 報酬距離 | ReadDone（Main のコンボ表示） | 読了の直後に XP の内訳（完読ボーナス × コンボ）と効果音・CSS アニメーション。コンボは連続読了で +0.1 倍ずつ、上限 2.0（`xp.combo_*`）。タップから結果までを短く保つ |
+| 報酬距離 | Reader の区切り（旧 ReadDone）・Main のコンボ表示 | 読了の直後に XP の内訳（完読ボーナス × コンボ）と効果音・CSS アニメーション。コンボは連続読了で +0.1 倍ずつ、上限 2.0（`xp.combo_*`）。タップから結果までを短く保つ |
 | 無限供給 | Main / Swipe / Reader の「次の 1 本」 | 新着 + 発掘 1 本として見せ、読了画面の下に次の 1 本を置く（「閉じる」が次の「開く」）。古い未読は一掃して「もう一度読む」として再提示 |
 | 止まり所 | DailyGoal | 1 日 5 本（`daily_goal.articles`）で宝箱が開き、満足して閉じられる。翌日 reset_hour（午前 4 時）でリセット。SNS と逆を行く |
 | 社会的報酬 | Comments / Weekly | 著名人を模した架空 AI 8 人から 3 人（`comments.personas_shown`）がランダムにコメント（personas.yml）。はてブ数。週次レポートで過去の自分と比べ、画像で共有 |
@@ -37,7 +37,7 @@ iPhone で読む。Mac で検証・執筆する。
 - 読む側（興奮）と書く側（静か）でトーンを分ける。書く側にルーレットは出さない
 
 ## 画面の段
-1. コアループ: Main, Swipe, Roulette, Jackpot, ReadDone, DailyGoal, Comments
+1. コアループ: Main, Swipe, Roulette, Jackpot, Reader（ReadDone を畳んだ）, DailyGoal, Comments
 2. 個人最適化: ForYou, Learning, Weekly, Install, Similar
 3. 管理: AddFeed, Saved, Feeds, Login
 4. アウトプット（第一の陣の対象外）: NetaBox, Quest, Garden, Gacha, Hypothesis, Suggest
