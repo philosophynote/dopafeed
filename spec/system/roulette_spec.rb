@@ -6,13 +6,13 @@ RSpec.describe "Roulette", type: :system do
   let(:common) { Dopamine.tier_names.first }
   let(:jackpot) { Dopamine.jackpot_tier }
 
-  def article_on_this_server(title = "読む記事")
+  def create_article(title = "読む記事")
     create(:article, title: title)
   end
 
   it "読むと止まった出目の帯つきでリーダーが開き、モーダルは残らない" do
     allow(XpRoulette).to receive(:draw).and_return(common)
-    article = article_on_this_server
+    article = create_article
     sign_in
 
     click_on "読む"
@@ -27,7 +27,7 @@ RSpec.describe "Roulette", type: :system do
     long[:xp][:roulette_duration_ms] = 10_000
     allow(Dopamine).to receive(:settings).and_return(long)
     allow(XpRoulette).to receive(:draw).and_return(common)
-    article = article_on_this_server("背景に残るカード")
+    article = create_article("背景に残るカード")
     sign_in
 
     click_on "読む"
@@ -42,7 +42,7 @@ RSpec.describe "Roulette", type: :system do
 
   it "jackpot なら全画面に進み、受け取って読むでリーダーが開き、読み終えると jackpot の倍率で XP が付く" do
     allow(XpRoulette).to receive(:draw).and_return(jackpot[:name])
-    article = article_on_this_server
+    article = create_article
     sign_in
 
     click_on "読む"

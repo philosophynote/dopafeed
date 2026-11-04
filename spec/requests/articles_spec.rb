@@ -40,7 +40,7 @@ RSpec.describe "Articles", type: :request do
     it "本文は許したタグと属性だけ残し、相対 URL は記事の URL で解決し、リンクは別タブで開く" do
       content = <<~HTML
         <script>alert(1)</script>
-        <p onclick="steal()" style="color:red">段落<a href="javascript:alert(1)">悪いリンク</a><a href="/about">相対リンク</a></p>
+        <p onclick="steal()" style="color:red">段落<a href="javascript:alert(1)">悪いリンク</a><a href="/about">相対リンク</a><a href="/wiki/日本#歴史">日本語のリンク</a></p>
         <img src="images/a.png" onerror="steal()">
         <iframe src="https://evil.example.com"></iframe>
       HTML
@@ -54,6 +54,7 @@ RSpec.describe "Articles", type: :request do
       expect(body).to have_no_css("script, iframe, [onclick], [style], [onerror]", visible: :all)
       expect(body).to have_no_css("a[href^='javascript']", visible: :all)
       expect(body).to have_css("a[href='https://example.com/about'][target='_blank'][rel='noopener noreferrer']", text: "相対リンク")
+      expect(body).to have_css("a[href='https://example.com/wiki/%E6%97%A5%E6%9C%AC#%E6%AD%B4%E5%8F%B2']", text: "日本語のリンク")
       expect(body).to have_css("img[src='https://example.com/posts/images/a.png'][loading='lazy']", visible: :all)
     end
 

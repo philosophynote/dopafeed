@@ -5,6 +5,9 @@ import { Controller } from "@hotwired/stimulus"
 // 一度画面の外にあった後に入ってきたときだけ自動で送り、それ以外はボタンを押してもらう
 export default class extends Controller {
   connect() {
+    // Turbo のプレビュー描画（キャッシュの写し）では送らない。本描画の connect に任せる
+    if (document.documentElement.hasAttribute("data-turbo-preview")) return
+
     this.armed = false
     this.observer = new IntersectionObserver((entries) => {
       const entry = entries[entries.length - 1]
@@ -12,13 +15,14 @@ export default class extends Controller {
         this.armed = true
       } else if (this.armed) {
         this.observer.disconnect()
-        this.element.requestSubmit()
+        // ボタンを submitter にすると、Turbo が応答まで無効にする（自動送信の直後の手押しで二重に送らない）
+        this.element.requestSubmit(this.element.querySelector("button[type=submit]"))
       }
     })
     this.observer.observe(this.element)
   }
 
   disconnect() {
-    this.observer.disconnect()
+    this.observer?.disconnect()
   }
 }

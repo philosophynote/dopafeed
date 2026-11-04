@@ -23,10 +23,15 @@ module ArticlesHelper
 
   private
 
-  # 解決できない URL は属性ごと捨てる（壊れたリンクより、ただの文字の方がよい）
+  # 日本語などの非 ASCII は URI が受け付けないので、その文字だけ % で符号化してから解決する（% や # は既に意味を持つので触らない）。
+  # それでも解決できない URL は属性ごと捨てる（壊れたリンクより、ただの文字の方がよい）
   def absolutize(node, attribute, base)
-    node[attribute] = URI.join(base, node[attribute].strip).to_s
+    node[attribute] = URI.join(ascii_url(base), ascii_url(node[attribute].strip)).to_s
   rescue URI::Error, ArgumentError
     node.remove_attribute(attribute)
+  end
+
+  def ascii_url(url)
+    url.gsub(/[^\x00-\x7F]+/) { |chars| ERB::Util.url_encode(chars) }
   end
 end

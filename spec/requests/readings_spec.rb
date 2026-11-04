@@ -296,15 +296,32 @@ RSpec.describe "Readings", type: :request do
         expect(appended).to have_link("閉じる", href: root_path)
       end
 
-      it "二度目は何もしない（判定も次の記事も足さない）" do
-        create(:article, published_at: noon - 1.hour)
+      it "二度目は判定し直さず、同じ区切りと次の記事を返す。次の記事は開き直さない（1 回目の応答が捨てられても進める）" do
+        following = create(:article, title: "次の記事", published_at: noon - 1.hour)
         travel_to(noon + threshold) { post_turbo(reading) }
         first = reading.reload.attributes
+        next_first = following.reload.reading.attributes
 
         travel_to(noon + 1.hour) { post_turbo(reading) }
 
-        expect(response).to have_http_status(:no_content)
+        expect(response).to have_http_status(:ok)
         expect(reading.reload.attributes).to eq(first)
+        expect(following.reading.reload.attributes).to eq(next_first)
+        expect(page).to have_css("turbo-stream[action='replace'][target='end_reading_#{reading.id}'] section[aria-label='判定']", text: "読了！")
+        expect(page).to have_css("turbo-stream[action='append'][target='reader'] h1", text: "次の記事")
+      end
+
+      it "今日のゴールに届いたら区切りに「読み切った！」" do
+        (goal_articles - 1).times { |i| create(:reading, :completed, opened_at: noon - (i + 1).hours) }
+
+        travel_to(noon + threshold) { post_turbo(reading) }
+
+        expect(page).to have_css("section[aria-label='判定']", text: "今日のゴール #{goal_articles} / #{goal_articles} ・ 読み切った！")
+      end
+
+      it "無い行なら 404" do
+        post advance_reading_path(0)
+        expect(response).to have_http_status(:not_found)
       end
 
       it "JS 無しの POST は次の記事のリーダーへ redirect、尽きたら Main へ" do

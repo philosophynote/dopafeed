@@ -35,7 +35,7 @@ class Article < ApplicationRecord
   scope :newest_first, -> { order(published_at: :desc, id: :desc) }
   scope :awaiting_summary, -> { where(summary: nil, summary_failed_at: nil).where.not(content_fetched_at: nil) }
 
-  # 記事の流れで次に出す未読。Main と同じ新しい順に並べたとき、article のすぐ後ろ（古い方）の 1 本。
+  # 続けて読む次の未読。newest_first の順で article のすぐ後ろ（古い方）の 1 本。
   # 古い方へしか進まないので、未完で区切った記事が同じ流れに二度出ない。published_at の無い記事は SQLite の降順どおり最後に来る
   #
   # @return [Article, nil] 尽きたら nil
@@ -53,7 +53,7 @@ class Article < ApplicationRecord
     unread.newest_first.where(older).first
   end
 
-  # 記事ページから本文を取れたか。取る前（フィードの抜粋のまま）と取れなかった記事は、全文の代わりに要約を出す
+  # 記事ページから本文を取れたか。取る前と取れなかった記事の content はフィードの抜粋のままで、全文ではない
   def full_text?
     content.present? && content_fetched_at.present? && content_error.nil?
   end

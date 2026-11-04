@@ -9,7 +9,7 @@
       <time datetime="<%= article.published_at.iso8601 %>"><%= time_ago_in_words(article.published_at, locale: :ja) %>前</time>
     <% end %>
   </p>
-  <h1 class="mt-1 text-xl font-bold leading-snug"><%= article.title %></h1>
+  <h1 class="mt-1 break-words text-xl font-bold leading-snug"><%= article.title %></h1>
   <p class="mt-2 inline-block rounded-full bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-700">
     出目 <%= tier_label(reading.tier) %> ×<%= Dopamine.tier(reading.tier)[:multiplier] %> ・ 完読で +<%= reading.base_xp %> XP
   </p>

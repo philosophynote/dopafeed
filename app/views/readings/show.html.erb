@@ -49,8 +49,7 @@
 </section>
 
 <section class="mt-3 rounded-2xl bg-white p-4 shadow-sm" aria-label="今日のゴール">
-  <% remaining = @goal_articles - @today_count %>
-  <p class="text-sm font-semibold">今日のゴール <%= @today_count %> / <%= @goal_articles %> ・ <%= remaining.positive? ? "あと #{remaining} 本で宝箱" : "読み切った！" %></p>
+  <p class="text-sm font-semibold"><%= daily_goal_line(@reading.returned_at) %></p>
 </section>
 
 <section class="mt-3" aria-label="次の 1 本">
