@@ -83,6 +83,19 @@ module SystemScreen
       "-- log/chromedriver.log の末尾", *driver ].map { |line| line.chomp[0, 300] }.join("\n")
   end
 
+  # chromedriver が命令に応答しなくなったら、セッションを捨てて以後は新しい Chrome を使う。
+  # chromedriver は 1 セッションの命令を直列に処理するので、1 つ返らないと以後の全命令が read timeout まで待ち、
+  # 例の数だけ積み上がる。quit も返らないことがあるので握る（Selenium の ensure で chromedriver は止まる）。
+  # 新しい Chrome は直後の rspec-rails の失敗スクショが起動するので、その絵は空白になる
+  def restart_browser!
+    warn "browser unresponsive: quitting so a new Chrome starts"
+    page.driver.quit
+  rescue StandardError => e
+    warn "browser quit failed (restarting anyway): #{e.class}"
+  ensure
+    Capybara.current_session.quit
+  end
+
   private
 
   # @param suffix [String, nil]
@@ -116,20 +129,6 @@ module SystemScreen
       restart_browser! if unresponsive
     end
   end
-
-  # chromedriver が命令に応答しなくなった例の後は、セッションを捨てて次の例で Chrome を起動し直す。
-  # chromedriver は 1 セッションの命令を直列に処理するので、1 つ返らないと以後の全命令が read timeout まで待ち、
-  # 例の数だけ積み上がる。quit も返らないことがあるので rescue する（Selenium の ensure で chromedriver は止まる）
-  #
-  # @return [void]
-  def restart_browser!
-    warn "browser unresponsive: quitting so the next example starts a new Chrome"
-    page.driver.quit
-  rescue Net::ReadTimeout, Selenium::WebDriver::Error::WebDriverError => e
-    warn "browser quit failed (restarting anyway): #{e.class}"
-  ensure
-    Capybara.current_session.quit
-  end
 end
 
 RSpec.configure do |config|
@@ -141,7 +140,7 @@ RSpec.configure do |config|
     driven_by :selenium, using: :headless_chrome, screen_size: SystemScreen::SCREEN_SIZE, options: { http_client: http_client, service: service } do |options|
       # window-size だけだとブラウザ枠の分だけ viewport が狭くなる。端末エミュレーションで CSS 幅を 390 に固定する。
       # touch は false と明示する（省くと chromedriver は true 扱い）。true だと chromedriver が click を touch イベントで送り、
-      # Chrome が touchEnd の応答を返さず固まることがある（CI で 10 分の打ち切りになった症状。selenium_timeout_spec が見張る）
+      # Chrome が touchEnd の応答を返さずに固まることがある
       options.add_emulation(
         device_metrics: { width: SystemScreen::SCREEN_SIZE[0], height: SystemScreen::SCREEN_SIZE[1], pixelRatio: 3, touch: false },
         user_agent: SystemScreen::IPHONE_USER_AGENT
