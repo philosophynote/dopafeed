@@ -10,7 +10,10 @@ RSpec.describe "Swipe", type: :system do
     expect(page).to have_text("未読 2 件")
     within("article", text: "関心の無い記事") { click_on "興味なし" }
 
-    expect(page).to have_text("「関心の無い記事」を興味なしにした")
+    # 帯は見出しだけを省略するために 3 つの span に分かれ、見える文字は改行を挟んで読まれる。文として一致させず、帯の中に見出しがあることを見る
+    strip = find("li", text: "を興味なしにした")
+    expect(strip).to have_text("関心の無い記事")
+    expect(strip).to have_button("元に戻す")
     expect(page).to have_css("article", count: 1)
     expect(page).to have_text("未読 1 件")
     expect(page).to have_css("[data-unread-badge]", text: "1")
