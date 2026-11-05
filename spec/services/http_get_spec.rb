@@ -81,15 +81,16 @@ RSpec.describe HttpGet do
   end
 
   describe "内部ネットワークの宛先" do
-    it "IP リテラルがループバック・プライベート・リンクローカル・未指定・共有・マルチキャストなら取りに行かず Error" do
-      %w[127.0.0.1 10.0.0.1 172.16.0.1 192.168.1.1 169.254.169.254 0.0.0.0 100.64.0.1 224.0.0.1 [::1] [fe80::1] [fc00::1] [::ffff:127.0.0.1]].each do |host|
+    it "IP リテラルがループバック・プライベート・リンクローカル・未指定・共有・マルチキャスト・予約帯なら取りに行かず Error" do
+      %w[127.0.0.1 10.0.0.1 172.16.0.1 192.168.1.1 169.254.169.254 0.0.0.0 100.64.0.1 192.0.0.1 198.18.0.1 224.0.0.1 240.0.0.1 255.255.255.255
+         [::] [::1] [fe80::1] [fc00::1] [ff02::1] [::ffff:127.0.0.1] [::7f00:1]].each do |host|
         expect { described_class.call("http://#{host}/latest/meta-data/") }.to raise_error(described_class::Error, "内部ネットワークの URL です") { |e| expect(e).not_to be_a(described_class::TransientError) }
       end
       expect(a_request(:get, /./)).not_to have_been_made
     end
 
     it "名前が内部アドレスに解けても Error（解けた全アドレスを見る）" do
-      allow(Resolv).to receive(:getaddresses).with("evil.example.com").and_return([ "203.0.113.10", "169.254.169.254" ])
+      allow(Resolv.new).to receive(:getaddresses).with("evil.example.com").and_return([ "203.0.113.10", "169.254.169.254" ])
       stub_request(:get, "http://evil.example.com/")
 
       expect { described_class.call("http://evil.example.com/") }.to raise_error(described_class::Error, "内部ネットワークの URL です")
@@ -97,7 +98,7 @@ RSpec.describe HttpGet do
     end
 
     it "localhost も塞ぐ" do
-      allow(Resolv).to receive(:getaddresses).with("localhost").and_return([ "127.0.0.1" ])
+      allow(Resolv.new).to receive(:getaddresses).with("localhost").and_return([ "127.0.0.1" ])
       expect { described_class.call("http://localhost:3000/") }.to raise_error(described_class::Error, "内部ネットワークの URL です")
     end
 
@@ -106,9 +107,22 @@ RSpec.describe HttpGet do
       expect { described_class.call(url) }.to raise_error(described_class::Error, "内部ネットワークの URL です")
     end
 
-    it "名前が引けなければ TransientError" do
-      allow(Resolv).to receive(:getaddresses).with("gone.example.com").and_return([])
+    it "名前が引けなければ TransientError、ホスト名が無ければ Error（待っても通らない）" do
+      allow(Resolv.new).to receive(:getaddresses).with("gone.example.com").and_return([])
       expect { described_class.call("https://gone.example.com/") }.to raise_error(described_class::TransientError, "接続エラー (Resolv::ResolvError)")
+
+      expect { described_class.call("http:///x") }.to raise_error(described_class::Error, "URL にホスト名がありません") { |e| expect(e).not_to be_a(described_class::TransientError) }
+    end
+
+    it "DNS の待ち時間も fetch.timeout_seconds に収める（/etc/hosts → DNS の順）" do
+      seconds = Dopamine.settings.dig(:fetch, :timeout_seconds)
+      allow(Resolv::DNS).to receive(:new).and_call_original
+      stub_request(:get, url).to_return(status: 200, body: "ok")
+
+      described_class.call(url)
+
+      expect(Resolv::DNS).to have_received(:new).with(hash_including(timeouts: seconds))
+      expect(Resolv).to have_received(:new).with([ an_instance_of(Resolv::Hosts), an_instance_of(Resolv::DNS) ])
     end
 
     it "解いた IP に接続し、TLS の検証とヘッダはホスト名のまま" do
@@ -138,11 +152,31 @@ RSpec.describe HttpGet do
       expect { described_class.call(url) }.to raise_error(described_class::Error, "応答が大きすぎます (#{Dopamine.settings.dig(:fetch, :max_body_megabytes)} MB 超)")
     end
 
-    it "ちょうど上限までは通り、body は String で返る" do
+    it "ちょうど上限までは通る。body は String の子で、to_s で素の String になる（呼ぶ側はそれを使う）" do
       stub_request(:get, url).to_return(status: 200, body: "x" * limit)
       body = described_class.call(url).body
       expect(body.bytesize).to eq(limit)
+      expect(body).to be_a(String)
       expect(body.to_s.class).to eq(String)
+    end
+
+    it "チャンクで届く本文は、足していって上限を超えた時点で Error（WebMock は一度に渡すので直接確かめる）" do
+      body = described_class::BoundedBody.new(10, "応答が大きすぎます")
+      body << "x" * 4 << "y" * 6
+      expect(body).to eq("xxxxyyyyyy")
+      expect { body << "z" }.to raise_error(described_class::Error, "応答が大きすぎます")
+    end
+
+    it "gzip は展開後の大きさで数える（圧縮爆弾も止まる）" do
+      gzipped = ActiveSupport::Gzip.compress("0" * (limit + 1))
+      raw = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Encoding: gzip\r\nContent-Length: #{gzipped.bytesize}\r\n\r\n#{gzipped}".b
+      response = Net::HTTPResponse.read_new(Net::BufferedIO.new(StringIO.new(raw)))
+      response.decode_content = true
+
+      expect(gzipped.bytesize).to be < limit
+      expect do
+        response.reading_body(Net::BufferedIO.new(StringIO.new(raw.split("\r\n\r\n", 2).last)), true) { response.read_body(described_class::BoundedBody.new(limit, "応答が大きすぎます")) }
+      end.to raise_error(described_class::Error, "応答が大きすぎます")
     end
   end
 end

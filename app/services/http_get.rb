@@ -39,17 +39,19 @@ class HttpGet
   # 取りに行く URL の scheme。それ以外（mailto: / ftp: / file:）は Error
   SCHEMES = %w[http https].freeze
   # 取りに行かない宛先。ループバック・プライベート・リンクローカル（クラウドのインスタンスメタデータ 169.254.169.254 を含む）・
-  # 未指定・共有アドレス・マルチキャスト。外部サイトへ飛ぶ記事リンクを日々取りに行くので、どこへ飛ばされても内側には届かせない
+  # 未指定・共有アドレス・マルチキャスト・予約帯（IETF 用、ベンチマーク用、240/4）。外部サイトへ飛ぶ記事リンクを日々取りに
+  # 行くので、どこへ飛ばされても内側には届かせない。IPv6 の ::/96 は IPv4 互換（::127.0.0.1）で、中身を見ずに丸ごと塞ぐ
   INTERNAL_RANGES = %w[
-    0.0.0.0/8 10.0.0.0/8 100.64.0.0/10 127.0.0.0/8 169.254.0.0/16 172.16.0.0/12 192.168.0.0/16 224.0.0.0/4
-    ::/128 ::1/128 fc00::/7 fe80::/10 ff00::/8
+    0.0.0.0/8 10.0.0.0/8 100.64.0.0/10 127.0.0.0/8 169.254.0.0/16 172.16.0.0/12 192.0.0.0/24 192.168.0.0/16
+    198.18.0.0/15 224.0.0.0/4 240.0.0.0/4
+    ::/96 fc00::/7 fe80::/10 ff00::/8
   ].map { |cidr| IPAddr.new(cidr) }.freeze
   USER_AGENT = "Dopafeed (+https://github.com/philosophynote/dopafeed)".freeze
 
   # @param headers [Hash{String => String}] 足すヘッダ（Accept、条件付き GET の If-None-Match など）
   # @param content_types [Array<String>, nil] 受け入れる Content-Type（小文字、パラメータ抜き）。nil なら何でも読む
   # @return [Net::HTTPResponse] 2xx か 304。本文は読み込み済み
-  # @raise [Error] http(s) でない、壊れた URL、内部ネットワークの宛先、4xx、リダイレクト超過、本文が上限超
+  # @raise [Error] http(s) でない、壊れた URL、ホスト名の無い URL、内部ネットワークの宛先、4xx、リダイレクト超過、本文が上限超
   # @raise [TransientError] 408・429・5xx、接続エラー（名前が引けない場合を含む）
   # @raise [UnexpectedContentType] content_types に無い Content-Type
   def self.call(url, headers: {}, content_types: nil)
@@ -69,9 +71,12 @@ class HttpGet
   # @return [Net::HTTPResponse] 2xx か 304
   def get(uri, redirects = 0)
     raise Error, "URL が http(s) ではありません" unless SCHEMES.include?(uri.scheme)
+    # 名前が引けない（空は DNS に回すと「引けない」になり、待っても通らないのに再試行される）
+    raise Error, "URL にホスト名がありません" if uri.hostname.blank?
 
     # 検査した IP にそのまま繋ぐ（ipaddr:）。Net::HTTP に名前を引き直させると、検査の後で内部アドレスに変わる
-    # DNS rebinding が通る。TLS の証明書検証と SNI はホスト名のまま
+    # DNS rebinding が通る。TLS の証明書検証と SNI はホスト名のまま。http_proxy 環境変数があると Net::HTTP は
+    # プロキシに名前を引かせるので ipaddr: は効かない（本番に置かない前提）
     response = Net::HTTP.start(uri.hostname, uri.port, ipaddr: resolve(uri.hostname), use_ssl: uri.scheme == "https", open_timeout: timeout, read_timeout: timeout) do |http|
       http.request(Net::HTTP::Get.new(uri, @headers)) do |res|
         raise UnexpectedContentType, res.content_type.to_s if res.is_a?(Net::HTTPSuccess) && unexpected_content_type?(res)
@@ -98,11 +103,10 @@ class HttpGet
 
   private
 
-  # ホスト名を解き、解けた全アドレスが内部ネットワークでないことを確かめる。一つでも内側なら取りに行かない
+  # ホスト名を解き、解けた全アドレスが内部ネットワークでないことを確かめる。一つでも内側なら取りに行かない。
+  # 繋ぐのは先頭の 1 つ（残りへのフォールバックは Net::HTTP に戻さない。戻すと名前を引き直す）
   #
-  # @return [String] 接続に使う IP アドレス
-  # @raise [Error] 内部ネットワークの宛先
-  # @raise [Resolv::ResolvError] 名前が引けない
+  # @return [String] Net::HTTP の ipaddr: に渡す形
   def resolve(host)
     addresses = addresses_of(host)
     raise Resolv::ResolvError, "名前が引けません (#{host})" if addresses.empty?
@@ -111,11 +115,17 @@ class HttpGet
     addresses.first.to_s
   end
 
-  # @return [Array<IPAddr>] IP リテラルならそれ自身、名前なら DNS で解けた全アドレス
+  # @return [Array<IPAddr>] IP リテラルならそれ自身、名前なら /etc/hosts と DNS で解けた全アドレス
   def addresses_of(host)
     [ IPAddr.new(host) ]
   rescue IPAddr::InvalidAddressError
-    Resolv.getaddresses(host).map { |address| IPAddr.new(address) }
+    resolver.getaddresses(host).map { |address| IPAddr.new(address) }
+  end
+
+  # 既定の Resolv は死んだリゾルバ相手に 5・10・20・40 秒と粘り、1 件で 1 分以上止まる。
+  # DNS の待ち時間も fetch.timeout_seconds に収める（リゾルバの設定は既定のまま）
+  def resolver
+    Resolv.new([ Resolv::Hosts.new, Resolv::DNS.new(Resolv::DNS::Config.default_config_hash.merge(timeouts: timeout)) ])
   end
 
   # IPv4-mapped IPv6（::ffff:127.0.0.1）は中の IPv4 で判定する。そのままでは IPv6 の帯に当たらず素通りする
