@@ -41,13 +41,20 @@ RSpec.describe "Dismissals", type: :request do
         expect(page.find("turbo-stream[action='replace'][target='unread-badge']")).to have_css("[data-unread-badge]", text: "1")
       end
 
-      it "Reading を作らず、読了・XP・今日のゴールの数を変えない" do
-        create(:article, :read)
+      it "Reading を作らず、読了・XP・今日のゴール・コンボ・ストリークを変えない" do
+        create(:reading, :completed, opened_at: noon - 1.hour)
+        before = travel_to(noon) { [ Reading.completed.sum(:xp), Reading.on(ReadingDay.of).count, Combo.new.multiplier, ReadingStreak.days ] }
 
-        expect { post article_dismissal_path(article), headers: turbo }.not_to change(Reading, :count)
-        expect(article.reload.reading).to be_nil
-        expect(Reading.completed.count).to eq(1)
-        expect(Reading.completed.sum(:xp)).to eq(10)
+        travel_to(noon) do
+          expect { post article_dismissal_path(article), headers: turbo }.not_to change(Reading, :count)
+          expect(article.reload.reading).to be_nil
+          expect([ Reading.completed.sum(:xp), Reading.on(ReadingDay.of).count, Combo.new.multiplier, ReadingStreak.days ]).to eq(before)
+        end
+      end
+
+      it "無い記事なら 404" do
+        post article_dismissal_path(article_id: 0), headers: turbo
+        expect(response).to have_http_status(:not_found)
       end
 
       it "開いたが未完の記事なら Reading は残したまま未読から外す" do

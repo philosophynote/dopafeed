@@ -1,7 +1,7 @@
 <%# 「興味なし」にしたカードの跡。誤って飛ばしたときのために「元に戻す」を同じ場所に残す。Main を開き直すと出ない %>
 <li id="<%= dom_id(article) %>">
   <div class="flex items-center justify-between gap-3 rounded-2xl bg-gray-200 px-4 py-2 text-sm text-gray-600">
-    <p class="min-w-0 truncate">「<%= article.title %>」を興味なしにした</p>
+    <p class="flex min-w-0"><span class="shrink-0">「</span><span class="truncate"><%= article.title %></span><span class="shrink-0">」を興味なしにした</span></p>
     <%= button_to "元に戻す", article_dismissal_path(article), method: :delete, class: "inline-flex h-11 shrink-0 items-center justify-center whitespace-nowrap rounded-full px-3 font-semibold text-gray-800 active:bg-gray-300" %>
   </div>
 </li>

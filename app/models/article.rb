@@ -64,17 +64,12 @@ class Article < ApplicationRecord
   end
 
   # 読まずに片付ける。二度目は最初の時刻を保つ（二重送信で記録を動かさない）。
-  # 開いたが未完の {Reading} は消さない。出目と滞在は戻したときにそのまま使う
-  #
-  # @return [Article] self
+  # 開いたが未完の {Reading} は消さない。出目と滞在は戻したときにそのまま使い、開いたままの Reader で読み終えれば完読にもなる（読んだのは事実）
   def dismiss!(at: Time.current)
     update!(dismissed_at: at) unless dismissed?
     self
   end
 
-  # 興味なしを取り消して未読に戻す
-  #
-  # @return [Article] self
   def undismiss!
     update!(dismissed_at: nil)
     self

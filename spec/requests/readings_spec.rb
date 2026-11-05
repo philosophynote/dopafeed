@@ -241,6 +241,16 @@ RSpec.describe "Readings", type: :request do
       let(:current) { create(:article, title: "今の記事", published_at: noon) }
       let!(:reading) { create(:reading, article: current, tier: common, opened_at: noon) }
 
+      it "興味なしにした記事は次の 1 本に継ぎ足さず、他に無ければ「全部読んだ」" do
+        create(:article, :dismissed, title: "興味なしの記事", published_at: noon - 1.hour)
+
+        travel_to(noon + 4.minutes + 12.seconds) { post_turbo(reading) }
+
+        expect(page).to have_no_text("興味なしの記事")
+        expect(page).to have_text("全部読んだ")
+        expect(Reading.count).to eq(1)
+      end
+
       it "complete_after_seconds 以上なら完読。「読み終えた」の form を判定で置き換え、古い方の次の未読を開いて継ぎ足す" do
         create(:article, title: "新しい記事", published_at: noon + 1.hour)
         following = create(:article, title: "次の記事", published_at: noon - 1.hour)
