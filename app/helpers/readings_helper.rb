@@ -29,13 +29,12 @@ module ReadingsHelper
     number_with_precision(Dopamine.settings.dig(:xp, :roulette_duration_ms) / 1000.0, precision: 1)
   end
 
-  # 今日のゴールの進み。at の読書日（reset_hour で切る）に完読した本数で数える
+  # 今日のゴールの進み
   #
+  # @param summary [DailySummary] 判定した読書日の数
   # @return [String] 例: 今日のゴール 4 / 5 ・ あと 1 本で宝箱
-  def daily_goal_line(at)
-    goal = Dopamine.settings.dig(:daily_goal, :articles)
-    count = Reading.on(ReadingDay.of(at)).count
-    rest = goal - count
-    "今日のゴール #{count} / #{goal} ・ #{rest.positive? ? "あと #{rest} 本で宝箱" : "読み切った！"}"
+  def daily_goal_line(summary)
+    rest = summary.remaining
+    "今日のゴール #{summary.count} / #{summary.goal} ・ #{rest.positive? ? "あと #{rest} 本で宝箱" : "読み切った！"}"
   end
 end

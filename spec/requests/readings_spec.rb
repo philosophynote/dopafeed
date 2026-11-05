@@ -342,6 +342,26 @@ RSpec.describe "Readings", type: :request do
         expect(response).to have_http_status(:not_found)
       end
 
+      it "goal 本目の完読なら区切りに「読み切った！」と「宝箱を開く」、goal + 1 本目には出ない" do
+        (goal_articles - 1).times { create(:reading, :completed, opened_at: noon - 1.hour) }
+        sixth = create(:article, title: "6 本目", published_at: noon - 1.hour)
+
+        travel_to(noon + threshold) { post_turbo(reading) }
+
+        divider = page.find("turbo-stream[action='replace'][target='end_reading_#{reading.id}']")
+        expect(divider).to have_text("今日のゴール #{goal_articles} / #{goal_articles} ・ 読み切った！")
+        expect(divider).to have_link("宝箱を開く", href: daily_goal_path)
+        expect(DailyGoal.find_by(day: ReadingDay.of(noon))).to be_achieved
+
+        travel_to(noon + threshold * 2) { post_turbo(sixth.reload.reading) }
+
+        divider = page.find("turbo-stream[action='replace'][target='end_reading_#{sixth.reading.id}']")
+        expect(divider).to have_text("読了！")
+        expect(divider).to have_text("読み切った！")
+        expect(divider).to have_no_link("宝箱を開く")
+        expect(DailyGoal.count).to eq(1)
+      end
+
       it "JS 無しの POST は次の記事のリーダーへ redirect、尽きたら Main へ" do
         following = create(:article, published_at: noon - 1.hour)
         travel_to(noon + threshold) { post advance_reading_path(reading) }

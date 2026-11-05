@@ -1,4 +1,4 @@
-# DailyGoal（Unit 7）
+# DailyGoal（Unit 7 #55）
 
 ## 目的
 SNS には無い「止まり所」。今日の 5 本を読み切ったら宝箱が開き、満足して閉じられる。満足して閉じられると翌日も開く。
@@ -11,15 +11,16 @@ SNS には無い「止まり所」。今日の 5 本を読み切ったら宝箱�
    - 「ゴール達成ボーナス +100 XP」（未決 1）
    - 「ストリーク 4 日目 確定」（DB: ストリーク）
    - 「明日までレア確率 2 倍 P% → 2P%」（P = `xp.tiers` の rare.probability × 100。今の yml なら「25% → 50%」。モックの 16% は採らない。バフ自体と、2 倍にしたとき他の tier の確率をどう減らすかは未決 2。バフを入れないならこの行は出さない）
-4. 「今日の合計 5 本 ・ 23 分 ・ 312 XP」（DB: 今日の読了数、滞在合計、XP 合計）
+4. 「今日の合計 5 本 ・ 23 分 ・ 312 XP」（DB: 今日の読了数、滞在合計（完読した記事の開いた時刻と読み終えた時刻の差の和、分に切り下げ）、XP 合計（読了の xp。ボーナスは 3 の行）。数えるのは `DailySummary`）
 5. ボタン「今日はここまで」（→ Main）
 6. ボタン「もう 1 本だけ（ボーナス XP は半分）」（→ Main。未決 3）
 7. 注記（固定）
 
 ## 遷移
-- Reader の区切り（5 本目の完読）→ DailyGoal（自動にするかは未決。read_done.md 未決 6）
-- Main のゴール表示をタップ → DailyGoal（達成前は進捗だけの軽い表示。未決 4）
-- DailyGoal → Main
+- Reader の区切り（5 本目の完読）→ 区切りに金色の「宝箱を開く」→ DailyGoal（`GET /daily_goal`、full page。自動遷移はしない。read_done.md 未決 6）。ボタンは今日の完読数がちょうど `daily_goal.articles` の区切りにだけ出る（6 本目には出ない）
+- Main のゴール表示（「今日のゴール n / 5」の行）をタップ → DailyGoal（達成前は閉じた宝箱と「あと N 本で宝箱」。未決 4）
+- DailyGoal → Main（「今日はここまで」/ 達成前は「読みに戻る」）
+- DailyGoal → Roulette → Reader（「もう 1 本だけ」= 一番新しい未読の「読む」。未読が無ければ出さない。未決 3）
 
 ## 受け入れ条件（Given-When-Then）
 - Given 今日 4 本完読 When 5 本目を完読 Then DailyGoal が開き「今日の 5 本、読み切った！」
@@ -42,9 +43,13 @@ personas.yml: なし
 
 ## 未決
 1. ゴール達成ボーナス +100 XP。yml に鍵が無い。提案: `daily_goal.bonus_xp: 100`
+   → **決定（Unit 7、#55）**: 鍵 `daily_goal.bonus_xp` が入ったら効く形で作った。達成の行は 5 本目の完読を判定した瞬間に `DailyGoal.achieve_if_reached!` が `daily_goals` に作り（開いた時には書かない。day の一意制約で 1 日 1 回）、`bonus_xp` に鍵の値（無ければ 0）を残す。0 なら「ゴール達成ボーナス」の行は出さない。Main の「累計 XP」は readings の xp と daily_goals の bonus_xp の和。鍵の値は PR で提案
 2. 「明日までレア確率 2 倍」。Jackpot の未決 2 と同じバフ。第一の陣では出さない案。入れるなら rare を 2 倍にした分を common から引く（jackpot は据え置き）など、確率の合計を 1.0 に保つ規則を dopamine.yml に書く
+   → **決定（Unit 7、#55）**: 出さない（Jackpot と同じ）。鍵の提案もしない
 3. 「もう 1 本だけ（ボーナス半分）」の半分の対象（基礎 XP？ ルーレット倍率？）。提案: `daily_goal.after_goal_xp_ratio: 0.5`
+   → **決定（Unit 7、#55）**: 「（ボーナス XP は半分）」は出さず、鍵も提案しない。6 本目以降も通常の XP。ボタンは達成後だけ、一番新しい未読の「読む」（POST）に繋ぐ
 4. 達成前に DailyGoal を開いたときの見せ方（別画面 / Main 内の Turbo Frame）
+   → **決定（Unit 7、#55）**: 同じ full page を 2 つの状態で描く。達成前は「今日のゴール n / 5」、閉じた宝箱、「あと N 本で宝箱」、今日の合計、「読みに戻る」。「宝箱の中身」の行（ストリーク確定）は達成後だけ
 5. `config.time_zone`（Unit 0 の持ち越し）。reset_hour の基準タイムゾーンは Asia/Tokyo にする
    → **Unit 2 で入れた**: `config.time_zone = "Tokyo"`。境界は `ReadingDay.of` / `ReadingDay.range`、宝箱の行は `daily_goals`（day unique）
 6. ストリークの単位。この文書群では「1 本以上完読した日が連続」で統一（Main の「3日連続」、Install の「あと 1 本読めば継続」と一致）。モックの宝箱の「ストリーク 4 日目 確定」を「ゴール達成日が連続」と読むなら変える。main.md / install.md はここを参照

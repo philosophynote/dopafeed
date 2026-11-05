@@ -134,6 +134,23 @@ RSpec.describe "Main", type: :request do
       expect(nav).to have_css("[aria-disabled=true]", count: 3)
     end
 
+    it "今日のゴールの行は DailyGoal へのリンク" do
+      get root_path
+
+      expect(page).to have_link(href: daily_goal_path, text: /今日のゴール 0 \/ #{goal_articles}/)
+    end
+
+    it "累計 XP には宝箱のボーナスも乗る" do
+      travel_to noon do
+        create(:reading, :completed, opened_at: noon - 1.hour, xp: 30)
+        create(:daily_goal, :achieved, day: ReadingDay.of(noon) - 1, bonus_xp: 100)
+
+        get root_path
+
+        expect(page).to have_text("累計 130 XP")
+      end
+    end
+
     it "設定ボタンから Learning へ" do
       get root_path
 

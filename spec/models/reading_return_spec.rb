@@ -137,3 +137,27 @@ RSpec.describe Reading, "#return!" do
     expect { done.reopen!(at: noon + 2.hours) }.not_to change { done.reload.attributes }
   end
 end
+
+# goal 本目の完読で宝箱（daily_goals）の行ができる。判定の瞬間に記録し、画面を開いた時には書かない
+RSpec.describe Reading, "#return! と今日のゴール" do
+  let(:settings) { Dopamine.settings }
+  let(:threshold) { settings.dig(:read, :complete_after_seconds) }
+  let(:goal_articles) { settings.dig(:daily_goal, :articles) }
+  let(:reset_hour) { settings.dig(:daily_goal, :reset_hour) }
+  let(:noon) { Time.zone.local(2026, 10, 20, reset_hour) + 8.hours }
+
+  before { (goal_articles - 1).times { create(:reading, :completed, opened_at: noon - 1.hour) } }
+
+  it "goal 本目の完読で achieved_at = 判定の時刻の行ができる" do
+    create(:reading, opened_at: noon).return!(at: noon + threshold)
+
+    goal = DailyGoal.find_by(day: ReadingDay.of(noon))
+    expect(goal).to be_achieved
+    expect(goal.achieved_at).to eq(noon + threshold)
+  end
+
+  it "未完では作らない" do
+    create(:reading, opened_at: noon).return!(at: noon + threshold - 1.second)
+    expect(DailyGoal.count).to eq(0)
+  end
+end

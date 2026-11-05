@@ -1,0 +1,58 @@
+<%# DailyGoal（docs/screens/daily_goal.md）。止まり所。達成なら開いた宝箱と中身、未達なら閉じた宝箱と残り。
+    数字は DB と yml から: 本数は daily_goal.articles、ボーナスは daily_goals.bonus_xp（鍵 daily_goal.bonus_xp が無い間は 0 で行を出さない）。
+    「明日までレア確率 2 倍」と「ボーナス XP は半分」は鍵が無いので出さない %>
+<% content_for :title, "今日のゴール" %>
+<% achieved = @summary.reached? %>
+<div class="-mx-4 -mt-4 -mb-24 flex min-h-dvh flex-col items-center gap-5 bg-[#FFF8EC] px-7 pb-10 pt-16 text-center">
+  <p class="text-xs font-bold tracking-widest text-amber-700">DAILY GOAL</p>
+  <% if achieved %>
+    <h1 class="text-3xl font-black leading-tight tracking-tight">今日の <%= @summary.goal %> 本、読み切った！</h1>
+  <% else %>
+    <h1 class="text-3xl font-black leading-tight tracking-tight">今日のゴール <%= @summary.count %> / <%= @summary.goal %></h1>
+  <% end %>
+
+  <ol class="flex gap-2" aria-hidden="true">
+    <% @summary.goal.times do |i| %>
+      <li class="goal-dot h-4 w-4 rounded-full <%= i < @summary.count ? "bg-amber-500" : "bg-amber-200" %>" data-filled="<%= i < @summary.count %>"></li>
+    <% end %>
+  </ol>
+
+  <%= render "chest", open: achieved %>
+
+  <section class="w-full rounded-2xl bg-white p-4 text-left shadow-[0_8px_30px_rgba(180,83,9,0.12)]" aria-label="宝箱の中身">
+    <% if achieved %>
+      <p class="text-xs font-bold text-gray-500">宝箱の中身</p>
+      <dl class="mt-2 flex flex-col gap-2.5 text-sm">
+        <% if @goal && @goal.bonus_xp.positive? %>
+          <div class="flex items-center justify-between">
+            <dt class="font-semibold">ゴール達成ボーナス</dt>
+            <dd class="font-black text-amber-700">+<%= @goal.bonus_xp %> XP</dd>
+          </div>
+        <% end %>
+        <div class="flex items-center justify-between">
+          <dt class="font-semibold">ストリーク <%= @summary.streak_days %> 日目 確定</dt>
+          <dd aria-hidden="true">🔥</dd>
+        </div>
+        <div class="flex items-center justify-between">
+          <dt class="font-semibold">今日の合計</dt>
+          <dd class="font-bold text-gray-600"><%= @summary.count %> 本 ・ <%= @summary.dwell_seconds / 60 %> 分 ・ <%= @summary.xp %> XP</dd>
+        </div>
+      </dl>
+    <% else %>
+      <p class="text-base font-bold">あと <%= @summary.remaining %> 本で宝箱</p>
+      <p class="mt-1 text-sm text-gray-600">今日の合計 <%= @summary.count %> 本 ・ <%= @summary.dwell_seconds / 60 %> 分 ・ <%= @summary.xp %> XP</p>
+    <% end %>
+  </section>
+
+  <% if achieved %>
+    <%= link_to "今日はここまで", root_path, class: "flex h-14 w-full items-center justify-center rounded-full bg-gray-900 text-base font-extrabold text-white active:bg-gray-700" %>
+    <% if @next_article %>
+      <%# 「読む」と同じ POST。Roulette のモーダルが重なり、止まるとリーダーへ %>
+      <%= button_to "もう 1 本だけ", article_reading_path(@next_article), class: "flex h-11 w-full items-center justify-center text-sm font-semibold text-gray-600 active:text-gray-900" %>
+    <% end %>
+  <% else %>
+    <%= link_to "読みに戻る", root_path, class: "flex h-14 w-full items-center justify-center rounded-full bg-gray-900 text-base font-extrabold text-white active:bg-gray-700" %>
+  <% end %>
+
+  <p class="text-[11px] leading-relaxed text-[#8A6A3A]">SNS には無い「止まり所」。満足して閉じられると翌日も開く。<br>自分用アプリなので、ここは意図的に SNS と逆を行く。</p>
+</div>
