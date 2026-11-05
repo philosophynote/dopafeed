@@ -90,7 +90,7 @@ RSpec.describe HttpGet do
     end
 
     it "名前が内部アドレスに解けても Error（解けた全アドレスを見る）" do
-      allow(Resolv.new).to receive(:getaddresses).with("evil.example.com").and_return([ "203.0.113.10", "169.254.169.254" ])
+      allow(Resolv).to receive(:getaddresses).with("evil.example.com").and_return([ "203.0.113.10", "169.254.169.254" ])
       stub_request(:get, "http://evil.example.com/")
 
       expect { described_class.call("http://evil.example.com/") }.to raise_error(described_class::Error, "内部ネットワークの URL です")
@@ -98,7 +98,7 @@ RSpec.describe HttpGet do
     end
 
     it "localhost も塞ぐ" do
-      allow(Resolv.new).to receive(:getaddresses).with("localhost").and_return([ "127.0.0.1" ])
+      allow(Resolv).to receive(:getaddresses).with("localhost").and_return([ "127.0.0.1" ])
       expect { described_class.call("http://localhost:3000/") }.to raise_error(described_class::Error, "内部ネットワークの URL です")
     end
 
@@ -108,21 +108,22 @@ RSpec.describe HttpGet do
     end
 
     it "名前が引けなければ TransientError、ホスト名が無ければ Error（待っても通らない）" do
-      allow(Resolv.new).to receive(:getaddresses).with("gone.example.com").and_return([])
+      allow(Resolv).to receive(:getaddresses).with("gone.example.com").and_return([])
       expect { described_class.call("https://gone.example.com/") }.to raise_error(described_class::TransientError, "接続エラー (Resolv::ResolvError)")
 
       expect { described_class.call("http:///x") }.to raise_error(described_class::Error, "URL にホスト名がありません") { |e| expect(e).not_to be_a(described_class::TransientError) }
     end
 
-    it "DNS の待ち時間も fetch.timeout_seconds に収める（/etc/hosts → DNS の順）" do
+    it "名前解決の全体を fetch.timeout_seconds で切り、切れたら TransientError" do
       seconds = Dopamine.settings.dig(:fetch, :timeout_seconds)
-      allow(Resolv::DNS).to receive(:new).and_call_original
+      allow(Timeout).to receive(:timeout).and_call_original
       stub_request(:get, url).to_return(status: 200, body: "ok")
 
       described_class.call(url)
+      expect(Timeout).to have_received(:timeout).with(seconds, Resolv::ResolvTimeout)
 
-      expect(Resolv::DNS).to have_received(:new).with(hash_including(timeouts: seconds))
-      expect(Resolv).to have_received(:new).with([ an_instance_of(Resolv::Hosts), an_instance_of(Resolv::DNS) ])
+      allow(Resolv).to receive(:getaddresses).and_raise(Resolv::ResolvTimeout)
+      expect { described_class.call(url) }.to raise_error(described_class::TransientError, "接続エラー (Resolv::ResolvTimeout)")
     end
 
     it "解いた IP に接続し、TLS の検証とヘッダはホスト名のまま" do

@@ -119,13 +119,9 @@ class HttpGet
   def addresses_of(host)
     [ IPAddr.new(host) ]
   rescue IPAddr::InvalidAddressError
-    resolver.getaddresses(host).map { |address| IPAddr.new(address) }
-  end
-
-  # 既定の Resolv は死んだリゾルバ相手に 5・10・20・40 秒と粘り、1 件で 1 分以上止まる。
-  # DNS の待ち時間も fetch.timeout_seconds に収める（リゾルバの設定は既定のまま）
-  def resolver
-    Resolv.new([ Resolv::Hosts.new, Resolv::DNS.new(Resolv::DNS::Config.default_config_hash.merge(timeouts: timeout)) ])
+    # 既定の Resolv は死んだリゾルバ相手に 5・10・20・40 秒と粘り、それを A と AAAA、検索ドメインの候補ごとに
+    # 繰り返す。問い合わせ 1 回ずつではなく名前解決の全体を fetch.timeout_seconds で切る
+    Timeout.timeout(timeout, Resolv::ResolvTimeout) { Resolv.getaddresses(host) }.map { |address| IPAddr.new(address) }
   end
 
   # IPv4-mapped IPv6（::ffff:127.0.0.1）は中の IPv4 で判定する。そのままでは IPv6 の帯に当たらず素通りする
