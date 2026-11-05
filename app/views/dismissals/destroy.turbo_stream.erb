@@ -1,0 +1,5 @@
+<%# 帯をカードに戻し、未読数を合わせる %>
+<%= turbo_stream.replace dom_id(@article) do %>
+  <%= render "main/article_card", article: @article %>
+<% end %>
+<%= render "dismissals/unread_count", unread_count: @unread_count %>

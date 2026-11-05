@@ -18,6 +18,8 @@ Rails.application.routes.draw do
     resource :reading, only: :create
     # アプリ内のリーダー。描くだけで書き込まない（行は「読む」と advance が作る）
     get :read, on: :member
+    # 読まずに片付ける（POST）と、その取り消し（DELETE）
+    resource :dismissal, only: %i[create destroy]
   end
   resources :readings, only: [] do
     # 「記事を開く」を押した。滞在を数え始める時刻を記録するだけ

@@ -44,13 +44,49 @@ RSpec.describe Article, type: :model do
     let!(:read) { create(:article, :read) }
     let!(:opened) { create(:article, :opened) }
     let!(:untouched) { create(:article) }
+    let!(:dismissed) { create(:article, :dismissed) }
 
-    it "unread は完読した記事を除く。開いただけの記事は未読のまま（出目は Reading に残る）" do
+    it "unread は完読した記事と興味なしの記事を除く。開いただけの記事は未読のまま（出目は Reading に残る）" do
       expect(Article.unread).to contain_exactly(opened, untouched)
     end
 
-    it "read は完読した記事だけ" do
+    it "read は完読した記事だけ（興味なしは読んでいない）" do
       expect(Article.read).to contain_exactly(read)
+    end
+  end
+
+  describe "dismiss! / undismiss!" do
+    let(:at) { Time.zone.local(2026, 10, 20, 12) }
+
+    it "dismiss! は時刻を残して未読から外し、undismiss! で未読に戻る" do
+      article = create(:article)
+
+      article.dismiss!(at: at)
+      expect(article.reload).to be_dismissed
+      expect(article.dismissed_at).to eq(at)
+      expect(Article.unread).not_to include(article)
+
+      article.undismiss!
+      expect(article.reload).not_to be_dismissed
+      expect(Article.unread).to include(article)
+    end
+
+    it "二度目の dismiss! は最初の時刻を保つ（二重送信で記録を動かさない）" do
+      article = create(:article, :dismissed)
+      first = article.dismissed_at
+
+      article.dismiss!(at: at)
+
+      expect(article.reload.dismissed_at).to eq(first)
+    end
+
+    it "開いたが未完の記事を興味なしにしても、Reading（出目と滞在）は残り XP は付かない" do
+      article = create(:article, :opened)
+
+      expect { article.dismiss!(at: at) }.not_to change(Reading, :count)
+      expect(article.reading.reload).not_to be_completed
+      expect(article.reading.xp).to eq(0)
+      expect(Article.unread).not_to include(article)
     end
   end
 
@@ -91,10 +127,11 @@ RSpec.describe Article, type: :model do
   describe "next_unread_after" do
     let(:at) { Time.zone.local(2026, 10, 20, 12) }
 
-    it "published_at が古い方の未読を 1 本返し、完読は飛ばす" do
+    it "published_at が古い方の未読を 1 本返し、完読と興味なしは飛ばす" do
       current = create(:article, published_at: at)
       older = create(:article, published_at: at - 1.hour)
       create(:article, :read, published_at: at - 30.minutes)
+      create(:article, :dismissed, published_at: at - 15.minutes)
       create(:article, published_at: at + 1.hour)
 
       expect(Article.next_unread_after(current)).to eq(older)

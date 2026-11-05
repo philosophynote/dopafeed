@@ -5,9 +5,10 @@
 # content_fetched_at は試行時刻、content_error が nil なら成功。
 # guid はフィード内の重複排除の鍵（entry_id、無ければ url。[feed_id, guid] は一意）。
 # いいね・保存は一人用なので記事に直接残す（liked_at / bookmarked_at）。読了は {Reading}（1 記事 1 行）。ADR 0006
+# 興味なし（dismissed_at）も記事に残す。読んでいないので {Reading} は作らず、XP も読了の数も動かない（ADR 0012）
 #
 # @!method self.unread
-#   完読していない記事。開いたが未完（Reading はあるが completed_at が nil）は未読のまま
+#   完読していない記事。開いたが未完（Reading はあるが completed_at が nil）は未読のまま。興味なしは除く
 #   @return [ActiveRecord::Relation<Article>]
 # @!method self.read
 #   完読した記事
@@ -29,7 +30,7 @@ class Article < ApplicationRecord
   # http(s) 以外を弾くのは、url がリンクの href にそのまま入るため（javascript: などを通さない）
   validates :url, presence: true, uniqueness: true, format: { with: %r{\Ahttps?://\S+\z}i }
 
-  scope :unread, -> { where.not(id: Reading.completed.select(:article_id)) }
+  scope :unread, -> { where(dismissed_at: nil).where.not(id: Reading.completed.select(:article_id)) }
   scope :read, -> { where(id: Reading.completed.select(:article_id)) }
   scope :saved, -> { where.not(liked_at: nil).or(where.not(bookmarked_at: nil)) }
   scope :newest_first, -> { order(published_at: :desc, id: :desc) }
@@ -56,5 +57,26 @@ class Article < ApplicationRecord
   # @return [Boolean] いいねか保存のどちらかが付いているか
   def saved?
     liked_at.present? || bookmarked_at.present?
+  end
+
+  def dismissed?
+    dismissed_at.present?
+  end
+
+  # 読まずに片付ける。二度目は最初の時刻を保つ（二重送信で記録を動かさない）。
+  # 開いたが未完の {Reading} は消さない。出目と滞在は戻したときにそのまま使う
+  #
+  # @return [Article] self
+  def dismiss!(at: Time.current)
+    update!(dismissed_at: at) unless dismissed?
+    self
+  end
+
+  # 興味なしを取り消して未読に戻す
+  #
+  # @return [Article] self
+  def undismiss!
+    update!(dismissed_at: nil)
+    self
   end
 end

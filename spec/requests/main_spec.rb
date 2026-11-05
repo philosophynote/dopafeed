@@ -41,6 +41,18 @@ RSpec.describe "Main", type: :request do
       expect(card).to have_button("読む")
     end
 
+    it "興味なしにした記事はカードにも未読数にも出ない。カードには「興味なし」のボタンがある" do
+      create(:article, title: "残る記事")
+      create(:article, :dismissed, title: "興味なしの記事")
+
+      get root_path
+
+      expect(page).to have_css("article h2", text: "残る記事")
+      expect(page).to have_no_text("興味なしの記事")
+      expect(page).to have_text("未読 1 件")
+      expect(page.find("article")).to have_button("興味なし")
+    end
+
     it "published_at が無い記事は相対時刻を出さない" do
       create(:article, title: "日付なし", published_at: nil)
 

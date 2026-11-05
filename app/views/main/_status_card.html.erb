@@ -5,7 +5,7 @@
       <span aria-hidden="true">🔥</span>
       <span><%= @streak_days %>日連続</span>
     </p>
-    <p class="text-sm text-gray-500">未読 <%= @unread_count %> 件 ・ 読了 <%= @read_count %></p>
+    <p class="text-sm text-gray-500">未読 <span id="unread-count"><%= @unread_count %></span> 件 ・ 読了 <%= @read_count %></p>
   </div>
 
   <div class="mt-2 flex items-center justify-between">
