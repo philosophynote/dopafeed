@@ -1,5 +1,5 @@
 # 読む → Roulette → Reader のカード → 「記事を開く」で元サイトを別窓に開く → 戻ると判定と次の記事が継ぎ足される、を 390×844 で通す。
-# iPhone のホーム画面アプリではシートで開くが、headless Chrome では別窓（タブ）になる。戻りの合図はどちらも focus か visibilitychange。
+# iPhone のホーム画面アプリではシートで開くが、headless Chrome では別窓（タブ）になる。出た合図は visibilitychange の hidden、戻りは visible か focus。
 # 滞在は travel_to ではなく opened_at を書き換えて作る（ブラウザの時計とずれないように）
 RSpec.describe "Reader", type: :system do
   let(:settings) { Dopamine.settings }
@@ -104,6 +104,37 @@ RSpec.describe "Reader", type: :system do
 
     expect(page).to have_css("section[aria-label='判定']", text: "読了！")
     expect(page).to have_text("全部読んだ")
+    expect(article.reading.reload).to be_completed
+  end
+
+  # iPhone のホーム画面アプリで実機の合図を並べると、「記事を開く」を押した瞬間に blur → focus が続けて来て、
+  # その後に hidden、シートを閉じると visible → focus だった。押した瞬間の focus を戻りと取り違えない
+  it "押した瞬間の blur と focus では判定せず、隠れた後に見える状態へ戻ったときに判定する" do
+    article = create(:article, title: "シートの記事", url: source_url("sheet"), summary: "・一")
+    sign_in
+
+    click_on "読む"
+    expect(page).to have_current_path(read_article_path(article))
+    page.execute_script(<<~JS)
+      document.addEventListener("click", (event) => { if (event.target.closest("a[target=_blank]")) event.preventDefault() }, true)
+      window.__visibility = "visible"
+      Object.defineProperty(document, "visibilityState", { configurable: true, get: () => window.__visibility })
+      window.__setVisibility = (state) => { window.__visibility = state; document.dispatchEvent(new Event("visibilitychange")) }
+    JS
+    since = article.reload.reading.opened_at
+    click_on "記事を開く"
+    page.execute_script('window.dispatchEvent(new Event("blur")); window.dispatchEvent(new Event("focus"))')
+    wait_for_start(article.reading, since: since)
+
+    expect(page).to have_button("読み終えた")
+    expect(page).to have_no_css("section[aria-label='判定']")
+    expect(article.reading.reload.returned_at).to be_nil
+
+    page.execute_script('window.dispatchEvent(new Event("blur")); window.__setVisibility("hidden")')
+    make_dwell(article.reading, threshold + 5)
+    page.execute_script('window.__setVisibility("visible"); window.dispatchEvent(new Event("focus"))')
+
+    expect(page).to have_css("section[aria-label='判定']", text: "読了！")
     expect(article.reading.reload).to be_completed
   end
 end

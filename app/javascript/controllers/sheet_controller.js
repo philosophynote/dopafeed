@@ -2,7 +2,9 @@ import { Controller } from "@hotwired/stimulus"
 
 // Reader の 1 枚のカード。「記事を開く」で元サイトを別窓（iPhone のホーム画面アプリではシート）に開き、
 // アプリに戻ってきたら「読み終えた」を 1 回だけ送る。
-// 戻りの合図（visibilitychange / focus）が来るかは端末次第なので、「読み終えた」は開いた後に出して手でも押せるようにする。
+// 出たと見なすのは画面が隠れた（visibilitychange で hidden）ときだけ。blur は使わない。
+// iPhone では押した瞬間に blur → focus が続けて来て、シートが開く前に戻ったと取り違えるため。
+// 戻りは hidden の後の visible か focus。合図が来ない端末のために、「読み終えた」は開いた後に出して手でも押せるようにする。
 // 開く前は隠す。開かずに押して XP を取れないように（JS が無いときは隠さないので、ボタンで送れる）
 export default class extends Controller {
   static targets = ["finish"]
@@ -13,16 +15,19 @@ export default class extends Controller {
     this.away = false
     this.finishTargets.forEach((form) => { form.hidden = true })
     this.returned = this.returned.bind(this)
-    this.left = () => { if (this.opened) this.away = true }
-    this.visibility = () => document.visibilityState === "hidden" ? this.left() : this.returned()
+    this.visibility = () => {
+      if (document.visibilityState === "hidden") {
+        if (this.opened) this.away = true
+      } else {
+        this.returned()
+      }
+    }
     document.addEventListener("visibilitychange", this.visibility)
-    window.addEventListener("blur", this.left)
     window.addEventListener("focus", this.returned)
   }
 
   disconnect() {
     document.removeEventListener("visibilitychange", this.visibility)
-    window.removeEventListener("blur", this.left)
     window.removeEventListener("focus", this.returned)
   }
 
