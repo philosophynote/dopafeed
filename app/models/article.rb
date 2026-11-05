@@ -63,10 +63,10 @@ class Article < ApplicationRecord
     dismissed_at.present?
   end
 
-  # 読まずに片付ける。二度目は最初の時刻を保つ（二重送信で記録を動かさない）。
-  # 開いたが未完の {Reading} は消さない。出目と滞在は戻したときにそのまま使い、開いたままの Reader で読み終えれば完読にもなる（読んだのは事実）
+  # 読まずに片付ける。二度目は最初の時刻を保つ（二重送信で記録を動かさない）。同時に 2 本届いても最初の時刻を保つよう、行をロックして見直す。
+  # 開いたが未完の {Reading} は消さない。出目と滞在は戻したときにそのまま使い、その後に読み終えれば完読にもなる（読んだのは事実。判定は dismissed_at を見ない）
   def dismiss!(at: Time.current)
-    update!(dismissed_at: at) unless dismissed?
+    with_lock { update!(dismissed_at: at) unless dismissed? }
     self
   end
 
