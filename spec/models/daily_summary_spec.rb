@@ -43,6 +43,14 @@ RSpec.describe DailySummary do
     expect(summary.achieved_by?(yesterday)).to be(false)
   end
 
+  it "achieved_by? は同じ時刻の完読が並んでも id の順で goal 本目を 1 行に決める" do
+    tied = (goal_articles + 1).times.map { create(:reading, :completed, opened_at: noon - 1.hour) }
+    summary = DailySummary.new(today)
+
+    expect(tied.map { |reading| summary.achieved_by?(reading) }.count(true)).to eq(1)
+    expect(summary.achieved_by?(tied[goal_articles - 1])).to be(true)
+  end
+
   it "ストリークはその日を今日として数える" do
     create(:reading, :completed, opened_at: noon - 1.day)
     create(:reading, :completed, opened_at: noon)

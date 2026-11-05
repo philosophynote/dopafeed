@@ -36,9 +36,15 @@ class DailySummary
   end
 
   # その完読がこの日のちょうど goal 本目か。goal + 1 本目以降と未完は偽。
-  # 描いた時点の本数で見ると、後から読み足したあとに前の判定を描き直したときに答えが変わるので、その行までの本数で決める
+  # 描いた時点の本数で見ると、後から読み足したあとに前の判定を描き直したときに答えが変わるので、その行までの本数で決める。
+  # 同じ時刻の完読は id で順を付け、goal 本目が必ず 1 行になるようにする
   def achieved_by?(reading)
-    reading.completed? && readings.where(completed_at: ..reading.completed_at).count == goal
+    return false unless reading.completed?
+
+    completed_at = Reading.arel_table[:completed_at]
+    id = Reading.arel_table[:id]
+    before = completed_at.lt(reading.completed_at).or(completed_at.eq(reading.completed_at).and(id.lteq(reading.id)))
+    readings.where(before).count == goal
   end
 
   def streak_days
