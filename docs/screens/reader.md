@@ -22,7 +22,7 @@
 - Main の「読む」→ Roulette（Turbo Stream のモーダル）→ 止まると Reader（`GET /articles/:id/read`、full page）
 - Roulette → Jackpot → 「受け取って読む」→ Reader
 - JS が無いとき: 「読む」の POST が直接 Reader へ redirect
-- Reader の中: 「記事を開く」→ 元サイトが別窓（シート）で開き、Stimulus `sheet` が `POST /readings/:id/start` で開いた時刻を記録 → シートを閉じて戻る（Reader が `visibilitychange` で見えるか `focus` が戻る）か「読み終えた」を押す → `POST /readings/:id/advance` → Turbo Stream で「読み終えた」を区切りに replace、次のカードを `#reader` に append。JS が無ければ次の記事の Reader へ redirect
+- Reader の中: 「記事を開く」→ 元サイトが別窓（シート）で開き、Stimulus `sheet` が `POST /readings/:id/start` で開いた時刻を記録 → シートを閉じて戻る（`visibilitychange` で隠れた後に、見えるか `focus` が戻る。押した瞬間の blur → focus では送らない）か「読み終えた」を押す → `POST /readings/:id/advance` → Turbo Stream で「読み終えた」を区切りに replace、次のカードを `#reader` に append。JS が無ければ次の記事の Reader へ redirect
 - Reader → Main（「閉じる」）。完読したカードは消える
 
 ## 受け入れ条件（Given-When-Then）
@@ -46,7 +46,7 @@ personas.yml: なし
 
 ## 未決
 1. 滞在の上限（シートを開いたまま放置して翌朝戻ると完読になる）。#41 の `read.max_dwell_seconds`
-2. iPhone のホーム画面アプリで、「記事を開く」がシートで開くか（Safari のアプリに飛ばないか）、シートを閉じたときに `visibilitychange` / `focus` が来るか。実機で確かめる（nao）。Safari に飛ぶなら manifest の `scope` / `display` を見直す
+2. iPhone 実機（2026-11-05、nao）: ホーム画面アプリ（「Webアプリとして開く」をオン）では「記事を開く」がシートで開き、閉じると `visibilitychange` の visible と `focus` が来ることは確かめた。押した瞬間の blur → focus で早く判定する不具合は直した。直した後の通しの確認が残る。Safari のタブで開くと記事は別タブになる
 3. 未完で区切られた記事の「読み直す」ボタン（`Reading#reopen!` はある）
 4. 2 本目以降のルーレット演出。今は出目の帯だけで、モーダルは Main の「読む」のときだけ
 5. 判定済みの記事を再読込すると区切りだけが出て、次の記事は継ぎ足されない（「閉じる」で Main に戻る）。次へ進む導線を置くか
