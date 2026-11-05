@@ -6,7 +6,7 @@
 <div class="-mx-4 -mt-4 -mb-24 flex min-h-dvh flex-col items-center gap-5 bg-[#FFF8EC] px-7 pb-10 pt-16 text-center">
   <p class="text-xs font-bold tracking-widest text-amber-700">DAILY GOAL</p>
   <% if achieved %>
-    <h1 class="text-3xl font-black leading-tight tracking-tight">今日の <%= @summary.goal %> 本、読み切った！</h1>
+    <h1 class="text-balance text-3xl font-black leading-tight tracking-tight">今日の <%= @summary.goal %> 本、読み切った！</h1>
   <% else %>
     <h1 class="text-3xl font-black leading-tight tracking-tight">今日のゴール <%= @summary.count %> / <%= @summary.goal %></h1>
   <% end %>

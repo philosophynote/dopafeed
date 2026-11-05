@@ -61,6 +61,9 @@ RSpec.describe "DailyGoal", type: :system do
     expect(page).to have_no_button("もう 1 本だけ") # 未読が尽きた
     expect(no_horizontal_scroll?).to be(true), "横スクロールが出ている"
     expect(small_tap_areas).to be_empty, "44px 未満のタップ領域: #{small_tap_areas.inspect}"
+    # 蓋が持ち上がり切ってから撮る（開いた宝箱は描いた直後に動き出す）
+    page.evaluate_async_script("const done = arguments[0]; Promise.all(document.querySelector('.chest-lid').getAnimations().map((a) => a.finished)).then(() => done(true))")
+    expect(page.evaluate_script("getComputedStyle(document.querySelector('.chest-lid')).transform")).not_to eq("none")
     screenshot!("achieved")
 
     click_on "今日はここまで"
