@@ -14,7 +14,7 @@ Rails.application.routes.draw do
   # ログイン後の着地点（after_authentication_url が root_url を使う）
   root "main#show"
   resource :learning, only: :show, controller: :learning
-  # 今日のゴール（宝箱）。描くだけで書き込まない（達成の行は goal 本目の判定が作る）
+  # 今日のゴール（宝箱）。描くだけで書き込まない
   resource :daily_goal, only: :show
   resources :articles, only: [] do
     resource :reading, only: :create

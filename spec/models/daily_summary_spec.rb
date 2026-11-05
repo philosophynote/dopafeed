@@ -30,6 +30,19 @@ RSpec.describe DailySummary do
     expect(summary.goal).to eq(goal_articles)
   end
 
+  it "achieved_by? はその日のちょうど goal 本目の完読にだけ真。それ以降・未完・他の日は偽" do
+    readings = (goal_articles + 1).times.map { |i| create(:reading, :completed, opened_at: noon - 3.hours + i.minutes) }
+    incomplete = create(:reading, opened_at: noon, returned_at: noon + 1.second)
+    yesterday = create(:reading, :completed, opened_at: noon - 1.day)
+    summary = DailySummary.new(today)
+
+    expect(summary.achieved_by?(readings[goal_articles - 1])).to be(true)
+    expect(summary.achieved_by?(readings[goal_articles - 2])).to be(false)
+    expect(summary.achieved_by?(readings[goal_articles])).to be(false)
+    expect(summary.achieved_by?(incomplete)).to be(false)
+    expect(summary.achieved_by?(yesterday)).to be(false)
+  end
+
   it "ストリークはその日を今日として数える" do
     create(:reading, :completed, opened_at: noon - 1.day)
     create(:reading, :completed, opened_at: noon)

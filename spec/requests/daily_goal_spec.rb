@@ -61,6 +61,15 @@ RSpec.describe "DailyGoal", type: :request do
       expect(page).to have_text("ストリーク 3 日目 確定")
     end
 
+    it "一昨日は完読あり、昨日は 0 本なら今日の達成でストリークは 1 日目" do
+      complete(1, at: noon - 2.days)
+      complete(goal_articles)
+
+      travel_to(noon) { get daily_goal_path }
+
+      expect(page).to have_text("ストリーク 1 日目 確定")
+    end
+
     it "未達なら閉じた宝箱と「あと N 本で宝箱」、「読みに戻る」" do
       complete(2)
 
@@ -84,6 +93,7 @@ RSpec.describe "DailyGoal", type: :request do
       form = page.find("form[action='#{article_reading_path(newest)}']")
       expect(form).to have_button("もう 1 本だけ")
       expect(page).to have_no_text("ボーナス XP は半分")
+      expect(DailyGoal.count).to eq(0) # 描くだけで達成の行は作らない（作るのは判定）
 
       Article.unread.each { |article| create(:reading, :completed, article: article, opened_at: noon - 3.hours) }
       travel_to(noon) { get daily_goal_path }

@@ -70,7 +70,6 @@ class Reading < ApplicationRecord
       self.xp = (base_xp * combo_multiplier).round
     end
     save!
-    # 宝箱は完読を判定したこの瞬間にだけ記録する（開いた回数では増えない）
     DailyGoal.achieve_if_reached!(at: at) if completed?
     self
   end

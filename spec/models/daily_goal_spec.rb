@@ -69,13 +69,24 @@ RSpec.describe DailyGoal, ".achieve_if_reached!" do
     expect(DailyGoal.bonus_total).to eq(100)
   end
 
-  it "同時に 2 本届いて一意制約で落ちたら先の行を使う" do
+  it "同時に 2 本届いて後の 1 本が一意性の検証で落ちたら先の行を使う" do
     complete(goal_articles)
     existing = create(:daily_goal, :achieved, day: today)
-    allow(DailyGoal).to receive(:exists?).and_return(false)
+    # 1 回目の find_by では行がまだ見えず、落ちた後の find_by! では見える体にする
+    allow(DailyGoal).to receive(:find_by).and_return(nil, existing)
 
     expect(DailyGoal.achieve_if_reached!(at: noon)).to eq(existing)
     expect(DailyGoal.count).to eq(1)
+  end
+
+  it "検証をすり抜けて DB の一意制約で落ちても先の行を使う" do
+    complete(goal_articles)
+    existing = create(:daily_goal, :achieved, day: today)
+    # 1 回目の find_by では行がまだ見えず、落ちた後の find_by! では見える体にする
+    allow(DailyGoal).to receive(:find_by).and_return(nil, existing)
+    allow(DailyGoal).to receive(:create!).and_raise(ActiveRecord::RecordNotUnique)
+
+    expect(DailyGoal.achieve_if_reached!(at: noon)).to eq(existing)
   end
 
   it "reset_hour の手前（3:59）の完読は前日の行、ちょうど（4:00）は当日の行" do

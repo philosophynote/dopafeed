@@ -31,7 +31,6 @@ module ReadingsHelper
 
   # 今日のゴールの進み
   #
-  # @param summary [DailySummary] 判定した読書日の数
   # @return [String] 例: 今日のゴール 4 / 5 ・ あと 1 本で宝箱
   def daily_goal_line(summary)
     rest = summary.remaining

@@ -1,5 +1,4 @@
-# 今日のゴール（宝箱）を描く読み取り専用。達成なら開いた宝箱と中身、未達なら閉じた宝箱と残り。
-# 達成の行は goal 本目の判定が作る（Reading#return!）ので、ここでは作らない
+# 今日のゴール（宝箱）を描く読み取り専用。達成なら開いた宝箱と中身、未達なら閉じた宝箱と残り
 class DailyGoalsController < ApplicationController
   def show
     @summary = DailySummary.new

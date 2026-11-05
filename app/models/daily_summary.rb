@@ -1,5 +1,5 @@
 # 読書日（{ReadingDay}）1 日ぶんの数。完読の本数・滞在の合計・XP の合計と、今日のゴール（daily_goal.articles）までの残り。
-# 入口・判定の区切り・宝箱の 3 か所が同じ数を見せるので、数え方を 1 か所に置く。読むだけで書かない。
+# 同じ数を何か所でも見せるので、数え方をここに 1 つだけ置く。読むだけで書かない。
 # 達成の記録（行）は {DailyGoal}、連続した日数は {ReadingStreak}
 class DailySummary
   attr_reader :day
@@ -33,6 +33,12 @@ class DailySummary
 
   def reached?
     count >= goal
+  end
+
+  # その完読がこの日のちょうど goal 本目か。goal + 1 本目以降と未完は偽。
+  # 描いた時点の本数で見ると、後から読み足したあとに前の判定を描き直したときに答えが変わるので、その行までの本数で決める
+  def achieved_by?(reading)
+    reading.completed? && readings.where(completed_at: ..reading.completed_at).count == goal
   end
 
   def streak_days
