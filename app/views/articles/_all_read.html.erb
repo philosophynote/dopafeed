@@ -1,0 +1,5 @@
+<%# 古い未読が尽きた。無限に見えても終わりはあると言い、閉じさせる %>
+<div class="flex flex-col gap-3">
+  <%= render "main/empty" %>
+  <%= link_to "閉じる", root_path, class: "flex h-12 w-full items-center justify-center rounded-full bg-gray-900 text-base font-bold text-white active:bg-gray-700" %>
+</div>

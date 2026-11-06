@@ -1,1 +1,80 @@
 @import "tailwindcss";
+
+/* Roulette の出目の帯。長さ（--roulette-duration）と止まる行（--roulette-stop）はビューが yml から埋める。
+   JS は回さない: 止まった瞬間にリンクを踏むだけ（roulette_controller） */
+.roulette-window {
+  --roulette-row: 3rem;
+  position: relative;
+  height: calc(var(--roulette-row) * 3);
+}
+.roulette-strip {
+  animation: roulette-spin var(--roulette-duration) cubic-bezier(0.15, 0.85, 0.25, 1) forwards;
+}
+.roulette-row {
+  height: var(--roulette-row);
+}
+@keyframes roulette-spin {
+  to { transform: translateY(calc(-1 * var(--roulette-stop) * var(--roulette-row))); }
+}
+/* 結果の行は止まるのと同時に見せる */
+.roulette-result {
+  animation: roulette-reveal 1ms var(--roulette-duration) both;
+}
+@keyframes roulette-reveal {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Jackpot の紙吹雪。横に出ないよう親で overflow を切る */
+.confetti {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.confetti span {
+  position: absolute;
+  top: -5%;
+  left: calc(var(--i) * 8.3%);
+  width: 0.5rem;
+  height: 0.9rem;
+  border-radius: 2px;
+  background: #ffd166;
+  animation: confetti-fall 3.2s linear infinite;
+  animation-delay: calc(var(--i) * -0.27s);
+}
+.confetti span:nth-child(3n + 1) { background: #ff6b6b; }
+.confetti span:nth-child(3n + 2) { background: #4ecdc4; }
+@keyframes confetti-fall {
+  to { transform: translateY(110vh) rotate(720deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .roulette-strip { animation-duration: 1ms; }
+  .roulette-result { animation-delay: 0ms; }
+  .confetti { display: none; }
+}
+
+/* DailyGoal の宝箱。開いた宝箱は描いた瞬間に蓋を持ち上げる（止まり所の報酬）。閉じた宝箱は動かさない */
+.chest-lid {
+  transform-box: view-box;
+  transform-origin: 14px 70px;
+}
+[data-chest="open"] .chest-lid {
+  animation: chest-open 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2) 0.2s both;
+}
+@keyframes chest-open {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(-28deg); }
+}
+[data-chest="open"] .chest-sparkle {
+  animation: chest-sparkle 1.2s ease-in-out infinite alternate;
+}
+@keyframes chest-sparkle {
+  from { opacity: 0.3; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-chest="open"] .chest-lid { animation-duration: 1ms; animation-delay: 0ms; }
+  [data-chest="open"] .chest-sparkle { animation: none; }
+}

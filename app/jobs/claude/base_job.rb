@@ -1,5 +1,5 @@
 module Claude
-  # Claude を呼ぶ Job の親。中身（要約・選定・コメント・クエスト）は Unit 4 以降で足す。
+  # Claude を呼ぶ Job の親。
   # 予算切れは業務上の「今日はもう呼ばない」なので再試行せず捨てる。
   class BaseJob < ApplicationJob
     queue_as :claude

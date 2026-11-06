@@ -2,24 +2,27 @@
 # 画面モックの数字を初期値にした。本丸を触ってから調整する。
 shared:
   read:
-    complete_after_seconds: 20        # 滞在がこの秒数を超えたら完読
+    complete_after_seconds: 20 # 滞在がこの秒数を超えたら完読
   xp:
-    base: 10                          # 読了 1 本の基礎 XP
+    base: 10 # 読了 1 本の基礎 XP
     roulette_duration_ms: 500
-    combo_multiplier_step: 0.1        # 連続読了 1 本ごとに +0.1 倍
+    combo_multiplier_step: 0.1 # 連続読了 1 本ごとに +0.1 倍
     combo_max_multiplier: 2.0
-    tiers:                            # ルーレットの出目。probability の合計 = 1.0
-      - { name: common,    multiplier: 1,  probability: 0.70 }
-      - { name: rare,      multiplier: 3,  probability: 0.25 }
-      - { name: jackpot,   multiplier: 10, probability: 0.05 }
+    tiers: # ルーレットの出目。probability の合計 = 1.0
+      - { name: common, multiplier: 1, probability: 0.70 }
+      - { name: rare, multiplier: 3, probability: 0.25 }
+      - { name: jackpot, multiplier: 10, probability: 0.05 }
   daily_goal:
     articles: 5
-    reset_hour: 4                     # 午前 4 時に日付が変わる扱い
+    reset_hour: 4 # 午前 4 時に日付が変わる扱い
   fetch:
-    timeout_seconds: 10               # RSS・記事ページの HTTP 取得（HttpGet）。接続・読み取りとも
+    timeout_seconds: 10 # RSS・記事ページの HTTP 取得（HttpGet）。接続・読み取りとも
+    max_body_megabytes: 5 # 応答本文（解凍後）の上限。超えたら読むのをやめて失敗にする
   claude:
     summary_model: claude-haiku-5-5
     curation_model: claude-sonnet-5-5
-    daily_call_limit: 200             # 超えたらジョブを落とす（久秀の指摘）
+    daily_call_limit: 200 # 超えたらジョブを落とす（久秀の指摘）
+    summary_max_tokens: 300
+    summary_input_chars: 6000
   comments:
     personas_shown: 3

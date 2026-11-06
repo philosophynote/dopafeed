@@ -5,6 +5,13 @@ module SystemScreen
   SCREEN_SIZE = [ 390, 844 ].freeze
   # スクショの保存先
   SCREENSHOT_DIR = Rails.root.join("tmp/screenshots")
+  # chromedriver からの応答を待つ上限（秒）。Selenium の既定は 120 秒で、ブラウザが応答しなくなると
+  # 残りの例と after（スクショ・reset）の 1 操作ごとにこれだけ待ち、CI が数十分になる。
+  # 正常な操作は Chrome の起動を含めても数秒なので、短くして失敗の報告まで早く着かせる
+  DRIVER_READ_TIMEOUT_SECONDS = 20
+  # chromedriver のログ（命令と応答）。ブラウザが応答しなくなったとき、どの命令で止まったかを
+  # 失敗した例の後にジョブのログへ出す（#38。CI の artifact は箱から開けないので標準エラーで読む）
+  CHROMEDRIVER_LOG = Rails.root.join("log/chromedriver.log")
   # iPhone Safari の UA。standalone 判定などで iOS 向けの分岐を踏ませる
   IPHONE_USER_AGENT = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1".freeze
 
@@ -63,6 +70,32 @@ module SystemScreen
     "window=#{window.width}x#{window.height} inner/innerH/outer/dpr/screen/scale/client=#{metrics} ua=#{page.evaluate_script("navigator.userAgent")}"
   end
 
+  # 失敗した例の後に出す、サーバーが受けた最後のリクエストと chromedriver の最後の命令。
+  # 「サーバーが応答しなかった」のか「ブラウザが命令を返さなかった」のかを、ブラウザに触らずに切り分ける
+  #
+  # @return [String]
+  def browser_diagnostics
+    test_log = Rails.root.join("log/test.log")
+    requests = test_log.exist? ? test_log.readlines.grep(/^(Started|Completed)/).last(20) : []
+    driver = CHROMEDRIVER_LOG.exist? ? CHROMEDRIVER_LOG.readlines.last(40) : []
+    [ "== 失敗時の診断: #{RSpec.current_example.full_description}",
+      "-- log/test.log（Started / Completed の末尾）", *requests,
+      "-- log/chromedriver.log の末尾", *driver ].map { |line| line.chomp[0, 300] }.join("\n")
+  end
+
+  # chromedriver が命令に応答しなくなったら、セッションを捨てて以後は新しい Chrome を使う。
+  # chromedriver は 1 セッションの命令を直列に処理するので、1 つ返らないと以後の全命令が read timeout まで待ち、
+  # 例の数だけ積み上がる。quit も返らないことがあるので握る（Selenium の ensure で chromedriver は止まる）。
+  # 新しい Chrome は直後の rspec-rails の失敗スクショが起動するので、その絵は空白になる
+  def restart_browser!
+    warn "browser unresponsive: quitting so a new Chrome starts"
+    page.driver.quit
+  rescue StandardError => e
+    warn "browser quit failed (restarting anyway): #{e.class}"
+  ensure
+    Capybara.current_session.quit
+  end
+
   private
 
   # @param suffix [String, nil]
@@ -84,10 +117,16 @@ module SystemScreen
   # @param base [Class] include した example group
   # @return [void]
   def self.included(base)
-    base.after do
+    base.after do |example|
+      unresponsive = example.exception.is_a?(Net::ReadTimeout)
+      # 診断はファイルを読むだけなので、ブラウザが固まっていても先に出せる
+      warn browser_diagnostics if example.exception
       screenshot!
     rescue StandardError => e
+      unresponsive ||= e.is_a?(Net::ReadTimeout)
       warn "screenshot! failed: #{e.class}: #{e.message}"
+    ensure
+      restart_browser! if unresponsive
     end
   end
 end
@@ -96,10 +135,14 @@ RSpec.configure do |config|
   config.include SystemScreen, type: :system
 
   config.before(:each, type: :system) do
-    driven_by :selenium, using: :headless_chrome, screen_size: SystemScreen::SCREEN_SIZE do |options|
-      # window-size だけだとブラウザ枠の分だけ viewport が狭くなる。端末エミュレーションで CSS 幅を 390 に固定する
+    http_client = Selenium::WebDriver::Remote::Http::Default.new(read_timeout: SystemScreen::DRIVER_READ_TIMEOUT_SECONDS)
+    service = Selenium::WebDriver::Service.chrome(args: [ "--log-path=#{SystemScreen::CHROMEDRIVER_LOG}" ])
+    driven_by :selenium, using: :headless_chrome, screen_size: SystemScreen::SCREEN_SIZE, options: { http_client: http_client, service: service } do |options|
+      # window-size だけだとブラウザ枠の分だけ viewport が狭くなる。端末エミュレーションで CSS 幅を 390 に固定する。
+      # touch は false と明示する（省くと chromedriver は true 扱い）。true だと chromedriver が click を touch イベントで送り、
+      # Chrome が touchEnd の応答を返さずに固まることがある
       options.add_emulation(
-        device_metrics: { width: SystemScreen::SCREEN_SIZE[0], height: SystemScreen::SCREEN_SIZE[1], pixelRatio: 3, touch: true },
+        device_metrics: { width: SystemScreen::SCREEN_SIZE[0], height: SystemScreen::SCREEN_SIZE[1], pixelRatio: 3, touch: false },
         user_agent: SystemScreen::IPHONE_USER_AGENT
       )
     end

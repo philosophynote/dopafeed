@@ -1,0 +1,6 @@
+<%# タブバーの未読バッジ。0 なら出さない。外側の span は「興味なし」の Turbo Stream が差し替える目印 %>
+<span id="unread-badge">
+  <% if unread_count.positive? %>
+    <span class="absolute right-1/4 top-1 rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white" data-unread-badge><%= unread_count %></span>
+  <% end %>
+</span>

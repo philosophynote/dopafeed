@@ -1,0 +1,37 @@
+<%# Reader の 1 枚。フィード名・見出し・出目の帯・Claude の 3 行要約と、元サイトを開く「記事を開く」。
+    本文は描かない。元サイトの見た目のまま、別窓（iPhone のホーム画面アプリではシート）で読む（ADR 0011）。
+    その下に「読み終えた」の form を置き、判定が済んでいれば form の代わりに結果を出す（再読込で二度送らない） %>
+<% article = reading.article %>
+<div class="flex flex-col gap-4" data-controller="sheet" data-sheet-start-url-value="<%= start_reading_path(reading) %>">
+  <article id="<%= dom_id(article, :reader) %>" class="rounded-2xl bg-white p-4 shadow-sm">
+    <p class="flex items-center gap-2 text-xs text-gray-500">
+      <span class="font-semibold text-gray-700"><%= article.feed.title %></span>
+      <% if article.published_at %>
+        <span>・</span>
+        <time datetime="<%= article.published_at.iso8601 %>"><%= time_ago_in_words(article.published_at, locale: :ja) %>前</time>
+      <% end %>
+    </p>
+    <h1 class="mt-1 break-words text-xl font-bold leading-snug"><%= article.title %></h1>
+    <p class="mt-2 inline-block rounded-full bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-700">
+      出目 <%= tier_label(reading.tier) %> ×<%= Dopamine.tier(reading.tier)[:multiplier] %> ・ 完読で +<%= reading.base_xp %> XP
+    </p>
+
+    <section class="mt-4 rounded-xl bg-gray-50 p-3" aria-label="要約">
+      <p class="text-xs text-gray-500">Claude の 3 行要約</p>
+      <% if article.summary.present? %>
+        <p class="mt-2 whitespace-pre-line break-words text-sm leading-relaxed text-gray-800"><%= article.summary %></p>
+      <% else %>
+        <p class="mt-2 text-sm text-gray-400">要約を準備中</p>
+      <% end %>
+    </section>
+
+    <%= link_to "記事を開く", article.url, target: "_blank", rel: "noopener noreferrer", data: { action: "sheet#open" },
+                class: "mt-4 flex h-12 w-full items-center justify-center rounded-full bg-orange-500 text-base font-bold text-white active:bg-orange-600" %>
+  </article>
+
+  <% if reading.returned_at %>
+    <%= render "readings/divider", reading: reading %>
+  <% else %>
+    <%= render "readings/advance_form", reading: reading %>
+  <% end %>
+</div>

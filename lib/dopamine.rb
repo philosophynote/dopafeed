@@ -1,5 +1,4 @@
 # config/dopamine.yml を読む入口。数字はここを通して yml から取る（コードに埋めない）。
-# Claude::Budget だけは Unit 0 の config_for 直読みのまま（差分を増やさないため。寄せるなら別 PR）。
 # config_for はキャッシュしないので呼ぶたびに YAML を読む。一人用の頻度なら問題にならない。
 # 値を変えるのは nao だけ（AGENTS.md）
 module Dopamine
@@ -13,5 +12,18 @@ module Dopamine
   # @return [Array<String>] xp.tiers の name を yml の順で（common / rare / jackpot）
   def self.tier_names
     settings.dig(:xp, :tiers).map { |tier| tier[:name] }
+  end
+
+  # 名前で引いた tier（name / multiplier / probability）。無い名前なら nil
+  def self.tier(name)
+    settings.dig(:xp, :tiers).find { |tier| tier[:name] == name }
+  end
+
+  # 抽選の頂点の出目。名前ではなく倍率が最も高い tier で決める。
+  # 名前で引くと yml の綴りに縛られ、上に段を足したときに頂点がずれるため
+  #
+  # @return [Hash] name / multiplier / probability
+  def self.jackpot_tier
+    settings.dig(:xp, :tiers).max_by { |tier| tier[:multiplier] }
   end
 end

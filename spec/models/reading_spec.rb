@@ -20,6 +20,11 @@ RSpec.describe Reading, type: :model do
     expect(bogus.errors[:tier]).to include("is not included in the list")
   end
 
+  it "jackpot? は tier が Dopamine.jackpot_tier のときだけ" do
+    expect(build(:reading, tier: Dopamine.jackpot_tier[:name])).to be_jackpot
+    expect(build(:reading, tier: Dopamine.tier_names.first)).not_to be_jackpot
+  end
+
   it "1 記事 1 行（同じ記事に 2 行目は作れない）" do
     existing = create(:reading)
     dup = build(:reading, article: existing.article)
@@ -46,7 +51,7 @@ RSpec.describe Reading, type: :model do
     expect(build(:reading)).not_to be_completed
   end
 
-  it "dwell_seconds は戻った時刻 − 開いた時刻。戻っていなければ nil" do
+  it "dwell_seconds は読み終えた時刻 − 開いた時刻。判定前なら nil" do
     completed = build(:reading, :completed)
     expect(completed.dwell_seconds).to eq(4 * 60 + 12)
     expect(build(:reading).dwell_seconds).to be_nil
@@ -84,5 +89,66 @@ RSpec.describe Reading, type: :model do
   # @return [Reading]
   def complete(at:)
     create(:reading, :completed, opened_at: at - 1.minute, returned_at: at, completed_at: at)
+  end
+
+  describe ".open!" do
+    let(:at) { Time.zone.local(2026, 10, 20, 12) }
+    let(:rare) { Dopamine.tier_names.second }
+
+    it "行が無ければ抽選して opened_at を今にして作る" do
+      article = create(:article)
+      allow(XpRoulette).to receive(:draw).and_return(rare)
+
+      reading = Reading.open!(article, at: at)
+
+      expect(reading).to be_persisted
+      expect(reading.tier).to eq(rare)
+      expect(reading.opened_at).to eq(at)
+    end
+
+    it "未完の行があれば再抽選せず開き直す" do
+      reading = create(:reading, tier: rare, opened_at: at - 1.hour, returned_at: at - 1.hour + 5.seconds)
+      expect(XpRoulette).not_to receive(:draw)
+
+      expect(Reading.open!(reading.article, at: at)).to eq(reading)
+      expect(reading.reload.opened_at).to eq(at)
+      expect(reading.returned_at).to be_nil
+    end
+
+    it "完読済みの行は変えない" do
+      reading = create(:reading, :completed)
+      before = reading.attributes
+      expect(Reading.open!(reading.article, at: at).attributes).to eq(before)
+    end
+
+    it "同時に作られて一意制約で落ちたら、先に入った行を返す" do
+      article = create(:article)
+      existing = create(:reading, article: article, tier: rare, opened_at: at - 1.minute)
+      ghost = Reading.new(article: article)
+      allow(Reading).to receive(:find_or_initialize_by).and_return(ghost)
+      allow(ghost).to receive(:save!).and_raise(ActiveRecord::RecordNotUnique.new("二重タップ"))
+
+      expect(Reading.open!(article, at: at)).to eq(existing)
+    end
+  end
+
+  describe "#start!" do
+    let(:at) { Time.zone.local(2026, 10, 20, 12) }
+
+    it "判定前なら opened_at を記事を開いた時刻にする（カードを眺めていた時間は滞在に入れない）" do
+      reading = create(:reading, opened_at: at - 10.minutes)
+
+      expect(reading.start!(at: at)).to eq(reading)
+      expect(reading.reload.opened_at).to eq(at)
+      expect(reading.returned_at).to be_nil
+    end
+
+    it "判定済みなら未完でも何もしない（区切りの滞在を書き換えない）" do
+      incomplete = create(:reading, opened_at: at - 1.minute, returned_at: at - 50.seconds)
+      completed = create(:reading, :completed)
+
+      expect { incomplete.start!(at: at) }.not_to(change { incomplete.reload.attributes })
+      expect { completed.start!(at: at) }.not_to(change { completed.reload.attributes })
+    end
   end
 end

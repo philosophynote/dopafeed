@@ -4,11 +4,14 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   ci:
     runs-on: ubuntu-latest
+    # 通常は全体で 1 分強。system spec でブラウザが応答しなくなると 1 操作ごとに read timeout（120 秒）まで待ち、
+    # GitHub の既定（6 時間）まで走り続けるので、ここで打ち切る
+    timeout-minutes: 10
     env:
       RUBOCOP_CACHE_ROOT: tmp/rubocop
     steps:

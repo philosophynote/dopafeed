@@ -1,0 +1,27 @@
+<%# ステータスカード。ストリーク・未読/読了・累計 XP・今日のゴール。数字はコントローラが集め、本数の上限は dopamine.yml %>
+<section class="mt-4 rounded-2xl bg-white p-4 shadow-sm" aria-label="今日の進み">
+  <div class="flex items-baseline justify-between">
+    <p class="flex items-center gap-1 text-lg font-bold">
+      <span aria-hidden="true">🔥</span>
+      <span><%= @streak_days %>日連続</span>
+    </p>
+    <p class="text-sm text-gray-500">未読 <span id="unread-count"><%= @unread_count %></span> 件 ・ 読了 <%= @read_count %></p>
+  </div>
+
+  <div class="mt-2 flex items-center justify-between">
+    <p class="text-sm font-semibold text-gray-700">累計 <%= @total_xp %> XP</p>
+    <% if @combo_multiplier > 1 %>
+      <p class="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-bold text-orange-700">コンボ ×<%= number_with_precision(@combo_multiplier, precision: 1) %></p>
+    <% end %>
+  </div>
+
+  <%# ゴールの行はまるごと宝箱（DailyGoal）への入口。達成前でも開ける %>
+  <%= link_to daily_goal_path, class: "mt-2 flex min-h-11 items-center justify-between rounded-xl active:bg-gray-100" do %>
+    <span class="text-sm font-semibold">今日のゴール <%= @today_count %> / <%= @goal_articles %></span>
+    <ol class="flex gap-1.5" aria-hidden="true">
+      <% @goal_articles.times do |i| %>
+        <li class="goal-dot h-3 w-3 rounded-full <%= i < @today_count ? "bg-orange-500" : "bg-gray-200" %>" data-filled="<%= i < @today_count %>"></li>
+      <% end %>
+    </ol>
+  <% end %>
+</section>

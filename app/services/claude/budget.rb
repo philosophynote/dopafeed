@@ -1,13 +1,13 @@
 module Claude
   # 日次の呼び出し上限（ADR 0002）。上限は config/dopamine.yml の claude.daily_call_limit。
-  # 「今日」は Time.zone の暦日。daily_goal.reset_hour は読書の日付であって費用の日付ではないので使わない。
+  # 「今日」は Time.zone の暦日。daily_goal.reset_hour（{ReadingDay}）は読書の日付であって費用の日付ではないので使わない（ADR 0006）。
   class Budget
     class Exhausted < StandardError; end
 
     attr_reader :limit
 
     def self.default_limit
-      Rails.application.config_for(:dopamine).dig(:claude, :daily_call_limit)
+      Dopamine.settings.dig(:claude, :daily_call_limit)
     end
 
     def initialize(limit: self.class.default_limit)

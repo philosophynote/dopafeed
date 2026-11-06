@@ -197,6 +197,13 @@ RSpec.describe FeedFetcher do
       expect(feed.reload.last_error).to eq("URL が http(s) ではありません")
     end
 
+    it "内部ネットワークの URL は取りに行かず残す" do
+      feed.update!(url: "http://169.254.169.254/latest/meta-data/")
+
+      described_class.new(feed).call
+      expect(feed.reload.last_error).to eq("内部ネットワークの URL です")
+    end
+
     it "フィードでない XML・途中で切れた XML・空の本文は「フィードを解析できません」" do
       [ "<html><body>not a feed</body></html>", rss[0, rss.length / 2], "" ].each do |body|
         stub_feed(body: body)

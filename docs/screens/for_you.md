@@ -31,6 +31,7 @@ personas.yml: なし
 
 ## 未決
 1. 興味プロファイルの実体（タグはどう付くか。Unit 4 の要約時に Claude にタグも出させる案）
+   → Unit 4 ではタグを出させない（列も ADR も無い）。要約プロンプトは app/services/claude/prompts/。タグを足すならこの Unit で ADR と列を一緒に
 2. 本数 3、時刻 7:30。提案: `curation.articles: 3`, `curation.at: "07:30"`
 3. おすすめ倍率 ×1.2。提案: `xp.recommended_multiplier: 1.2`
 4. Thompson サンプリングの設計（フィードごとの α/β を何で更新するか）。ADR を足す

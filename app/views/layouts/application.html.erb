@@ -2,10 +2,11 @@
 <html>
   <head>
     <title><%= content_for(:title) || "Dopafeed" %></title>
-    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="application-name" content="Dopafeed">
     <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#f3f4f6">
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
 
@@ -23,9 +24,11 @@
     <%= javascript_importmap_tags %>
   </head>
 
-  <body>
-    <main class="container mx-auto mt-28 px-5 flex">
+  <body class="min-h-dvh bg-gray-100 text-gray-900 antialiased">
+    <main class="mx-auto w-full max-w-md px-4 pt-4 pb-24">
       <%= yield %>
+      <%# 「読む」の Turbo Stream がルーレットのモーダルを差し込む先 %>
+      <div id="roulette"></div>
     </main>
   </body>
 </html>
