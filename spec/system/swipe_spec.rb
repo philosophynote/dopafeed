@@ -3,14 +3,17 @@
 # 本物の指との違いは座標の出どころだけで、横か縦かの判定・閾値・form の送信は同じ道を通る
 RSpec.describe "Swipe", type: :system do
   let(:now) { Time.current }
+  # swipe_controller.js の DISMISS_RATIO と同じ。ここを超えて離すと送る
+  let(:dismiss_ratio) { 0.4 }
 
-  # カードの上で pointer を押し、動かし、離す。x / y はカードの左上からの CSS px、steps は途中の pointermove の数
-  def drag_card(title, from:, to:, steps: 4, release: true)
+  # カードの上で pointer を押し、動かし、離す。x / y はカードの左上からの CSS px、steps は途中の pointermove の数。
+  # on を渡すと、その要素の上で始めた触りになる（イベントはカードまで bubbling する）
+  def drag_card(title, from:, to:, steps: 4, release: true, on: nil)
     card = find("article", text: title)
-    page.execute_script(<<~JS, card.native, from, to, steps, release)
-      const [card, from, to, steps, release] = arguments
+    page.execute_script(<<~JS, card.native, on&.native, from, to, steps, release)
+      const [card, origin, from, to, steps, release] = arguments
       const rect = card.getBoundingClientRect()
-      const fire = (type, x, y) => card.dispatchEvent(new PointerEvent(type, {
+      const fire = (type, x, y) => (origin || card).dispatchEvent(new PointerEvent(type, {
         bubbles: true, cancelable: true, composed: true,
         pointerId: 7, pointerType: "touch", isPrimary: true, button: type === "pointermove" ? -1 : 0, buttons: 1,
         clientX: rect.left + x, clientY: rect.top + y
@@ -29,6 +32,10 @@ RSpec.describe "Swipe", type: :system do
 
   def card_shift(title)
     find("article", text: title).evaluate_script("new DOMMatrixReadOnly(getComputedStyle(this).transform).m41")
+  end
+
+  def rail_opacity(title)
+    find("article", text: title).evaluate_script("parseFloat(getComputedStyle(this.parentElement.querySelector('[data-swipe-target=rail]')).opacity)")
   end
 
   # 離した後の戻りは transition（200ms）で動くので、止まるまで待ってから位置を見る
@@ -72,13 +79,15 @@ RSpec.describe "Swipe", type: :system do
     width = card_width("飛ばす記事")
 
     # 途中で止めると指に付いてきて、右側のレールが見える
-    drag_card("飛ばす記事", from: [ width / 2, 40 ], to: [ width / 2 - width * 0.25, 40 ], release: false)
-    expect(card_shift("飛ばす記事")).to be < -(width * 0.2)
-    expect(page).to have_css("[data-swipe-target='rail']", text: "興味なし", visible: :all)
+    pull = width * dismiss_ratio * 0.6
+    drag_card("飛ばす記事", from: [ width / 2, 40 ], to: [ width / 2 - pull, 40 ], release: false)
+    expect(card_shift("飛ばす記事")).to be < -(pull * 0.8)
+    expect(rail_opacity("飛ばす記事")).to be > 0.3
+    expect(page).to have_css("[data-swipe-target='rail']", text: "興味なし")
     expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "引いている間に横スクロールが出ている"
     screenshot!("swiping")
 
-    drag_card("飛ばす記事", from: [ width / 2 - width * 0.25, 40 ], to: [ width / 2 - width * 0.55, 40 ])
+    drag_card("飛ばす記事", from: [ width / 2 - pull, 40 ], to: [ width / 2 - width * dismiss_ratio * 1.3, 40 ])
     expect(page).to have_text("を興味なしにした")
     expect(page).to have_css("article", count: 1)
     expect(page).to have_text("未読 1 件")
@@ -86,7 +95,7 @@ RSpec.describe "Swipe", type: :system do
     expect(Article.find_by(title: "残す記事")).not_to be_dismissed
 
     # 右へ引いてもカードは動かず、離しても何も起きない
-    drag_card("残す記事", from: [ width / 2, 40 ], to: [ width / 2 + width * 0.6, 40 ])
+    drag_card("残す記事", from: [ width / 2, 40 ], to: [ width / 2 + width * dismiss_ratio * 1.5, 40 ])
     expect(settled_shift("残す記事")).to eq(0)
     expect(page).to have_css("article", count: 1)
     expect(Article.find_by(title: "残す記事")).not_to be_dismissed
@@ -97,8 +106,14 @@ RSpec.describe "Swipe", type: :system do
     sign_in
     width = card_width("戻る記事")
 
-    drag_card("戻る記事", from: [ width / 2, 40 ], to: [ width / 2 - width * 0.2, 40 ])
+    drag_card("戻る記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 0.5, 40 ])
     expect(page).to have_css("article", text: "戻る記事")
+    expect(settled_shift("戻る記事")).to eq(0)
+    expect(rail_opacity("戻る記事")).to eq(0)
+
+    # ボタンの上から始めた触りはタップに任せ、引いてもカードは動かない
+    read_button = find("article", text: "戻る記事").find_button("読む")
+    drag_card("戻る記事", from: [ width - 40, 100 ], to: [ width - 40 - width * dismiss_ratio * 1.5, 100 ], on: read_button)
     expect(settled_shift("戻る記事")).to eq(0)
 
     # 縦に動いた触りはスクロールに任せ、横へ少し流れてもカードは動かない
@@ -106,10 +121,45 @@ RSpec.describe "Swipe", type: :system do
     expect(settled_shift("戻る記事")).to eq(0)
 
     # 画面の左端（iOS の「戻る」の帯）から始まった触りは拾わない。カードの左端は画面から 16px なので x = -10 が画面の 6px
-    drag_card("戻る記事", from: [ -10, 40 ], to: [ -10 - width * 0.6, 40 ])
+    drag_card("戻る記事", from: [ -10, 40 ], to: [ -10 - width * dismiss_ratio * 1.5, 40 ])
     expect(settled_shift("戻る記事")).to eq(0)
 
     expect(page).to have_css("article", count: 1)
     expect(Article.find_by(title: "戻る記事")).not_to be_dismissed
+  end
+
+  it "続けざまに 2 枚流しても両方が帯になる（送信は 1 本ずつ）" do
+    create(:article, title: "一枚目", published_at: now - 1.hour)
+    create(:article, title: "二枚目", published_at: now - 2.hours)
+    sign_in
+    width = card_width("一枚目")
+    far = width * dismiss_ratio * 1.3
+
+    drag_card("一枚目", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
+    drag_card("二枚目", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
+
+    expect(page).to have_css("li", text: "を興味なしにした", count: 2)
+    expect(page).to have_no_css("article")
+    expect(page).to have_text("未読 0 件")
+    expect(Article.where.not(dismissed_at: nil).count).to eq(2)
+  end
+
+  it "送れなかったらカードが戻り、もう一度引ける" do
+    create(:article, title: "圏外の記事", published_at: now - 1.hour)
+    sign_in
+    width = card_width("圏外の記事")
+    far = width * dismiss_ratio * 1.3
+
+    # Turbo の送信は fetch なので、落として圏外を作る
+    page.execute_script("window.__fetch = window.fetch; window.fetch = () => Promise.reject(new TypeError('offline'))")
+    drag_card("圏外の記事", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
+    expect(page).to have_css("article", text: "圏外の記事")
+    expect(settled_shift("圏外の記事")).to eq(0)
+    expect(Article.find_by(title: "圏外の記事")).not_to be_dismissed
+
+    page.execute_script("window.fetch = window.__fetch")
+    drag_card("圏外の記事", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
+    expect(page).to have_text("を興味なしにした")
+    expect(Article.find_by(title: "圏外の記事")).to be_dismissed
   end
 end

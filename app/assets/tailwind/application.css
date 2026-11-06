@@ -50,13 +50,19 @@
 }
 
 /* 一覧のカードの左スワイプ（swipe_controller）。縦はブラウザがスクロールし、横だけ JS が追従させる。
-   引いている間は transition 無しで指に付け、離した後だけ .swipe-settling で戻るか流れ出す */
+   引いている間は transition 無しで指に付け、離した後だけ .swipe-settling で戻るか流れ出す（長さは JS が読む）。
+   引いている間は文字の選択と長押しメニューを出さない。傾いたカードは隣のカードの上に出す（.swipe-active） */
 .swipe-card {
   touch-action: pan-y;
-  will-change: transform;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 .swipe-card.swipe-settling {
   transition: transform 200ms ease-out;
+}
+.swipe-active {
+  z-index: 10;
 }
 .swipe-rail {
   opacity: 0;

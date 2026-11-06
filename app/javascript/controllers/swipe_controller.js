@@ -3,7 +3,7 @@ import { Controller } from "@hotwired/stimulus"
 // 一覧のカード 1 枚。左へ引いて離すと「興味なし」の form を送る。記録と差し替えはサーバー（Turbo Stream）の仕事で、ここは指の動きを form の送信に変えるだけ。
 // Pointer Events を使うのは、iPhone の指も Mac のマウスも同じ道で扱い、touch 固有の API を持たないため。
 // 縦の動きはブラウザのスクロールに任せ（CSS の touch-action: pan-y）、横と決めてからカードを指に追従させる。
-// 右へ引いても動かさない（右に充てる動作はまだ無い）
+// 右へ引いても動かさない（右に充てる動作は無い。ADR 0012）
 
 // 画面の左端からの横スワイプは iOS の「戻る」なので、この幅の中で始まった触りは拾わない
 const EDGE_PX = 24
@@ -11,16 +11,29 @@ const EDGE_PX = 24
 const LOCK_PX = 10
 // カード幅に対して、ここまで引いて離すと送る。手前で離すと戻る
 const DISMISS_RATIO = 0.4
+// 送るときに流す先。カード幅より大きくして画面の外まで出す
+const FLY_OUT_RATIO = 1.2
 // 引いている間に傾ける最大の角度。流れ出す感じを出すだけの演出
 const MAX_TILT_DEG = 6
-// 流れ出しの transition が無い（reduced motion）か transitionend が来ないときに送る保険
-const SETTLE_FALLBACK_MS = 300
+// transitionend を待つ上限に足す余裕。合図が来なくても止まった頃に次へ進むため
+const SETTLE_MARGIN_MS = 100
+// 1 回の送信を待つ上限。turbo:submit-end が来ないまま列が止まらないため
+const SUBMIT_TIMEOUT_MS = 10000
+
+// Turbo は form の送信中に別の form が送られると先の送信を止めて応答を捨てる（先のカードが画面に残る）。
+// 送信は全カードで 1 本の列に並べ、前の turbo:submit-end を待ってから次を送る
+let submissions = Promise.resolve()
 
 export default class extends Controller {
   static targets = ["card", "rail", "form"]
 
+  disconnect() {
+    this.settleCleanup?.()
+    this.submitCleanup?.()
+  }
+
   start(event) {
-    if (!event.isPrimary || event.button !== 0 || event.clientX < EDGE_PX) return
+    if (this.flying || !event.isPrimary || event.button !== 0 || event.clientX < EDGE_PX) return
     // ボタンやリンクの上から始まった触りはタップとして押させる（押しながら引く操作は要らない）
     if (event.target.closest("a, button, input, select, textarea")) return
 
@@ -30,6 +43,7 @@ export default class extends Controller {
     this.tracking = true
     this.horizontal = false
     this.dx = 0
+    this.settleCleanup?.()
     this.cardTarget.classList.remove("swipe-settling")
   }
 
@@ -46,11 +60,11 @@ export default class extends Controller {
       if (Math.abs(dx) < LOCK_PX) return
 
       this.horizontal = true
+      this.element.classList.add("swipe-active")
       this.capture()
     }
     this.dx = Math.min(0, dx)
     this.render(this.dx)
-    event.preventDefault()
   }
 
   end(event) {
@@ -59,11 +73,10 @@ export default class extends Controller {
     this.tracking = false
     if (!this.horizontal) return
 
-    this.cardTarget.classList.add("swipe-settling")
     if (-this.dx >= this.threshold()) {
       this.flyOut()
     } else {
-      this.render(0)
+      this.settle(0)
     }
   }
 
@@ -71,16 +84,15 @@ export default class extends Controller {
     if (!this.tracking || event.pointerId !== this.pointerId) return
 
     this.tracking = false
-    this.cardTarget.classList.add("swipe-settling")
-    this.render(0)
+    if (this.horizontal) this.settle(0)
   }
 
-  // 指がカードの外へ出ても pointermove を受け続ける。JS から合成した pointer（spec）は捕まえられないので失敗は無視する
+  // 指がカードの外へ出ても pointermove を受け続ける。対応する実 pointer の無い合成イベントでは NotFoundError になるので無視する
   capture() {
     try {
       this.cardTarget.setPointerCapture(this.pointerId)
     } catch {
-      // 合成イベントには対応する pointer が無い
+      // 捕まえられなくても追従はできる
     }
   }
 
@@ -94,27 +106,63 @@ export default class extends Controller {
     this.railTarget.style.opacity = progress
   }
 
-  // 画面の外まで流してから送る。先に送ると Turbo の差し替えでカードが途中で消える
-  flyOut() {
-    this.render(-this.cardTarget.offsetWidth * 1.2)
-    let sent = false
-    const send = () => {
-      if (sent) return
-      sent = true
-      this.submit()
+  // 離した後の動き（戻る・流れ出す）は CSS の transition に任せ、止まってから done を呼ぶ。
+  // 長さは CSS から読む（reduced motion で 0 なら待たない）ので、CSS を変えてもここは変えない
+  settle(dx, done = () => {}) {
+    this.settleCleanup?.()
+    const card = this.cardTarget
+    card.classList.add("swipe-settling")
+    const duration = parseFloat(getComputedStyle(card).transitionDuration) * 1000
+    this.render(dx)
+
+    const finish = () => {
+      this.settleCleanup?.()
+      if (dx === 0) this.element.classList.remove("swipe-active")
+      done()
     }
-    this.cardTarget.addEventListener("transitionend", send, { once: true })
-    setTimeout(send, SETTLE_FALLBACK_MS)
+    if (!(duration > 0)) return finish()
+
+    const timer = setTimeout(finish, duration + SETTLE_MARGIN_MS)
+    card.addEventListener("transitionend", finish, { once: true })
+    this.settleCleanup = () => {
+      clearTimeout(timer)
+      card.removeEventListener("transitionend", finish)
+      this.settleCleanup = null
+    }
   }
 
-  // Turbo は form の送信中に別の form が送られると先の送信を止めて応答を捨てる（先のカードが画面に残る）。
-  // 送信中の form があれば、その終わりを待ってから送る
+  // 画面の外まで流してから送る。先に送ると Turbo の差し替えでカードが途中で消える。
+  // 流している間と送信中は次の触りを受けない
+  flyOut() {
+    this.flying = true
+    this.settle(-this.cardTarget.offsetWidth * FLY_OUT_RATIO, () => this.submit())
+  }
+
   submit() {
-    const busy = document.querySelector("form[aria-busy='true']")
-    if (busy) {
-      document.addEventListener("turbo:submit-end", () => this.submit(), { once: true })
-      return
-    }
-    this.formTarget.requestSubmit()
+    submissions = submissions.then(() => new Promise((resolve) => {
+      const form = this.formTarget
+      if (!form.isConnected) return resolve()
+
+      // 送れなかったら（圏外など）カードを戻して、もう一度引けるようにする
+      const ended = (event) => {
+        if (event.target !== form) return
+
+        this.submitCleanup()
+        if (!event.detail.success) this.restore()
+        resolve()
+      }
+      const timer = setTimeout(() => { this.submitCleanup(); resolve() }, SUBMIT_TIMEOUT_MS)
+      document.addEventListener("turbo:submit-end", ended)
+      this.submitCleanup = () => {
+        clearTimeout(timer)
+        document.removeEventListener("turbo:submit-end", ended)
+        this.submitCleanup = null
+      }
+      form.requestSubmit()
+    }))
+  }
+
+  restore() {
+    this.settle(0, () => { this.flying = false })
   }
 }
