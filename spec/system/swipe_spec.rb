@@ -1,6 +1,43 @@
-# Main のカードを読まずに片付ける（docs/screens/swipe.md）。「興味なし」で消え、「元に戻す」で戻る、を 390×844 で通す
+# Main のカードを読まずに片付ける（docs/screens/swipe.md）。「興味なし」で消え、「元に戻す」で戻る、左スワイプで同じことが起きる、を 390×844 で通す。
+# スワイプは Pointer Events を JS から送って作る（system spec は touch を切っている。spec/support/system_click.rb）。
+# 本物の指との違いは座標の出どころだけで、横か縦かの判定・閾値・form の送信は同じ道を通る
 RSpec.describe "Swipe", type: :system do
   let(:now) { Time.current }
+
+  # カードの上で pointer を押し、動かし、離す。x / y はカードの左上からの CSS px、steps は途中の pointermove の数
+  def drag_card(title, from:, to:, steps: 4, release: true)
+    card = find("article", text: title)
+    page.execute_script(<<~JS, card.native, from, to, steps, release)
+      const [card, from, to, steps, release] = arguments
+      const rect = card.getBoundingClientRect()
+      const fire = (type, x, y) => card.dispatchEvent(new PointerEvent(type, {
+        bubbles: true, cancelable: true, composed: true,
+        pointerId: 7, pointerType: "touch", isPrimary: true, button: type === "pointermove" ? -1 : 0, buttons: 1,
+        clientX: rect.left + x, clientY: rect.top + y
+      }))
+      fire("pointerdown", from[0], from[1])
+      for (let i = 1; i <= steps; i++) {
+        fire("pointermove", from[0] + (to[0] - from[0]) * i / steps, from[1] + (to[1] - from[1]) * i / steps)
+      }
+      if (release) fire("pointerup", to[0], to[1])
+    JS
+  end
+
+  def card_width(title)
+    find("article", text: title).evaluate_script("this.getBoundingClientRect().width")
+  end
+
+  def card_shift(title)
+    find("article", text: title).evaluate_script("new DOMMatrixReadOnly(getComputedStyle(this).transform).m41")
+  end
+
+  # 離した後の戻りは transition（200ms）で動くので、止まるまで待ってから位置を見る
+  def settled_shift(title)
+    Timeout.timeout(Capybara.default_max_wait_time) { sleep 0.05 until card_shift(title).zero? }
+    card_shift(title)
+  rescue Timeout::Error
+    card_shift(title)
+  end
 
   it "「興味なし」でカードが帯に替わり未読数が減り、「元に戻す」でカードが戻る" do
     create(:article, title: "関心の無い記事", published_at: now - 1.hour)
@@ -26,5 +63,53 @@ RSpec.describe "Swipe", type: :system do
     expect(page).to have_no_text("を興味なしにした")
     expect(page).to have_text("未読 2 件")
     expect(Article.find_by(title: "関心の無い記事")).not_to be_dismissed
+  end
+
+  it "左へカード幅の 4 割を超えて引いて離すと、カードが流れて帯に替わる。右へ引いても動かない" do
+    create(:article, title: "飛ばす記事", published_at: now - 1.hour)
+    create(:article, title: "残す記事", published_at: now - 2.hours)
+    sign_in
+    width = card_width("飛ばす記事")
+
+    # 途中で止めると指に付いてきて、右側のレールが見える
+    drag_card("飛ばす記事", from: [ width / 2, 40 ], to: [ width / 2 - width * 0.25, 40 ], release: false)
+    expect(card_shift("飛ばす記事")).to be < -(width * 0.2)
+    expect(page).to have_css("[data-swipe-target='rail']", text: "興味なし", visible: :all)
+    expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "引いている間に横スクロールが出ている"
+    screenshot!("swiping")
+
+    drag_card("飛ばす記事", from: [ width / 2 - width * 0.25, 40 ], to: [ width / 2 - width * 0.55, 40 ])
+    expect(page).to have_text("を興味なしにした")
+    expect(page).to have_css("article", count: 1)
+    expect(page).to have_text("未読 1 件")
+    expect(Article.find_by(title: "飛ばす記事")).to be_dismissed
+    expect(Article.find_by(title: "残す記事")).not_to be_dismissed
+
+    # 右へ引いてもカードは動かず、離しても何も起きない
+    drag_card("残す記事", from: [ width / 2, 40 ], to: [ width / 2 + width * 0.6, 40 ])
+    expect(settled_shift("残す記事")).to eq(0)
+    expect(page).to have_css("article", count: 1)
+    expect(Article.find_by(title: "残す記事")).not_to be_dismissed
+  end
+
+  it "閾値に届かずに離すと戻り、縦の動きと左端からの触りは拾わない" do
+    create(:article, title: "戻る記事", published_at: now - 1.hour)
+    sign_in
+    width = card_width("戻る記事")
+
+    drag_card("戻る記事", from: [ width / 2, 40 ], to: [ width / 2 - width * 0.2, 40 ])
+    expect(page).to have_css("article", text: "戻る記事")
+    expect(settled_shift("戻る記事")).to eq(0)
+
+    # 縦に動いた触りはスクロールに任せ、横へ少し流れてもカードは動かない
+    drag_card("戻る記事", from: [ width / 2, 20 ], to: [ width / 2 - 30, 160 ])
+    expect(settled_shift("戻る記事")).to eq(0)
+
+    # 画面の左端（iOS の「戻る」の帯）から始まった触りは拾わない。カードの左端は画面から 16px なので x = -10 が画面の 6px
+    drag_card("戻る記事", from: [ -10, 40 ], to: [ -10 - width * 0.6, 40 ])
+    expect(settled_shift("戻る記事")).to eq(0)
+
+    expect(page).to have_css("article", count: 1)
+    expect(Article.find_by(title: "戻る記事")).not_to be_dismissed
   end
 end

@@ -49,10 +49,24 @@
   to { transform: translateY(110vh) rotate(720deg); }
 }
 
+/* 一覧のカードの左スワイプ（swipe_controller）。縦はブラウザがスクロールし、横だけ JS が追従させる。
+   引いている間は transition 無しで指に付け、離した後だけ .swipe-settling で戻るか流れ出す */
+.swipe-card {
+  touch-action: pan-y;
+  will-change: transform;
+}
+.swipe-card.swipe-settling {
+  transition: transform 200ms ease-out;
+}
+.swipe-rail {
+  opacity: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .roulette-strip { animation-duration: 1ms; }
   .roulette-result { animation-delay: 0ms; }
   .confetti { display: none; }
+  .swipe-card.swipe-settling { transition: none; }
 }
 
 /* DailyGoal の宝箱。開いた宝箱は描いた瞬間に蓋を持ち上げる（止まり所の報酬）。閉じた宝箱は動かさない */

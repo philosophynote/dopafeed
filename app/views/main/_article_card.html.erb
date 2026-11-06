@@ -1,7 +1,10 @@
 <%# 通常カード。フィード名・相対時刻・見出し・要約 2 行・「興味なし」・「読む」。要約が無ければ欄ごと出さない（見出しだけ）。
-    li に id を持つのは、「興味なし」の Turbo Stream がこのカードを帯と差し替えるため %>
-<li id="<%= dom_id(article) %>">
-  <article class="rounded-2xl bg-white p-4 shadow-sm">
+    li に id を持つのは、「興味なし」の Turbo Stream がこのカードを帯と差し替えるため。
+    カードの下に灰色のレールを敷き、左へ引くと見える（Stimulus swipe）。引き切って離すと「興味なし」の form を送る %>
+<li id="<%= dom_id(article) %>" class="relative" data-controller="swipe">
+  <div class="swipe-rail absolute inset-0 flex items-center justify-end rounded-2xl bg-gray-200 pr-6 text-sm font-bold text-gray-500" data-swipe-target="rail" aria-hidden="true">興味なし</div>
+  <article class="swipe-card relative rounded-2xl bg-white p-4 shadow-sm" data-swipe-target="card"
+           data-action="pointerdown->swipe#start pointermove->swipe#move pointerup->swipe#end pointercancel->swipe#cancel">
     <p class="flex items-center gap-2 text-xs text-gray-500">
       <span class="font-semibold text-gray-700"><%= article.feed.title %></span>
       <% if article.published_at %>
@@ -14,7 +17,8 @@
       <p class="mt-1 line-clamp-2 whitespace-pre-line text-sm text-gray-600"><%= article.summary %></p>
     <% end %>
     <div class="mt-3 flex items-center justify-end gap-2">
-      <%= button_to "興味なし", article_dismissal_path(article), class: "inline-flex h-11 items-center justify-center rounded-full px-4 text-sm font-semibold text-gray-500 active:bg-gray-100" %>
+      <%= button_to "興味なし", article_dismissal_path(article), form: { data: { swipe_target: "form" } },
+                    class: "inline-flex h-11 items-center justify-center rounded-full px-4 text-sm font-semibold text-gray-500 active:bg-gray-100" %>
       <%= render "readings/read_button", article: article %>
     </div>
   </article>
