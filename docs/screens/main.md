@@ -12,7 +12,7 @@
 3. ステータスカード（白）
    - 「N 日連続」炎アイコン（DB: ストリーク）
    - 「未読 N 件 ・ 読了 N」（DB: 未読数、読了累計）
-   - 「Lv.N」と XP バー「238 / 400 XP」（DB: 累計 XP。レベル閾値は未決 2）
+   - 「Lv.N」と XP バー「238 / 400 XP」（DB: 累計 XP = readings の xp ＋ daily_goals の bonus_xp。レベル閾値は未決 2）
    - 「今日のゴール n / 5」とドット 5 個（DB: 今日の読了数、dopamine.yml `daily_goal.articles`）。タップ → DailyGoal
    - コンボバッジ「コンボ ×1.5 ・ あと 2:14」（DB: 直近の読了時刻。倍率は `xp.combo_multiplier_step`、上限 `xp.combo_max_multiplier`、有効時間は未決 3）
 4. 新着バナー（白ピル）「新着 12 件 ＋ 過去の神記事を 1 本発掘」（DB: 前回開いた後の新着数。発掘は未決 4）
@@ -25,7 +25,7 @@
 ## 遷移
 - Login → Main（認証後の after_authentication_url）
 - Main → Roulette（「読む」。Turbo Frame でモーダルを重ねる。カード自体は残す）
-- Main → DailyGoal（ゴール表示をタップ、または 5 本目の読了後に自動）
+- Main → DailyGoal（ステータスカードの「今日のゴール n / 5」の行をタップ。達成前でも開く。5 本目の読了後は Reader の区切りの「宝箱を開く」から。Unit 7 #55）
 - Main → Comments / Similar / ForYou / Learning / AddFeed / Saved / Weekly / Feeds（full page。第一の陣では無い）
 - 第一の陣の導線: 設定ボタンは Learning の最小版（`/learning`。サインアウト + Install への導線だけ。Unit 5 で置いた）へ。フィード追加の「+」は出さない（5 フィードは seed と Unit 3 で入る。AddFeed は第二の陣）
 - Reader から「閉じる」で Main に戻ると、完読したカードは一覧から消え、ステータスカードが更新される（Reader が判定する。ADR 0010）

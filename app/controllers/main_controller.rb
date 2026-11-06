@@ -5,9 +5,10 @@ class MainController < ApplicationController
     @articles = Article.unread.newest_first.includes(:feed).load
     @unread_count = @articles.size
     @read_count = Reading.completed.count
-    @total_xp = Reading.completed.sum(:xp)
-    @today_count = Reading.on(ReadingDay.of).count
-    @goal_articles = Dopamine.settings.dig(:daily_goal, :articles)
+    @total_xp = Reading.completed.sum(:xp) + DailyGoal.bonus_total
+    summary = DailySummary.new
+    @today_count = summary.count
+    @goal_articles = summary.goal
     @streak_days = ReadingStreak.days
     @combo_multiplier = Combo.new.multiplier
   end

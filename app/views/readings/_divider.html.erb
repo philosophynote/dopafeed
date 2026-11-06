@@ -10,5 +10,11 @@
     <p class="text-2xl font-black">未完 ・ +0 XP</p>
     <p class="mt-1 text-sm">滞在 <%= dwell_in_words(reading.dwell_seconds) %>。<%= Dopamine.settings.dig(:read, :complete_after_seconds) %> 秒未満なら XP なし</p>
   <% end %>
-  <p class="mt-2 text-sm font-semibold"><%= daily_goal_line(reading.returned_at) %></p>
+  <% summary = DailySummary.new(ReadingDay.of(reading.returned_at)) %>
+  <p class="mt-2 text-sm font-semibold"><%= daily_goal_line(summary) %></p>
+  <%# 宝箱は今日の goal 本目の区切りにだけ出す。それ以降の区切りは「読み切った！」だけ（宝箱は Main のゴール表示からいつでも開ける）。
+      リンク先は今日の宝箱なので、前の日の判定を描き直したときには出さない %>
+  <% if summary.day == ReadingDay.of && summary.achieved_by?(reading) %>
+    <%= link_to "宝箱を開く", daily_goal_path, class: "mt-3 flex h-12 w-full items-center justify-center rounded-full bg-[#FFD166] text-base font-bold text-gray-900 active:bg-yellow-300" %>
+  <% end %>
 </section>

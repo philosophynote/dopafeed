@@ -1,0 +1,22 @@
+<%# 宝箱（モックの SVG）。open なら蓋が持ち上がり（CSS、prefers-reduced-motion なら動かさない）、きらめきが出る。閉じていれば錠前だけ %>
+<svg width="170" height="160" viewBox="0 -10 170 160" fill="none" aria-hidden="true" data-chest="<%= open ? "open" : "closed" %>">
+  <path d="M20 70h130v62a8 8 0 0 1-8 8H28a8 8 0 0 1-8-8z" fill="#B45309"></path>
+  <path d="M20 70h130v18H20z" fill="#92400E"></path>
+  <% if open %>
+    <rect x="30" y="52" width="110" height="20" rx="6" fill="#FFD166"></rect>
+    <g class="chest-sparkle">
+      <path d="M60 12l6-10 6 10M110 8l5-7 5 7M85 6V-4" stroke="#FFD166" stroke-width="3" stroke-linecap="round"></path>
+      <circle cx="40" cy="10" r="4" fill="#FF2E6B"></circle>
+      <circle cx="135" cy="14" r="3" fill="#8B5CF6"></circle>
+      <circle cx="155" cy="56" r="3" fill="#34D399"></circle>
+    </g>
+  <% end %>
+  <g class="chest-lid">
+    <path d="M14 40a20 20 0 0 1 20-20h102a20 20 0 0 1 20 20v30H14z" fill="#D97706"></path>
+    <path d="M14 40a20 20 0 0 1 20-20h102a20 20 0 0 1 20 20v8H14z" fill="#F59E0B"></path>
+  </g>
+  <% unless open %>
+    <rect x="73" y="58" width="24" height="30" rx="4" fill="#FFD166"></rect>
+    <circle cx="85" cy="70" r="4" fill="#92400E"></circle>
+  <% end %>
+</svg>

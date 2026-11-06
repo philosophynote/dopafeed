@@ -16,6 +16,24 @@ RSpec.describe "Articles", type: :request do
   context "ログイン済み" do
     before { sign_in_as(create(:user)) }
 
+    it "判定済みの区切りを描き直しても「宝箱を開く」は今日の goal 本目にだけ出る（後から読み足しても、前の日でも変わらない）" do
+      goal_articles = settings.dig(:daily_goal, :articles)
+      readings = (goal_articles + 1).times.map { |i| create(:reading, :completed, opened_at: noon - 3.hours + i.minutes) }
+      yesterday = create(:reading, :completed, opened_at: noon - 1.day)
+
+      travel_to(noon) { get read_article_path(readings[goal_articles - 1].article) }
+      expect(page).to have_link("宝箱を開く", href: daily_goal_path)
+
+      travel_to(noon) { get read_article_path(readings[goal_articles - 2].article) }
+      expect(page).to have_no_link("宝箱を開く")
+
+      travel_to(noon) { get read_article_path(readings[goal_articles].article) }
+      expect(page).to have_no_link("宝箱を開く")
+
+      travel_to(noon) { get read_article_path(yesterday.article) }
+      expect(page).to have_no_link("宝箱を開く")
+    end
+
     it "見出し・出目の帯・要約・元サイトを別窓で開く「記事を開く」・「読み終えた」form を出す" do
       rare = settings.dig(:xp, :tiers).find { |tier| tier[:multiplier] > 1 && tier != Dopamine.jackpot_tier }
       article = create(:article, title: "読む記事", url: "https://example.com/posts/1", feed: create(:feed, title: "Ruby Weekly"),

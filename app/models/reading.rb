@@ -70,6 +70,8 @@ class Reading < ApplicationRecord
       self.xp = (base_xp * combo_multiplier).round
     end
     save!
+    DailyGoal.achieve_if_reached!(at: at) if completed?
+    self
   end
 
   # 元の記事を開いた。滞在は開いた時刻から数える（行ができてから開くまでの時間は読んだうちに入れない）。
