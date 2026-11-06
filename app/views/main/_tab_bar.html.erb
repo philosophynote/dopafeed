@@ -5,9 +5,7 @@
       <%= link_to root_path, class: "relative flex h-14 flex-col items-center justify-center text-xs font-semibold text-orange-600", "aria-current": "page" do %>
         <span class="text-xl" aria-hidden="true">📰</span>
         <span>フィード</span>
-        <% if @unread_count.positive? %>
-          <span class="absolute right-1/4 top-1 rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white" data-unread-badge><%= @unread_count %></span>
-        <% end %>
+        <%= render "main/unread_badge", unread_count: @unread_count %>
       <% end %>
     </li>
     <% [ [ "🔖", "保存" ], [ "📈", "レポート" ], [ "📡", "購読" ] ].each do |icon, label| %>

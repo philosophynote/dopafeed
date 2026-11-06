@@ -1,5 +1,5 @@
 # 記事。既定で 3 行要約つき、未読・未保存。
-# :unsummarized 要約前 / :awaiting_summary 本文取得を試した後の要約待ち / :liked いいね / :bookmarked 保存 / :opened 開いただけ / :read 完読
+# :unsummarized 要約前 / :awaiting_summary 本文取得を試した後の要約待ち / :liked いいね / :bookmarked 保存 / :dismissed 興味なし / :opened 開いただけ / :read 完読
 # :opened / :read は after(:create) で Reading を作るので create 専用（build では Reading が付かない）
 FactoryBot.define do
   factory :article do
@@ -25,6 +25,10 @@ FactoryBot.define do
 
     trait :bookmarked do
       bookmarked_at { Time.zone.local(2026, 10, 4, 13) }
+    end
+
+    trait :dismissed do
+      dismissed_at { Time.zone.local(2026, 10, 5, 12) }
     end
 
     trait :opened do

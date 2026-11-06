@@ -19,7 +19,7 @@
 5. 記事カード（新しい順。種類 3 つ）
    - 掘り出し物カード: 枠がグラデーション。フィード名、はてブ数「128 users」（DB、未決 5）、相対時刻、ラベル「掘り出し物 ・ XP ×K」（K = `xp.tiers` の rare.multiplier。今の yml なら「×3」。モックの「1.5〜3 倍」は採らない。未決 11: カードの属性か、ルーレットの出目か）、見出し、要約 2 行（DB: summary）、「約 N 分 ・ 完読で +M XP」（N は未決 6。M = `xp.base` × そのカードの tier の multiplier。今の yml なら通常 +10、掘り出し物 +30。モックの +40 は採らない）、いいね / 保存 / コメント（→ Comments）、「読む」ボタン（→ Roulette）
    - 今日限定カード: 赤枠。ラベル「今日限定 ・ 残り 4:12:08 ・ 消える前に読むと +30 XP」（未決 7）、アイキャッチ画像（DB: 未決 8）、「読む」ボタン（モックの「＋10〜30 XP」は出目の幅。yml の tiers に幅が無いので出さない）
-   - 通常カード: フィード名、相対時刻、「保存した『…』に 61% 似ている」（→ Similar。第一の陣では出さない）、見出し
+   - 通常カード: フィード名、相対時刻、「保存した『…』に 61% 似ている」（→ Similar。第一の陣では出さない）、見出し、「興味なし」（灰色の文字ボタン。左スワイプと同じ。Unit 8a、swipe.md）
 6. タブバー: フィード（未読バッジ 48、aria-current）/ 保存 / レポート / 購読（固定。第一の陣ではフィード以外は無効。未決 9）
 
 ## 遷移
@@ -29,6 +29,7 @@
 - Main → Comments / Similar / ForYou / Learning / AddFeed / Saved / Weekly / Feeds（full page。第一の陣では無い）
 - 第一の陣の導線: 設定ボタンは Learning の最小版（`/learning`。サインアウト + Install への導線だけ。Unit 5 で置いた）へ。フィード追加の「+」は出さない（5 フィードは seed と Unit 3 で入る。AddFeed は第二の陣）
 - Reader から「閉じる」で Main に戻ると、完読したカードは一覧から消え、ステータスカードが更新される（Reader が判定する。ADR 0010）
+- カードの「興味なし」（左スワイプ）→ Turbo Stream でカードが「元に戻す」の帯に替わり、未読数が減る（swipe.md、ADR 0012）
 
 ## 受け入れ条件（Given-When-Then）
 - Given 未読記事が 3 本ある When Main を開く Then 3 本が published_at の新しい順に並ぶ
@@ -38,6 +39,7 @@
 - Given 今日 0 本 When Main を開く Then 「今日のゴール 0 / 5」で全ドットが灰色
 - Given 昨日まで 3 日連続で 1 本以上完読している When 今日 Main を開く Then 「3日連続」が出る（ストリークの定義は daily_goal.md の未決 6）
 - Given 既読の記事が 1 本ある When Main を開く Then その記事はカードに出ない
+- Given 興味なしにした記事が 1 本ある When Main を開く Then その記事はカードにも未読数にも出ない（swipe.md）
 - Given 未読が 48 本 When Main を開く Then タブバーのフィードに「48」バッジが出る
 - Given 未読が 0 本 When Main を開く Then バッジが出ず、一覧に「全部読んだ」の空状態が出る（文言は未決 10）
 - Given カードの「読む」をタップ When Roulette が出る Then 背景の一覧はそのまま残り、Roulette 終了後に記事が開く

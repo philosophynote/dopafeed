@@ -17,7 +17,7 @@
   <% else %>
     <ul class="flex flex-col gap-3">
       <% @articles.each do |article| %>
-        <li><%= render "article_card", article: article %></li>
+        <%= render "article_card", article: article %>
       <% end %>
     </ul>
   <% end %>

@@ -6,7 +6,7 @@
 | 段 | 画面 | ファイル | モックの artboard | Unit | 深さ |
 |---|---|---|---|---|---|
 | 1 コアループ | Main | main.md | Main.dc.html | 5 | 深 |
-| 1 | Swipe | swipe.md | Swipe.dc.html | 未定（案: 8） | 浅 |
+| 1 | Swipe | swipe.md | Swipe.dc.html | 8a（左スワイプの興味なしだけ、#56）。残りは未定 | 浅 |
 | 1 | Roulette | roulette.md | Roulette.dc.html | 6 | 深 |
 | 1 | Jackpot | jackpot.md | Jackpot.dc.html | 6 | 深 |
 | 1 | ReadDone | read_done.md（Reader の区切りに畳んだ） | ReadDone.dc.html | 5 | 深 |
