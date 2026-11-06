@@ -19,4 +19,18 @@
     <updated>2026-10-04T00:00:00Z</updated>
     <summary>Atom の概要だけ</summary>
   </entry>
+  <entry>
+    <title>Atom 記事 3</title>
+    <link rel="alternate" href="https://fixtures.example.com/atom/3"/>
+    <id>tag:fixtures.example.com,2026:atom/3</id>
+    <updated>2026-10-05T00:00:00Z</updated>
+    <content type="xhtml"><div xmlns="http://www.w3.org/1999/xhtml"><p>xhtml の<strong>本文</strong></p><pre><code>puts "hi"</code></pre></div></content>
+  </entry>
+  <entry>
+    <title>Atom 記事 4</title>
+    <link rel="alternate" href="https://fixtures.example.com/atom/4"/>
+    <id>tag:fixtures.example.com,2026:atom/4</id>
+    <updated>2026-10-06T00:00:00Z</updated>
+    <summary type="xhtml"><div xmlns="http://www.w3.org/1999/xhtml">概要の<em>強調</em></div></summary>
+  </entry>
 </feed>
