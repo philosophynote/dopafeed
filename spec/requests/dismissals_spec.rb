@@ -102,6 +102,17 @@ RSpec.describe "Dismissals", type: :request do
         expect(page.find("turbo-stream[action='replace'][target='unread-badge']")).to have_css("[data-unread-badge]", text: "1")
       end
 
+      it "興味なしにした後に読み終えていた記事は、カードを戻さず帯だけ消す（未読ではない）" do
+        read = create(:article, :dismissed, :read, title: "読み終えた記事")
+
+        delete article_dismissal_path(read), headers: turbo
+
+        expect(read.reload).not_to be_dismissed
+        expect(page).to have_css("turbo-stream[action='remove'][target='#{dom_id(read)}']")
+        expect(page).to have_no_css("turbo-stream[action='replace'][target='#{dom_id(read)}']")
+        expect(page.find("turbo-stream[action='update'][target='unread-count']")).to have_text("0")
+      end
+
       it "JS が無ければ Main へ戻る" do
         delete article_dismissal_path(article)
 
