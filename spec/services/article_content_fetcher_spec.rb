@@ -108,6 +108,14 @@ RSpec.describe ArticleContentFetcher do
       expect(article.reload.content_error).to eq("サーバーエラー (HTTP 404)")
     end
 
+    it "内部ネットワークへ向く記事ページは取りに行かず、HttpGet の文言で残す" do
+      stub_request(:get, article.url).to_return(status: 302, headers: { "Location" => "http://169.254.169.254/latest/meta-data/" })
+
+      described_class.new(article).call
+      expect(article.reload).to have_attributes(content: "フィードの抜粋", content_error: "内部ネットワークの URL です")
+      expect(a_request(:get, "http://169.254.169.254/latest/meta-data/")).not_to have_been_made
+    end
+
     it "5xx・接続エラーは記録せず TransientError を上げる（Job が待ってやり直す）" do
       stub_page(status: 503, body: "")
       expect { described_class.new(article).call }.to raise_error(HttpGet::TransientError, "サーバーエラー (HTTP 503)")
