@@ -162,4 +162,30 @@ RSpec.describe "Swipe", type: :system do
     expect(page).to have_text("を興味なしにした")
     expect(Article.find_by(title: "圏外の記事")).to be_dismissed
   end
+
+  it "送信の応答を待つ間に画面を離れて戻っても、次のスワイプは送れる" do
+    create(:article, title: "待たせる記事", published_at: now - 1.hour)
+    create(:article, title: "次の記事", published_at: now - 2.hours)
+    sign_in
+    width = card_width("待たせる記事")
+    far = width * dismiss_ratio * 1.3
+
+    # POST だけ応答も中断も返さない fetch にして、送信中のまま Turbo で設定へ移る（画面の移動は GET なので通す）
+    page.execute_script(<<~JS)
+      window.__fetch = window.fetch
+      window.fetch = (url, options) => (options?.method || "GET").toUpperCase() === "POST" ? new Promise(() => {}) : window.__fetch(url, options)
+    JS
+    drag_card("待たせる記事", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
+    # 流れ終わって送信が始まる（Turbo が form に aria-busy を付ける）のを待ってから離れる
+    expect(page).to have_css("form[aria-busy='true']", visible: :all)
+    click_on "設定"
+    expect(page).to have_css("h1", text: "設定")
+    click_on "戻る"
+    expect(page).to have_css("article", text: "次の記事")
+
+    page.execute_script("window.fetch = window.__fetch")
+    drag_card("次の記事", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
+    expect(page).to have_text("を興味なしにした")
+    expect(Article.find_by(title: "次の記事")).to be_dismissed
+  end
 end

@@ -17,7 +17,7 @@ const FLY_OUT_RATIO = 1.2
 const MAX_TILT_DEG = 6
 // transitionend を待つ上限に足す余裕。合図が来なくても止まった頃に次へ進むため
 const SETTLE_MARGIN_MS = 100
-// 1 回の送信を待つ上限。turbo:submit-end が来ないまま列が止まらないため
+// 1 回の送信を待つ上限。turbo:submit-end が来ないまま列が止まらないため。過ぎたら送れなかった扱いにする
 const SUBMIT_TIMEOUT_MS = 10000
 
 // Turbo は form の送信中に別の form が送られると先の送信を止めて応答を捨てる（先のカードが画面に残る）。
@@ -143,21 +143,24 @@ export default class extends Controller {
       const form = this.formTarget
       if (!form.isConnected) return resolve()
 
+      // 列は必ず進める。結果を待たずに外されても（画面を移ってカードが消えた）ここで解いて、次のカードが止まらないようにする
+      const finish = () => {
+        clearTimeout(timer)
+        document.removeEventListener("turbo:submit-end", ended)
+        this.submitCleanup = null
+        resolve()
+      }
       // 送れなかったら（圏外など）カードを戻して、もう一度引けるようにする
       const ended = (event) => {
         if (event.target !== form) return
 
-        this.submitCleanup()
+        finish()
         if (!event.detail.success) this.restore()
-        resolve()
       }
-      const timer = setTimeout(() => { this.submitCleanup(); resolve() }, SUBMIT_TIMEOUT_MS)
+      // 応答が来ないまま待ち続けない。送れなかった扱いでカードを戻す（届いていれば後から Turbo が差し替える）
+      const timer = setTimeout(() => { finish(); this.restore() }, SUBMIT_TIMEOUT_MS)
       document.addEventListener("turbo:submit-end", ended)
-      this.submitCleanup = () => {
-        clearTimeout(timer)
-        document.removeEventListener("turbo:submit-end", ended)
-        this.submitCleanup = null
-      }
+      this.submitCleanup = finish
       form.requestSubmit()
     }))
   }
