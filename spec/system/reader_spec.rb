@@ -180,6 +180,7 @@ RSpec.describe "Reader", type: :system do
       JS
 
       expect(page).to have_css("section[aria-label='要約']", text: "・切れている間の要約")
+      expect(page).to have_no_css("turbo-cable-stream-source", visible: :all) # 取り直しで出来上がったら購読を外す
     end
 
     it "失敗したら「要約できませんでした」。記事はそのまま開ける" do
