@@ -34,6 +34,9 @@ class HttpGet
 
   # 返す応答に足す、恒久移転の行き先
   module Moved
+    # 一時的な移動も含む応答位置。HTML 内の相対リンクの解決に使い、恒久移転の記録とは分ける。
+    attr_accessor :final_url
+
     # @return [String, nil] 最初の URL から 301 / 308 だけで辿った最後の URL。302 / 307 が挟まればその手前まで（一時的な寄り道の先は覚えない）。
     #   ホストを小文字にしてフラグメントを落とす（保存済みの URL と突き合わせるため）。移転が無ければ nil
     attr_accessor :permanent_url
@@ -111,7 +114,10 @@ class HttpGet
 
     case response
     when Net::HTTPSuccess, Net::HTTPNotModified
-      response.extend(Moved).tap { |res| res.permanent_url = @permanent_url }
+      response.extend(Moved).tap do |res|
+        res.permanent_url = @permanent_url
+        res.final_url = uri.dup.tap { |location| location.fragment = nil }.normalize.to_s
+      end
     when Net::HTTPRedirection
       raise Error, "リダイレクトが多すぎます" if redirects >= MAX_REDIRECTS
       raise Error, "サーバーエラー (HTTP #{response.code})" if response["Location"].blank?

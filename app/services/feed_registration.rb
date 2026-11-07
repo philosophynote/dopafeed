@@ -9,19 +9,20 @@ class FeedRegistration
     existing = Feed.find_by(url: url)
     return Result.new(existing, "登録済み") if existing
 
-    response = HttpGet.call(url)
-    title = FeedDocument.parse(response.body.to_s).title.to_s.strip
-    return Result.new(nil, "フィードのタイトルを取得できません") if title.blank?
+    discovered = FeedDiscovery.call(url) { |candidate| Feed.exists?(url: candidate) }
+    url = discovered.url
+    existing = Feed.find_by(url: url)
+    return Result.new(existing, "登録済み") if existing
 
-    feed = Feed.create!(url: url, title: title)
+    feed = Feed.create!(url: url, title: discovered.title)
     message = enqueue(feed) ? "記事を取得しています" : "記事の取得は後ほど再試行します"
     Result.new(feed, "「#{feed.title}」を追加しました。#{message}")
   rescue URI::Error
     Result.new(nil, "URL が正しくありません")
   rescue HttpGet::Error => e
     Result.new(nil, e.message)
-  rescue FeedDocument::Error => e
-    Result.new(nil, response.content_type == "text/html" ? "RSS/Atom の URL を入力してください" : e.message)
+  rescue FeedDocument::Error, FeedDiscovery::Error => e
+    Result.new(nil, e.message)
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
     existing = Feed.find_by(url: url)
     raise unless existing
