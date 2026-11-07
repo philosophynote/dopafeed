@@ -23,8 +23,10 @@ RSpec.describe Push::Digest do
       with_push(digest_at: 27_000)
       expect(described_class.new(day).due?(Time.zone.local(2026, 11, 7, 7, 30))).to be(true)
 
-      with_push(digest_at: "7時半")
-      expect(described_class.new(day).due?(Time.zone.local(2026, 11, 7, 12))).to be(false)
+      [ "7時半", "25:00", "21:99", "24:00" ].each do |broken|
+        with_push(digest_at: broken)
+        expect(described_class.new(day).due?(Time.zone.local(2026, 11, 7, 23, 59))).to be(false)
+      end
     end
   end
 

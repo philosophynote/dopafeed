@@ -12,8 +12,11 @@ module Push
       raise NotImplementedError
     end
 
-    # 読書日の時刻の形。これ以外（引用符を忘れて 27000 になったものは {Dopamine.clock_time} が先に直す）は鍵が無いのと同じに扱う
+    # 読書日の時刻の形。これ以外と、25:00 や 21:99 のような範囲外（change が ArgumentError を上げ、Job が回るたびに落ちる）は
+    # 鍵が無いのと同じに扱う。引用符を忘れて 27000 になったものは {Dopamine.clock_time} が先に直す
     TIME = /\A(\d{1,2}):(\d{2})\z/
+    HOURS = 0...24
+    MINUTES = 0...60
 
     attr_reader :day
 
@@ -31,7 +34,7 @@ module Push
       return @due_at if defined?(@due_at)
 
       hour, minute = Dopamine.clock_time(self.class.time_key).to_s.match(TIME)&.captures&.map(&:to_i)
-      @due_at = hour && day.in_time_zone.change(hour: hour, min: minute)
+      @due_at = day.in_time_zone.change(hour: hour, min: minute) if HOURS.cover?(hour) && MINUTES.cover?(minute)
     end
 
     # @return [Hash, nil] 端末に送る内容（title / body / path / unread / tag）。今日は出さないなら nil
