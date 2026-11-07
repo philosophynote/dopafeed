@@ -118,5 +118,16 @@ RSpec.describe FetchArticleContentJob, type: :job do
       expect(fetcher).to have_received(:record_failure).once
       expect(Claude::SummarizeArticleJob).to have_been_enqueued.with(article).once
     end
+
+    it "やり直しが尽きた後も、予算が尽きていれば積まない" do
+      allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, remaining: 0))
+      allow(fetcher).to receive(:call).and_raise(HttpGet::TransientError, "サーバーエラー (HTTP 503)")
+      allow(fetcher).to receive(:record_failure) { article.update!(content_fetched_at: Time.current, content_error: "サーバーエラー (HTTP 503)") }
+
+      perform_enqueued_jobs(only: described_class) { described_class.perform_later(article) }
+
+      expect(fetcher).to have_received(:record_failure).once
+      expect(Claude::SummarizeArticleJob).not_to have_been_enqueued
+    end
   end
 end

@@ -215,12 +215,12 @@ SolidQueue::Process.all               # 生きているワーカー。無けれ�
 ```
 
 ### 2-e-2. 要約が付かない・要約に失敗した記事
-要約は本文取得の直後に積まれ、取りこぼしは 10 分ごとの定期ジョブ（`Claude::SummarizePendingArticlesJob`）が拾う。失敗した記事（形式不正・4xx・本文が空）は自動ではやり直さない。
+要約は本文取得の直後に積まれ、取りこぼしは定期ジョブ（`Claude::SummarizePendingArticlesJob`。間隔は config/recurring.yml、今は 10 分）が拾う。失敗した記事（形式不正・4xx・本文が空）は自動ではやり直さない。
 ```sh
 kamal app exec --reuse "bin/rails summaries:status"   # 要約済み・待ち・本文取得前・失敗の数、失敗の内訳、今日の予算
 kamal app exec --reuse "bin/rails summaries:retry"    # 失敗した記事を全部「要約待ち」に戻す
 ```
-- `retry` は API を呼ばない。戻した記事は次の定期ジョブ（10 分以内）が、今日の予算の残りの範囲で拾う。予算が尽きていれば翌日
+- `retry` は API を呼ばない。戻した記事は次の定期ジョブが、今日の予算の残りの範囲で拾う。予算が尽きていれば翌日
 - 本文が空で失敗した記事は、戻しても API を呼ぶ前にまた失敗する（予算は減らない）。本文取得の失敗（`content_error`）は戻さない
 - 「要約待ち」が減らないなら、予算切れ（2-d）かワーカーが止まっている（2-e）
 

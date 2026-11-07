@@ -109,7 +109,7 @@ RSpec.describe Article, type: :model do
   end
 
   it "retry_failed_summaries は失敗だけを要約待ちに戻し、戻した件数を返す" do
-    failed = create_list(:article, 2, :summary_failed)
+    failed = [ create(:article, :summary_failed), create(:article, :summary_failed, content_error: "本文を抽出できません") ]
     waiting = create(:article, :awaiting_summary)
     summarized = create(:article, :summary_failed, summary: "・a\n・b\n・c")
 
@@ -117,6 +117,7 @@ RSpec.describe Article, type: :model do
     expect(Article.awaiting_summary).to contain_exactly(*failed, waiting)
     expect(failed.map { |article| article.reload.summary_error }).to all(be_nil)
     expect(summarized.reload.summary_failed_at).to be_present
+    expect(failed.last.reload.content_error).to eq("本文を抽出できません") # 本文取得の失敗は戻さない
   end
 
   it "saved は liked_at か bookmarked_at のある記事" do

@@ -23,7 +23,7 @@
 #   要約待ちの記事。本文取得を試す前（content_fetched_at が nil）は含めない。フィードの薄い本文を要約すると、その後に本文が入っても二度と直らない
 #   @return [ActiveRecord::Relation<Article>]
 # @!method self.summary_failed
-#   要約に失敗したまま要約の無い記事。失敗の記録より後に要約が付いた記事は含めない
+#   要約に失敗した記事
 #   @return [ActiveRecord::Relation<Article>]
 class Article < ApplicationRecord
   belongs_to :feed
@@ -40,7 +40,7 @@ class Article < ApplicationRecord
   scope :awaiting_summary, -> { where(summary: nil, summary_failed_at: nil).where.not(content_fetched_at: nil) }
   scope :summary_failed, -> { where(summary: nil).where.not(summary_failed_at: nil) }
 
-  # 要約の失敗の記録を消して要約待ちに戻す。ここでは API を呼ばない。拾うのは定期の要約ジョブで、その日の予算の範囲に収まる
+  # 要約の失敗の記録を消して要約待ちに戻す。失敗の理由で選り分けないのは、本文が空の記事は API を呼ぶ前にまた失敗し、予算を減らさないから
   #
   # @return [Integer] 戻した本数
   def self.retry_failed_summaries

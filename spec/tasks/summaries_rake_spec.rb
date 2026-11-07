@@ -13,7 +13,7 @@ RSpec.describe "summaries の rake task" do
     it "失敗した記事を要約待ちに戻し、件数と次に拾う時機を出す（API は呼ばない）" do
       failed = create_list(:article, 2, :summary_failed)
 
-      expect { run("summaries:retry") }.to output(/2 本を要約待ちに戻しました/).to_stdout
+      expect { run("summaries:retry") }.to output(/2 本を要約待ちに戻しました。.*今日の予算の残り（#{Claude::Budget.default_limit} 回）/).to_stdout
 
       expect(Article.awaiting_summary).to match_array(failed)
       expect(ClaudeApiCall.count).to eq(0)

@@ -1,9 +1,9 @@
 module Claude
-  # 記事 1 本に 3 行要約を付ける。要約済みなら呼ばない（二度払いしない）。
+  # 記事 1 本に 3 行要約を付ける。要約済み・失敗を記録済みなら呼ばない（二度払いしない。失敗をやり直すのは人が戻したときだけ）。
   # 失敗は例外にせず articles.summary_failed_at / summary_error に残し、自動では再試行しない（本文なし・形式不正・4xx は時間が解決しない）。
   # 待てば通るかもしれない失敗（{Summarizer::TransientError}）だけ ActiveJob の既定の回数・間隔でやり直し、尽きたら同じ列に記録する。
   # 同じ記事の Job は 1 本ずつ走らせ、重なった分は待たせる（定期ジョブが、まだ走っていない前回の積み残しをもう一度積むことがある）。
-  # 待たされた方は走ったときに要約済みなので何もしない。捨てる（on_conflict: :discard）と、やり直しの待ち時間中に積まれた重複が
+  # 待たされた方は走ったときに要約済みか失敗を記録済みなので何もしない。捨てる（on_conflict: :discard）と、やり直しの待ち時間中に積まれた重複が
   # 鍵を取り、やり直し本体が捨てられて「尽きたら記録する」が走らなくなる。
   # Solid Queue の semaphore は既定の期間で失効するので、それより長く滞留した記事は 2 本とも走りうる。そのときも要約は 1 回分しか残さない
   # （呼ぶ直前に読み直し、書く直前に鍵を取って確かめる）。余分に払うのは台帳 1 行まで。
@@ -20,7 +20,8 @@ module Claude
     limits_concurrency key: ->(article) { article.id }
 
     def perform(article)
-      return if article.reload.summary.present?
+      article.reload
+      return if article.summary.present? || article.summary_failed_at.present?
 
       summary = Summarizer.new(article).call
       article.with_lock do

@@ -9,9 +9,11 @@ RSpec.describe Claude::SummarizeArticleJob, type: :job do
     expect(described_class.new(article).queue_name).to eq("claude")
   end
 
-  it "要約を書き、前回の失敗の記録を消す" do
-    article.update!(summary_failed_at: Time.current, summary_error: "本文が空")
-    allow(summarizer).to receive(:call).and_return(three_lines)
+  it "要約を書き、呼んでいる間に別の実行が残した失敗の記録を消す" do
+    allow(summarizer).to receive(:call) do
+      Article.find(article.id).update!(summary_failed_at: Time.current, summary_error: "応答の形式が不正")
+      three_lines
+    end
 
     described_class.perform_now(article)
 
@@ -24,6 +26,15 @@ RSpec.describe Claude::SummarizeArticleJob, type: :job do
     described_class.perform_now(article)
 
     expect(Claude::Summarizer).not_to have_received(:new)
+  end
+
+  it "積まれた後に別の実行が失敗を記録していたら呼ばない（重複した Job で二度払いしない。やり直すのは人が戻したときだけ）" do
+    Article.find(article.id).update!(summary_failed_at: Time.current, summary_error: "応答の形式が不正")
+
+    described_class.perform_now(article)
+
+    expect(Claude::Summarizer).not_to have_received(:new)
+    expect(article.reload.summary_error).to eq("応答の形式が不正")
   end
 
   it "積まれた後に別の経路で要約が付いていても呼ばない（呼ぶ直前に読み直す）" do
