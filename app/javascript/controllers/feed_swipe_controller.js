@@ -1,9 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
+import { EDGE_PX, LOCK_PX } from "controllers/swipe_thresholds"
 
 // 興味なしと違い取り消せないため、指を離してから通常の削除ボタンの確認を通す。
-const EDGE_PX = 24 // 左端の iOS「戻る」ジェスチャーは拾わない
-const LOCK_PX = 10 // 指の揺れは既存の記事スワイプと同じ遊びで吸収する
-
 export default class extends Controller {
   static targets = ["delete"]
   static values = { ratio: Number }
