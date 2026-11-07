@@ -1,6 +1,7 @@
 # Claude API は VCR（spec/support/vcr.rb）。正常系のカセット spec/vcr_cassettes/claude/summary/ok.yml は手書き。
 # 本物に置き換えるには: VCR_RECORD=all ANTHROPIC_API_KEY=<実キー> bin/rspec spec/services/claude/summarizer_spec.rb
-# エラー系は WebMock の stub_request。ヘッダ x-should-retry: false で SDK の再試行を止め、待ち時間を無くす
+# エラー系は WebMock の stub_request。SDK の再試行は Claude::Client が切っているので、1 回の失敗がそのまま例外になる
+# （x-should-retry: false は、再試行が戻ってきたときにテストが待たされないための保険）
 RSpec.describe Claude::Summarizer do
   let(:article) { create(:article, :awaiting_summary, title: "RSpec で Claude を試す", url: "https://fixtures.example.com/articles/claude") }
   let(:settings) { Dopamine.settings.fetch(:claude) }

@@ -1,5 +1,6 @@
 module Claude
   # 日次の呼び出し上限（ADR 0002）。上限は config/dopamine.yml の claude.daily_call_limit。
+  # 台帳の 1 行は API への HTTP 要求 1 回。{Client} が SDK の再試行を切っているので、呼ぶ前に 1 行書けば実際の要求数と一致する。
   # 「今日」は Time.zone の暦日。daily_goal.reset_hour（{ReadingDay}）は読書の日付であって費用の日付ではないので使わない（ADR 0006）。
   class Budget
     class Exhausted < StandardError; end
