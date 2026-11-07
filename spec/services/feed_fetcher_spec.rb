@@ -126,9 +126,15 @@ RSpec.describe FeedFetcher do
 
     it "id を guid に、content か summary を本文にする" do
       described_class.new(feed).call
-      expect(feed.articles.pluck(:guid)).to contain_exactly("tag:fixtures.example.com,2026:atom/1", "tag:fixtures.example.com,2026:atom/2")
+      expect(feed.articles.pluck(:guid)).to contain_exactly(*(1..4).map { |n| "tag:fixtures.example.com,2026:atom/#{n}" })
       expect(feed.articles.find_by!(guid: "tag:fixtures.example.com,2026:atom/1").content).to eq("<p>Atom の本文</p>")
       expect(feed.articles.find_by!(guid: "tag:fixtures.example.com,2026:atom/2").content).to eq("Atom の概要だけ")
+    end
+
+    it "xhtml の content と summary はタグを残す" do
+      described_class.new(feed).call
+      expect(feed.articles.find_by!(guid: "tag:fixtures.example.com,2026:atom/3").content).to eq(%(<p>xhtml の<strong>本文</strong></p>\n<pre><code>puts "hi"</code></pre>))
+      expect(feed.articles.find_by!(guid: "tag:fixtures.example.com,2026:atom/4").content).to eq("概要の<em>強調</em>")
     end
   end
 
@@ -195,6 +201,13 @@ RSpec.describe FeedFetcher do
 
       described_class.new(feed).call
       expect(feed.reload.last_error).to eq("URL が http(s) ではありません")
+    end
+
+    it "内部ネットワークの URL は取りに行かず残す" do
+      feed.update!(url: "http://169.254.169.254/latest/meta-data/")
+
+      described_class.new(feed).call
+      expect(feed.reload.last_error).to eq("内部ネットワークの URL です")
     end
 
     it "フィードでない XML・途中で切れた XML・空の本文は「フィードを解析できません」" do
