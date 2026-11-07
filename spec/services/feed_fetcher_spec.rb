@@ -170,6 +170,49 @@ RSpec.describe FeedFetcher do
     end
   end
 
+  describe "恒久移転（301・308）" do
+    let(:moved) { "https://feeds.example.com/rss.xml" }
+
+    before { stub_feed(status: 301, body: "", headers: { "Location" => moved }) }
+
+    it "移転先で取れたら feed.url を移転先にする（次から 1 往復で取る）" do
+      stub_request(:get, moved).to_return(status: 200, body: rss)
+
+      expect { described_class.new(feed).call }.to change(Article, :count).by(3)
+      expect(feed.reload).to have_attributes(url: moved, last_error: nil)
+    end
+
+    it "移転先が 304 でも feed.url を移転先にする" do
+      stub_request(:get, moved).to_return(status: 304, body: "")
+
+      expect(described_class.new(feed).call.status).to eq(:not_modified)
+      expect(feed.reload.url).to eq(moved)
+    end
+
+    it "移転先で失敗したら feed.url は旧 URL のまま" do
+      stub_request(:get, moved).to_return(status: 404, body: "")
+
+      expect(described_class.new(feed).call.status).to eq(:failed)
+      expect(feed.reload.url).to eq("https://fixtures.example.com/rss/feed.xml")
+    end
+
+    it "移転先が他の購読の URL なら書き換えず、記事は作る" do
+      create(:feed, url: moved)
+      stub_request(:get, moved).to_return(status: 200, body: rss)
+
+      expect { described_class.new(feed).call }.to change(feed.articles, :count).by(3)
+      expect(feed.reload).to have_attributes(url: "https://fixtures.example.com/rss/feed.xml", last_error: nil)
+    end
+
+    it "302 の先は覚えない" do
+      stub_feed(status: 302, body: "", headers: { "Location" => moved })
+      stub_request(:get, moved).to_return(status: 200, body: rss)
+
+      described_class.new(feed).call
+      expect(feed.reload.url).to eq("https://fixtures.example.com/rss/feed.xml")
+    end
+  end
+
   describe "失敗" do
     it "HTTP エラーは Feeds 画面の文言で残し、記事は作らない" do
       stub_feed(status: 503, body: "")

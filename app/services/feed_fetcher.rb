@@ -3,7 +3,8 @@
 # 取得・解析の失敗は例外にせず feeds.last_error に日本語で残す。再試行は次の定期実行に任せる。
 # last_fetched_at は失敗でも更新する（取得が止まっているのか、失敗し続けているのかを見分けるため）。
 # 既存の記事は更新しない（要約と読了を守る）。本文はまず feedjira の entry.content か summary を入れ、記事ごとに {FetchArticleContentJob} を積んで
-# 記事ページの本文で置き換える。HTTP は {HttpGet}。想定外の例外（バグ）はそのまま上げ、Solid Queue の失敗に残す
+# 記事ページの本文で置き換える。HTTP は {HttpGet}。想定外の例外（バグ）はそのまま上げ、Solid Queue の失敗に残す。
+# 恒久移転（301 / 308）の先で取れたら feeds.url を移転先に直す（毎回の往復が増え、移転先の ETag を旧 URL に送り続けるのを止める）
 class FeedFetcher
   # 取得の結果
   # @!attribute status [r]
@@ -26,6 +27,7 @@ class FeedFetcher
   # @return [Result]
   def call
     response = HttpGet.call(feed.url, headers: conditional_headers)
+    move_to(response.permanent_url) if response.permanent_url
     return not_modified if response.is_a?(Net::HTTPNotModified)
 
     created = import(parse(response.body.to_s))
@@ -86,6 +88,22 @@ class FeedFetcher
     rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
       false
     end
+  end
+
+  # 移転先が他の購読の URL なら直さない（同じフィードを二つ購読している。どちらを残すかは人が決める）。今回の取得はそのまま続ける
+  def move_to(url)
+    return if url == feed.url
+    return keep_url(url) if Feed.exists?(url: url)
+
+    feed.update!(url: url)
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
+    # 確かめた直後に他の購読が同じ URL になった
+    feed.restore_attributes([ :url ])
+    keep_url(url)
+  end
+
+  def keep_url(url)
+    Rails.logger.info("[feeds] feed #{feed.id} は #{url} へ移転したが、同じ URL の購読があるので URL を直さない")
   end
 
   # @return [Result] 304。試行時刻だけ更新し、ETag / Last-Modified は前回のまま
