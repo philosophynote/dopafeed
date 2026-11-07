@@ -150,9 +150,10 @@
 5. `kamal config` で env が解決されることを確認し、`kamal build push` で Dockerfile（Litestream の COPY を含む）が通ることを確認
 6. 初回は `kamal setup`（kamal-proxy の導入とデプロイをまとめて行う）、2 回目以降は `kamal deploy`。起動ログに `litestream` の `replicating to: name="s3"` が出れば複製が動いている
    `target failed to become healthy within configured timeout` で止まったら、起動が `deploy_timeout`（config/deploy.yml、120 秒）に
-   間に合っていない。止められたコンテナのログを時刻付きで見て、復元・db:prepare・Puma の `Listening on` までの秒数を確かめる:
-   `ssh ubuntu@<静的IP> 'docker logs -t $(docker ps -a -q --filter label=service=dopafeed --latest) 2>&1 | grep -v "/up" | head -40'`。
-   `Listening on` の前に例外が出ていれば遅さではなく起動の失敗
+   間に合っていないか、`/up` が失敗している。止められたコンテナのログを時刻付きで見る（接続できなかった行だけ除き、`/up` の status は残す）:
+   `ssh ubuntu@<静的IP> 'docker logs -t $(docker ps -a -q --filter label=service=dopafeed --latest) 2>&1 | grep -v "Unable to proxy request" | head -60'`。
+   見分け方: `Listening on` が出ないまま止められていれば遅さ（`deploy_timeout` を延ばす）。`Listening on` の前に例外があれば起動の失敗。
+   `Listening on` の後も `/up` の行が 200 以外（500・404 など）なら、起動はしていて `/up` か転送先のポートがおかしい
 7. 最初のフィードを足す。購読を足す画面はまだ無いので console で入れる（取得は recurring.yml で 30 分おき。待たずに回すなら下の 2 行目）:
    ```sh
    kamal console
