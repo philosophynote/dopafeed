@@ -58,6 +58,7 @@ RSpec.describe "Install", type: :request do
     end
 
     it "届く通知の時刻は dopamine.yml の push.digest_at / push.streak_warning_at。鍵が無い間は時刻を出さない" do
+      allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.except(:push))
       get install_path
       expect(page.find("section[aria-label='届く通知']")).to have_no_text(":")
 

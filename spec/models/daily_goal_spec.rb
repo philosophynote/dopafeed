@@ -41,6 +41,7 @@ RSpec.describe DailyGoal, ".achieve_if_reached!" do
   end
 
   it "goal 本目で achieved_at = at の行を作る。鍵 daily_goal.bonus_xp が無ければ bonus_xp は 0" do
+    allow(Dopamine).to receive(:settings).and_return(settings.merge(daily_goal: settings[:daily_goal].except(:bonus_xp)))
     complete(goal_articles)
     goal = DailyGoal.achieve_if_reached!(at: noon)
 
