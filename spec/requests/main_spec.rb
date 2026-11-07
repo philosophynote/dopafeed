@@ -118,6 +118,7 @@ RSpec.describe "Main", type: :request do
         expect(page).to have_text("累計 30 XP")
         expect(page).to have_no_text("読了")
         expect(page).to have_no_css("#unread-count")
+        expect(page.find("section[aria-label='今日の進み']")).to have_no_text("未読")
         expect(page.find("nav[aria-label='タブバー']")).to have_css("[data-unread-badge]", text: "2")
       end
     end

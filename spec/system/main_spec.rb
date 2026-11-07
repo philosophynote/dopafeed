@@ -12,7 +12,7 @@ RSpec.describe "Main", type: :system do
       sign_in
 
       expect(page).to have_css("article", count: 3)
-      expect(page).to have_css("section[aria-label='今日の進み']", text: "3 / #{goal_articles}")
+      expect(find("section[aria-label='今日の進み']")).to have_text("今日のゴール 3 / #{goal_articles}", normalize_ws: true)
       expect(page).to have_text("1日連続")
 
       # CSS が当たっていないと以下の寸法検査が全部落ちて原因が読めないので、先に 1 つのユーティリティで確かめる
@@ -80,8 +80,32 @@ RSpec.describe "Main", type: :system do
       expect(overflow).to be(false), "ステータスの中身が右にはみ出している"
 
       tab_top = page.evaluate_script("document.querySelector(\"nav[aria-label='タブバー']\").getBoundingClientRect().top")
-      sixth = page.evaluate_script("document.querySelectorAll('article')[5].querySelector('h2').getBoundingClientRect().bottom")
-      expect(sixth).to be < tab_top, "6 本目の見出しがタブバーの下に隠れている"
+      # iPhone のホーム画面アプリは上下のセーフエリア（上 47px・下 34px）の分だけ狭いので、それを引いても 6 本目の見出しの頭が見える
+      sixth = page.evaluate_script("document.querySelectorAll('article')[5].querySelector('h2').getBoundingClientRect().top")
+      expect(sixth + 47).to be < tab_top - 34, "セーフエリアを引くと 6 本目の見出しが隠れる"
+      screenshot!
+    end
+  end
+
+  it "ストリーク 3 桁・ゴール超え・XP 6 桁でもステータスは 1 行のまま横にはみ出さない（累計 XP の末尾を省く）" do
+    allow(ReadingStreak).to receive(:days).and_return(365)
+    travel_to noon do
+      (goal_articles * 2 + 2).times { |i| create(:reading, :completed, opened_at: noon - (i + 1).minutes, xp: 123_456) }
+      sign_in
+
+      status = find("section[aria-label='今日の進み']")
+      expect(status).to have_text("365日連続")
+      expect(status).to have_text("#{goal_articles * 2 + 2} / #{goal_articles}")
+      expect(status.evaluate_script("this.getBoundingClientRect().height")).to be <= 56
+      expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "横スクロールが出ている"
+      overflow = status.evaluate_script(<<~JS)
+        (() => {
+          const link = this.querySelector("a").getBoundingClientRect()
+          return Array.from(this.querySelectorAll("a > span:not(.sr-only)")).filter(el => !el.classList.contains("truncate"))
+            .some(el => el.getBoundingClientRect().right > link.right + 0.5)
+        })()
+      JS
+      expect(overflow).to be(false), "ステータスの中身がカードの外にはみ出している"
       screenshot!
     end
   end

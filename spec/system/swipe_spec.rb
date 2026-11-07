@@ -62,7 +62,6 @@ RSpec.describe "Swipe", type: :system do
     expect(strip).to have_button("元に戻す")
     expect(page).to have_css("article", count: 1)
     expect(page).to have_css("[data-unread-badge]", text: "1")
-    expect(page).to have_css("[data-unread-badge]", text: "1")
     expect(Article.find_by(title: "関心の無い記事")).to be_dismissed
     screenshot!("dismissed")
 
