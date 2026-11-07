@@ -46,7 +46,7 @@ RSpec.describe "Sessions", type: :request do
       }.to change(Session, :count).by(1)
 
       expect(response).to redirect_to(root_path)
-      expect(session_cookie_expires).to be_within(1.minute).of(Authentication::REMEMBER_FOR.from_now)
+      expect(session_cookie_expires).to be_within(1.minute).of(Session::REMEMBER_FOR.from_now)
       expect_session_cookie_protected
     end
 
@@ -106,7 +106,7 @@ RSpec.describe "Sessions", type: :request do
   describe "ログインの保持" do
     it "最後に使ってから保つ期間を過ぎた Session は、cookie があっても通さない" do
       session = sign_in_as(user)
-      session.update_column(:updated_at, (Authentication::REMEMBER_FOR + 1.day).ago)
+      session.update_column(:updated_at, (Session::REMEMBER_FOR + 1.day).ago)
 
       get root_path
 
@@ -121,7 +121,7 @@ RSpec.describe "Sessions", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(session.reload.updated_at).to be_within(1.minute).of(Time.current)
-      expect(session_cookie_expires).to be_within(1.minute).of(Authentication::REMEMBER_FOR.from_now)
+      expect(session_cookie_expires).to be_within(1.minute).of(Session::REMEMBER_FOR.from_now)
       expect_session_cookie_protected
     end
 

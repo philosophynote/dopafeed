@@ -23,6 +23,6 @@
   <% end %>
 
   <p class="mt-4 text-center text-xs leading-relaxed text-gray-500">
-    ユーザーは 1 人だけ。ログイン状態は最後に開いてから <%= Authentication::REMEMBER_FOR.in_years.to_i %> 年保つので、普段この画面は出ません
+    ユーザーは 1 人だけ。ログイン状態は最後に開いてから <%= Session::REMEMBER_FOR.in_years.to_i %> 年保つので、普段この画面は出ません
   </p>
 </div>

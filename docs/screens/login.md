@@ -7,7 +7,7 @@
 1. 「DopaFeed」ロゴ、「自分専用。公開 URL なのでログインが要ります」（固定）
 2. 「パスワード」入力（type=password、高さ 44px 以上、自動大文字化・自動修正・スペルチェックを切る）。メール欄は無い（決まったこと 2）
 3. ボタン「ログイン」（→ 元の画面か Main）
-4. 注記「ユーザーは 1 人だけ。ログイン状態は最後に開いてから 1 年保つので、普段この画面は出ません」（年数は `Authentication::REMEMBER_FOR` から）
+4. 注記「ユーザーは 1 人だけ。ログイン状態は最後に開いてから 1 年保つので、普段この画面は出ません」（年数は `Session::REMEMBER_FOR` から）
 
 ## 遷移
 - 未認証で任意の画面 → /session/new（Authentication concern の require_authentication）
@@ -30,7 +30,7 @@
 - Given 誰でも When /passwords/new を開く Then 404
 
 ## 使う設定の鍵
-dopamine.yml: なし（保持期間は認証の数字なので Authentication concern の定数。ADR 0005 追記）
+dopamine.yml: なし（保持期間は認証の数字なので Session::REMEMBER_FOR。ADR 0005 追記）
 personas.yml: なし
 
 ## 外部 API
