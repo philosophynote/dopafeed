@@ -73,6 +73,16 @@ RSpec.describe Claude::SummarizeArticleJob, type: :job do
       .to have_broadcasted_to(summary_stream).with(a_string_including("今日の要約の上限"))
   end
 
+  it "予算切れでも、重なった別の実行が先に要約を書いていれば、上限ではなく要約を送る" do
+    allow(summarizer).to receive(:call) do
+      Article.find(article.id).update!(summary: three_lines)
+      raise Claude::Budget::Exhausted, "limit"
+    end
+
+    expect { described_class.perform_now(article) }
+      .to have_broadcasted_to(summary_stream).with(a_string_including("・1 行目"))
+  end
+
   it "積まれた後に別の経路で要約が付いていても呼ばない（呼ぶ直前に読み直す）" do
     Article.find(article.id).update!(summary: three_lines)
 

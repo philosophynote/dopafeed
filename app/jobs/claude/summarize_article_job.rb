@@ -52,7 +52,9 @@ module Claude
       broadcast(article)
     end
 
+    # 読み直してから描く。重なった別の実行が先に要約を書いていれば、そちらを出す（古い記事で上書きしない）
     def self.broadcast(article)
+      article.reload
       Turbo::StreamsChannel.broadcast_replace_to(article, :summary, target: ActionView::RecordIdentifier.dom_id(article, :summary_box),
                                                                     partial: "articles/summary", locals: { article: article })
     end
