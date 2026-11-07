@@ -13,6 +13,7 @@ RSpec.describe "articles:refetch_images" do
     with_image = create(:article, content_fetched_at: fetched_at, image_url: "https://cdn.example.com/og.png")
     read = create(:article, :read, content_fetched_at: fetched_at)
     dismissed = create(:article, :dismissed, content_fetched_at: fetched_at)
+    pending = create(:article, content_fetched_at: nil)
 
     expect { task.invoke }.to output(/1 本/).to_stdout
                                 .and have_enqueued_job(FetchArticleContentJob).with(target).exactly(:once)
@@ -20,5 +21,6 @@ RSpec.describe "articles:refetch_images" do
     expect(target.reload.content_fetched_at).to be_nil
     [ with_image, read, dismissed ].each { |article| expect(article.reload.content_fetched_at).to eq(fetched_at) }
     expect(FetchArticleContentJob).not_to have_been_enqueued.with(with_image)
+    expect(FetchArticleContentJob).not_to have_been_enqueued.with(pending)
   end
 end

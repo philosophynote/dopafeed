@@ -34,7 +34,7 @@ class ArticleContentFetcher
   def call
     response = HttpGet.call(article.url, headers: { "Accept" => "text/html, application/xhtml+xml" }, content_types: HTML_TYPES)
     html = utf8(response.body.to_s, response["Content-Type"])
-    # リダイレクトを追った後の URL で相対の画像 URL を解く
+    # 相対の画像 URL は、リダイレクトを追った後の URL で解く
     @image = { image_url: OgImage.from(html, response.uri || article.url) }
     content = extract(html)
     return kept if text_of(content).length < text_of(article.content.to_s).length
@@ -59,10 +59,7 @@ class ArticleContentFetcher
 
   private
 
-  attr_reader :article
-
-  # @return [Hash] HTML を読めたときだけ { image_url: } 。読めなかったら空（image_url に触らない）
-  attr_reader :image
+  attr_reader :article, :image
 
   # @param body [String] 応答本文（バイト列）
   # @param content_type [String, nil] Content-Type ヘッダ（charset の手がかり）

@@ -112,12 +112,28 @@ RSpec.describe ArticleContentFetcher do
       expect(article.reload).to have_attributes(content_error: "本文を抽出できません", image_url: "https://cdn.example.com/og.png")
     end
 
-    it "HTML まで届かなかった失敗では、前に拾った画像を消さない" do
+    it "HTML まで届かなかった・読めなかった失敗では、前に拾った画像を消さない" do
       article.update!(image_url: "https://cdn.example.com/old.png")
-      stub_page(status: 404, body: "")
+      [
+        -> { stub_page(status: 404, body: "") },
+        -> { stub_page(body: "%PDF-1.7", content_type: "application/pdf") },
+        -> { stub_page(body: (japanese_page % { meta: "" }).encode("EUC-JP"), content_type: "text/html") }
+      ].each do |stub|
+        stub.call
+        described_class.new(article).call
+        expect(article.reload).to have_attributes(content_error: be_present, image_url: "https://cdn.example.com/old.png")
+      end
+
+      described_class.new(article).record_failure("サーバーエラー (HTTP 503)")
+      expect(article.reload.image_url).to eq("https://cdn.example.com/old.png")
+    end
+
+    it "取り直したページに og:image が無くなっていたら空にする" do
+      article.update!(image_url: "https://cdn.example.com/old.png")
+      stub_page
 
       described_class.new(article).call
-      expect(article.reload.image_url).to eq("https://cdn.example.com/old.png")
+      expect(article.reload.image_url).to be_nil
     end
   end
 
