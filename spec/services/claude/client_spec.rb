@@ -14,8 +14,12 @@ RSpec.describe Claude::Client do
   describe "HTTP の待ちと再試行" do
     around { |example| with_env("ANTHROPIC_API_KEY" => "test-key") { example.run } }
 
-    it "タイムアウトは claude.timeout_seconds（SDK 既定の 600 秒ではない）" do
+    it "タイムアウトは claude.timeout_seconds" do
       expect(described_class.build.timeout).to eq(Dopamine.settings.dig(:claude, :timeout_seconds))
+    end
+
+    it "claude.timeout_seconds は同じ記事の要約 Job の重なり止めの期間より短い（長いと期間が切れて 2 本目が走る）" do
+      expect(Dopamine.settings.dig(:claude, :timeout_seconds).seconds).to be < Claude::SummarizeArticleJob.concurrency_duration
     end
 
     it "SDK は再試行しない（やり直しは Job の retry_on だけが持つ）" do
