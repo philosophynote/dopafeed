@@ -1,5 +1,5 @@
 # フィードから取り込んだ記事。
-# summary は Claude の 3 行要約（「読む」で行ができた記事にだけ Job が後から付け、以後は使い回す。読まない記事に払わないため。ADR 0015）。
+# summary は Claude の 3 行要約（{Reading} のある記事にだけ後から付け、以後は使い回す。読まない記事に払わないため。ADR 0015）。
 # summary_failed_at / summary_error は要約の失敗。
 # 自動では再試行せず、人が summary_failed_at を nil に戻したときだけ拾い直す。content は HTML: まず {FeedFetcher} がフィードの entry 本文をそのまま入れ、
 # {ArticleContentFetcher} が記事ページから readability で抜いた本文（段落・見出し・コード・リンクだけ残る）で置き換える。
@@ -21,7 +21,7 @@
 #   published_at の新しい順（同時刻は id の大きい順）
 #   @return [ActiveRecord::Relation<Article>]
 # @!method self.awaiting_summary
-#   要約待ちの記事。「読む」で行（{Reading}）ができた記事だけ。本文取得を試す前（content_fetched_at が nil）は含めない。
+#   要約待ちの記事。読むと決めた（{Reading} のある）記事だけ。本文取得を試す前（content_fetched_at が nil）は含めない。
 #   フィードの薄い本文を要約すると、その後に本文が入っても二度と直らない
 #   @return [ActiveRecord::Relation<Article>]
 class Article < ApplicationRecord

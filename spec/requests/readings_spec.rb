@@ -74,6 +74,14 @@ RSpec.describe "Readings", type: :request do
         expect(Claude::SummarizeArticleJob).not_to have_been_enqueued
       end
 
+      it "要約済みの記事を開き直しても積まない" do
+        article = create(:article, :opened)
+
+        post article_reading_path(article)
+
+        expect(Claude::SummarizeArticleJob).not_to have_been_enqueued
+      end
+
       it "無い記事なら 404" do
         post article_reading_path(0)
         expect(response).to have_http_status(:not_found)
@@ -338,6 +346,9 @@ RSpec.describe "Readings", type: :request do
         travel_to(noon + threshold) { post_turbo(reading) }
 
         expect(Claude::SummarizeArticleJob).to have_been_enqueued.with(following).once
+        appended = page.find("turbo-stream[action='append'][target='reader']")
+        expect(appended).to have_css("turbo-frame#summary_article_#{following.id}", text: "要約を作成中")
+        expect(appended).to have_css("[data-controller='summary-refresh'] turbo-cable-stream-source")
       end
 
       it "古い未読が尽きたら「全部読んだ」と閉じるを継ぎ足す" do

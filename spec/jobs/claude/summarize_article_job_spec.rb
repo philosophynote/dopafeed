@@ -119,6 +119,13 @@ RSpec.describe Claude::SummarizeArticleJob, type: :job do
     expect(article.summary_failed_at).to be_present
   end
 
+  it "TransientError のやり直しが尽きて記録したときも、失敗の表示を送る" do
+    allow(summarizer).to receive(:call).and_raise(Claude::Summarizer::TransientError, "API エラー (HTTP 529)")
+
+    expect { perform_enqueued_jobs { described_class.perform_later(article) } }
+      .to have_broadcasted_to(summary_stream).with(a_string_including("要約できませんでした"))
+  end
+
   it "予算切れは捨て、記事には何も残さない（翌日にもう一度「読む」と積み直す）" do
     allow(summarizer).to receive(:call).and_raise(Claude::Budget::Exhausted, "Claude daily call limit reached (200/200)")
 
@@ -146,20 +153,20 @@ RSpec.describe Claude::SummarizeArticleJob, type: :job do
   end
 
   describe ".enqueue_if_awaiting" do
-    it "要約待ち（読むと決めた・本文取得済み・要約も失敗も無し）なら積んで true" do
+    it "要約待ち（読むと決めた・本文取得済み・要約も失敗も無し）なら積む" do
       waiting = create(:article, :awaiting_summary, :opened)
 
-      expect(described_class.enqueue_if_awaiting(waiting)).to be(true)
+      described_class.enqueue_if_awaiting(waiting)
       expect(described_class).to have_been_enqueued.with(waiting)
     end
 
-    it "読むと決めていない・要約済み・失敗済み・本文取得前なら積まずに false" do
+    it "読むと決めていない・要約済み・失敗済み・本文取得前なら積まない" do
       [
         create(:article, :awaiting_summary),
         create(:article, :opened),
         create(:article, :summary_failed, :opened),
         create(:article, :unsummarized, :opened)
-      ].each { |other| expect(described_class.enqueue_if_awaiting(other)).to be(false) }
+      ].each { |other| described_class.enqueue_if_awaiting(other) }
 
       expect(described_class).not_to have_been_enqueued
     end

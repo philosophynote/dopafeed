@@ -1,7 +1,7 @@
 <%# Reader のカードの「Claude の 3 行要約」欄。要約は「読む」を押してから作るので、出来るまでは「作成中」を出す。
     Job が書き終える・失敗する・その日の上限で捨てると、この frame ごと Turbo Stream で差し替わる（Claude::SummarizeArticleJob.broadcast）。
-    取り直し（GET /articles/:id/summary）もこの frame を返す %>
-<% state = summary_state(article) %>
+    取り直し（GET /articles/:id/summary）もこの frame を返す。state は呼ぶ側が求めて渡してもよい（台帳を数える問い合わせを 1 回にする） %>
+<% state = local_assigns.fetch(:state) { summary_state(article) } %>
 <%= turbo_frame_tag dom_id(article, :summary) do %>
   <section class="mt-4 rounded-xl bg-gray-50 p-3" aria-label="要約" data-state="<%= state %>">
     <p class="text-xs text-gray-500">Claude の 3 行要約</p>

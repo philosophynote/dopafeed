@@ -3,10 +3,12 @@ class ArticlesController < ApplicationController
   def read
     @article = Article.includes(:feed).find(params[:id])
     @reading = @article.reading
-    redirect_to root_path if @reading.nil?
+    return redirect_to root_path if @reading.nil?
+
+    # 開くたびに要約待ちなら積み直す。予算切れで捨てた記事は、翌日に開き直しても誰も積まないため（要約済み・積み済みなら Job が何もしない）
+    Claude::SummarizeArticleJob.enqueue_if_awaiting(@article)
   end
 
-  # 描くだけ。作成中のままなら Job が書き終えたときに Turbo Stream で差し替わる
   def summary
     render partial: "articles/summary", locals: { article: Article.find(params[:id]) }
   end

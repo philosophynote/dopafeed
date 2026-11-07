@@ -162,7 +162,7 @@
    Feed.create!(title: "Ruby on Rails Blog", url: "https://rubyonrails.org/blog/feed.xml", site_url: "https://rubyonrails.org/blog")
    FetchAllFeedsJob.perform_later
    ```
-   要約は 10 分おきの Job が付ける。付いたかは console で見る（成功した呼び出しはログに出ない。`[claude]` が出るのは予算切れなどで捨てたときだけ）:
+   要約は「読む」を押した記事にだけ Job が付ける（ADR 0015。取り込んだだけでは付かない）。付いたかは console で見る（成功した呼び出しはログに出ない。`[claude]` が出るのは予算切れなどで捨てたときだけ）:
    ```ruby
    [Article.count, Article.where.not(summary: nil).count, ClaudeApiCall.where(created_at: Time.current.all_day).count]
    ```

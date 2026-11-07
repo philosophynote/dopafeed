@@ -16,11 +16,15 @@
       出目 <%= tier_label(reading.tier) %> ×<%= Dopamine.tier(reading.tier)[:multiplier] %> ・ 完読で +<%= reading.base_xp %> XP
     </p>
 
-    <%= render "articles/summary", article: article %>
-    <%# 作成中だけ購読する。つながった時点で一度だけ欄を取り直す（つながる前に書き終わった差し替えは届かないため） %>
-    <% if summary_state(article) == :pending %>
-      <%= turbo_stream_from article, :summary, data: { controller: "summary-refresh", summary_refresh_url_value: summary_article_path(article),
-                                                    summary_refresh_frame_value: dom_id(article, :summary) } %>
+    <% state = summary_state(article) %>
+    <%= render "articles/summary", article: article, state: state %>
+    <%# 出来上がりを待つ間（作成中・その日の上限）は購読する。上限のカードも、日が変わって積み直した Job の差し替えを受ける。
+        つながるたびに、作成中なら欄を取り直す（つながっていない間の差し替えは届かないため） %>
+    <% if state.in?(%i[pending exhausted]) %>
+      <div data-controller="summary-refresh" data-summary-refresh-url-value="<%= summary_article_path(article) %>"
+           data-summary-refresh-frame-value="<%= dom_id(article, :summary) %>">
+        <%= turbo_stream_from article, :summary %>
+      </div>
     <% end %>
 
     <%= link_to "記事を開く", article.url, target: "_blank", rel: "noopener noreferrer", data: { action: "sheet#open" },

@@ -173,7 +173,7 @@ RSpec.describe "Reader", type: :system do
       stream_connected
       article.update!(summary: "・切れている間の要約") # broadcast しない
       page.execute_script(<<~JS)
-        const source = document.querySelector("turbo-cable-stream-source")
+        const source = document.querySelector("[data-controller='summary-refresh'] turbo-cable-stream-source")
         source.removeAttribute("connected")
         source.setAttribute("connected", "")
       JS
