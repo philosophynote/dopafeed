@@ -34,7 +34,7 @@ RSpec.describe "Dismissals", type: :request do
         expect(article.reload.dismissed_at).to eq(noon)
 
         card = page.find("turbo-stream[action='replace'][target='#{dom_id(article)}']")
-        expect(card).to have_text("「関心の無い記事」を興味なしにした")
+        expect(card).to have_text("「関心の無い記事」を削除した")
         expect(card).to have_button("元に戻す")
         expect(card).to have_no_button("読む")
         expect(page.find("turbo-stream[action='update'][target='unread-count']")).to have_text("1")
@@ -96,8 +96,8 @@ RSpec.describe "Dismissals", type: :request do
 
         card = page.find("turbo-stream[action='replace'][target='#{dom_id(article)}']")
         expect(card).to have_css("article h2", text: "戻す記事")
-        expect(card).to have_button("読む")
-        expect(card).to have_button("興味なし")
+        expect(card).to have_button("「戻す記事」を読む")
+        expect(card).to have_css("form[hidden][action='#{article_dismissal_path(article)}']", visible: :all)
         expect(card).to have_no_button("元に戻す")
         expect(page.find("turbo-stream[action='update'][target='unread-count']")).to have_text("1")
         expect(page.find("turbo-stream[action='replace'][target='unread-badge']")).to have_css("[data-unread-badge]", text: "1")

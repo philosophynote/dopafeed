@@ -1,7 +1,7 @@
 # Main（Unit 5）
 
 ## 目的
-無限供給と FOMO を担う入口。開くたびに「読むもの」と「今日の進み」が一画面に出て、「読む」1 タップでルーレット（Roulette）に繋がる。
+無限供給と FOMO を担う入口。開くたびに「読むもの」と「今日の進み」が一画面に出て、記事の行を 1 タップでルーレット（Roulette）に繋がる。
 未読の山ではなく「新着 + 発掘 1 本」として見せ、罪悪感ではなく期待で開かせる。
 
 ## 要素
@@ -16,26 +16,28 @@
    - 「今日のゴール n / 5」とドット 5 個（DB: 今日の読了数、dopamine.yml `daily_goal.articles`）。タップ → DailyGoal
    - コンボバッジ「コンボ ×1.5 ・ あと 2:14」（DB: 直近の読了時刻。倍率は `xp.combo_multiplier_step`、上限 `xp.combo_max_multiplier`、有効時間は未決 3）
 4. 新着バナー（白ピル）「新着 12 件 ＋ 過去の神記事を 1 本発掘」（DB: 前回開いた後の新着数。発掘は未決 4）
-5. 記事カード（新しい順。種類 3 つ）
+5. 記事の一覧（新しい順。種類 3 つ。通常の行は白い 1 枚の中に細い線で区切って並べ、カードの枠・影・隙間は持たない。#91）
    - 掘り出し物カード: 枠がグラデーション。フィード名、はてブ数「128 users」（DB、未決 5）、相対時刻、ラベル「掘り出し物 ・ XP ×K」（K = `xp.tiers` の rare.multiplier。今の yml なら「×3」。モックの「1.5〜3 倍」は採らない。未決 11: カードの属性か、ルーレットの出目か）、見出し、要約 2 行（DB: summary）、「約 N 分 ・ 完読で +M XP」（N は未決 6。M = `xp.base` × そのカードの tier の multiplier。今の yml なら通常 +10、掘り出し物 +30。モックの +40 は採らない）、いいね / 保存 / コメント（→ Comments）、「読む」ボタン（→ Roulette）
    - 今日限定カード: 赤枠。ラベル「今日限定 ・ 残り 4:12:08 ・ 消える前に読むと +30 XP」（未決 7）、アイキャッチ画像（DB: 未決 8）、「読む」ボタン（モックの「＋10〜30 XP」は出目の幅。yml の tiers に幅が無いので出さない）
-   - 通常カード: OGP 画像（DB: image_url。あればカードの上端に 1.91:1 で全幅、無ければ出さない。#87、ADR 0016）、フィード名、相対時刻、「保存した『…』に 61% 似ている」（→ Similar。第一の陣では出さない）、見出し、「興味なし」（灰色の文字ボタン。左スワイプと同じ。Unit 8a、swipe.md）
+   - 通常の行: 左に見出し（太字、最大 3 行）、その下にフィード名・相対時刻（1 行）。右に OGP 画像のサムネイル（DB: image_url。幅 112px・3:2・角丸。無ければ出さず見出しが全幅。#87、ADR 0016）。「保存した『…』に 61% 似ている」（→ Similar。第一の陣では出さない）。要約は出さない（「読む」の後に作るので読む前はほぼ空。Reader で読む。ADR 0015）。「読む」「興味なし」の文字ボタンは置かない: 行全体が「読む」で、興味なしは左スワイプだけ（画面の呼び名は「削除」。引くと右から丸型の背景とゴミ箱が伸び、閾値を越えると赤くなる。#91、swipe.md）
 6. タブバー: フィード（未読バッジ 48、aria-current）/ 保存 / レポート / 購読（固定。第一の陣ではフィード以外は無効。未決 9）
 
 ## 遷移
 - Login → Main（認証後の after_authentication_url）
-- Main → Roulette（「読む」。Turbo Frame でモーダルを重ねる。カード自体は残す）
+- Main → Roulette（行のどこかをタップ。行全体が「読む」の POST。Turbo Stream でモーダルを重ねる。行自体は残す。JS が無ければ直接 Reader へ）
 - Main → DailyGoal（ステータスカードの「今日のゴール n / 5」の行をタップ。達成前でも開く。5 本目の読了後は Reader の区切りの「宝箱を開く」から。Unit 7 #55）
 - Main → Comments / Similar / ForYou / Learning / AddFeed / Saved / Weekly / Feeds（full page。第一の陣では無い）
 - 第一の陣の導線: 設定ボタンは Learning の最小版（`/learning`。サインアウト + Install への導線だけ。Unit 5 で置いた）へ。フィード追加の「+」は出さない（5 フィードは seed と Unit 3 で入る。AddFeed は第二の陣）
 - 第二の陣（#77）: 「フィードを追加」から AddFeed のシートを開く。閉じると Main に戻る
 - Reader から「閉じる」で Main に戻ると、完読したカードは一覧から消え、ステータスカードが更新される（Reader が判定する。ADR 0010）
-- カードの「興味なし」（左スワイプ）→ Turbo Stream でカードが「元に戻す」の帯に替わり、未読数が減る（swipe.md、ADR 0012）
+- 行の左スワイプ（興味なし）→ Turbo Stream で行が「元に戻す」の帯に替わり、未読数が減る（swipe.md、ADR 0012）
 
 ## 受け入れ条件（Given-When-Then）
 - Given 未読記事が 3 本ある When Main を開く Then 3 本が published_at の新しい順に並ぶ
-- Given 記事に summary がある When カードを見る Then 要約が 2 行で切れて表示される
-- Given 記事に summary が無い（要約は「読む」を押してから作るので、読む前の記事はほぼこれ。ADR 0015）When カードを見る Then 要約欄が空で見出しだけ出る
+- Given 記事に summary がある When 行を見る Then 要約は出ず、見出しとフィード名・相対時刻だけ出る（#91）
+- Given 画像つきで見出しが 3 行に折り返す記事が並ぶ When Main を開く Then 1 行の高さは 120px 以下（一画面に並ぶ本数を減らさない。#91）
+- Given 未読の行 When 見出し・時刻・画像のどこをタップ Then 「読む」と同じく Roulette が出て、Reading が作られる（#91）
+- Given 未読の行 When 見る Then 「読む」「興味なし」の文字ボタンは無い（#91）
 - Given 今日 3 本読了している When Main を開く Then 「今日のゴール 3 / 5」とドットが 3 個塗られる（5 は dopamine.yml）
 - Given 今日 0 本 When Main を開く Then 「今日のゴール 0 / 5」で全ドットが灰色
 - Given 昨日まで 3 日連続で 1 本以上完読している When 今日 Main を開く Then 「3日連続」が出る（ストリークの定義は daily_goal.md の未決 6）
@@ -43,14 +45,14 @@
 - Given 興味なしにした記事が 1 本ある When Main を開く Then その記事はカードにも未読数にも出ない（swipe.md）
 - Given 未読が 48 本 When Main を開く Then タブバーのフィードに「48」バッジが出る
 - Given 未読が 0 本 When Main を開く Then バッジが出ず、一覧に「全部読んだ」の空状態が出る（文言は未決 10）
-- Given カードの「読む」をタップ When Roulette が出る Then 背景の一覧はそのまま残り、Roulette 終了後に記事が開く
+- Given 行をタップ When Roulette が出る Then 背景の一覧はそのまま残り、Roulette 終了後に記事が開く
 - Given 390 幅 When Main を開く Then 横スクロールが出ず、タップ領域は 44px 以上
 - Given 未ログイン When /（root）を開く Then /session/new にリダイレクト
-- Given 記事に OGP 画像（image_url）がある When カードを見る Then カードの上端に横長の画像が出て、左スワイプは画像の上からでも効く
-- Given 記事に OGP 画像が無い、または画像が読めない（404・直リンク拒否）When カードを見る Then 画像の枠ごと出ない
+- Given 記事に OGP 画像（image_url）がある When 行を見る Then 見出しの右に横長のサムネイルが出て、左スワイプは画像の上からでも効く
+- Given 記事に OGP 画像が無い、または画像が読めない（404・直リンク拒否）When 行を見る Then 画像の枠ごと出ない
 
 ## 使う設定の鍵
-dopamine.yml: `daily_goal.articles`, `xp.base`, `xp.tiers`, `xp.combo_multiplier_step`, `xp.combo_max_multiplier`
+dopamine.yml: `daily_goal.articles`, `xp.base`, `xp.tiers`, `xp.combo_multiplier_step`, `xp.combo_max_multiplier`, `swipe.dismiss_threshold_ratio`, `swipe.submit_timeout_seconds`（行のタップで送る「読む」の応答待ちにも使う。#91）
 personas.yml: なし
 
 ## 外部 API
@@ -69,7 +71,7 @@ personas.yml: なし
 6. 「約 6 分」の推定読了時間の出し方（本文の文字数 ÷ 定数？ 本文を保存するか）
 7. 今日限定カードの条件と +30 XP。dopamine.yml に鍵が無い。第一の陣では出さない案
 8. アイキャッチ画像を取るか（本文から og:image？）。第一の陣では出さない案
-    → **決定（#87、ADR 0016）**: 本文取得のときに og:image（無ければ twitter:image）を拾い、通常カードの上端に出す。画像は配信元への直リンク（no-referrer・lazy）。今日限定カードは引き続き無い
+    → **決定（#87、ADR 0016）**: 本文取得のときに og:image（無ければ twitter:image）を拾い、通常カードの上端に出す。→ #91 で一覧の行の右のサムネイルに変えた（Reader のカードは上端のまま）。画像は配信元への直リンク（no-referrer・lazy）。今日限定カードは引き続き無い
 9. 保存 / レポート / 購読タブが無い間のタブバーの見せ方
     → **決定（#72）**: 購読タブから Feeds へ移動でき、現在地を出し分ける。保存・レポートは無効のまま
     → **決定（Unit 5、#35）**: 4 つ描き、フィード以外は `aria-disabled` の灰色でタップしても動かない。未読バッジはフィードだけ
@@ -77,3 +79,5 @@ personas.yml: なし
     → **決定（Unit 5、#35）**: 「全部読んだ。次の記事が届くまで、今日はここまで。」
 11. 「掘り出し物」はカードの属性（記事ごとに事前抽選、または一定割合に付く）か、Roulette の出目（タップ時に抽選）か。前者なら Unit 2 で articles に tier 列が要る。roulette.md の未決 2 と合わせて決める
     → **決定（Unit 2、ADR 0006）**: Roulette の出目。タップ時に抽選し `readings.tier` に保存。articles に tier 列は持たない。カードの「掘り出し物」枠は第一の陣では出さない
+12. カードの「読む」「興味なし」の 2 つのボタンが圧迫感を生み、一画面に並ぶ記事が少ない（390×844 で画像つき 1.6 枚、画像なし 3 枚。nao、2026-11-07）
+    → **決定（#91）**: カードをやめて一覧の行にする（見出し 3 行 ＋ 右に横長サムネイル、枠なし、要約なし）。行全体を「読む」のボタンが覆い、どこを押しても読む。文字ボタンは端末を問わず消し、興味なしは左スワイプだけ（Mac もマウスで引ける）。ステータスカードを 1 行に詰めるのは続きの PR
