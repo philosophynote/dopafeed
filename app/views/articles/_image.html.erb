@@ -1,9 +1,11 @@
-<%# 記事の OGP 画像。カードの上端に横長（OGP の標準 1.91:1）で敷く。画像の無い記事は何も描かない。
+<%# 記事の OGP 画像。Reader のカードは上端に横長（OGP の標準 1.91:1）で敷き、Main の行は右に小さな 3:2 で置く（thumbnail: true。一画面に並ぶ本数を減らさない）。
+    画像の無い記事は何も描かない。
     配信元から直に読む（自サーバーで中継しない。ADR 0016）。どのページから来たかは渡さず（no-referrer）、見えるまで読まない（lazy）。
     比率の箱を先に取るので、読み込んでもカードが跳ねない。読めなかったら image-fallback が枠ごと外す。
-    Main のカードは左スワイプを Pointer Events で取るので、画像はドラッグも長押しのメニューも出さず、ポインタをカードへ素通しする %>
+    Main の行は左スワイプを Pointer Events で取るので、画像はドラッグも長押しのメニューも出さず、ポインタを行へ素通しする %>
+<% thumbnail = local_assigns.fetch(:thumbnail, false) %>
 <% if article.image_url.present? %>
-  <figure class="-mx-4 -mt-4 mb-3 aspect-[1.91/1] overflow-hidden rounded-t-2xl bg-gray-100" data-controller="image-fallback">
+  <figure class="<%= thumbnail ? "aspect-[3/2] w-28 shrink-0 overflow-hidden rounded-lg bg-gray-100" : "-mx-4 -mt-4 mb-3 aspect-[1.91/1] overflow-hidden rounded-t-2xl bg-gray-100" %>" data-controller="image-fallback">
     <img src="<%= article.image_url %>" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" draggable="false"
          class="pointer-events-none h-full w-full select-none object-cover [-webkit-touch-callout:none]"
          data-image-fallback-target="image" data-action="error->image-fallback#remove">

@@ -506,7 +506,7 @@ RSpec.describe "Readings", type: :request do
         end
       end
 
-      it "カードの「読む」は Turbo の POST（モーダルを受ける）" do
+      it "行の「読む」は Turbo の POST（モーダルを受ける）" do
         article = create(:article)
         get root_path
         form = page.find("form[action='#{article_reading_path(article)}']")

@@ -1,4 +1,4 @@
-<%# Main（docs/screens/main.md）。上から: ヘッダ / ステータス / 記事カード / タブバー %>
+<%# Main（docs/screens/main.md）。上から: ヘッダ / ステータス / 記事の一覧 / タブバー %>
 <header class="flex items-center justify-between">
   <h1 class="text-2xl font-black tracking-tight">
     <span class="text-orange-500">Dopa</span>Feed
@@ -16,7 +16,8 @@
   <% if @articles.empty? %>
     <%= render "empty" %>
   <% else %>
-    <ul class="flex flex-col gap-3">
+    <%# 行は白い 1 枚の中に細い線で区切って並べる（カードの枠と隙間をやめ、一画面に並ぶ本数を増やす）。引いた行がはみ出さないよう角で切る %>
+    <ul class="divide-y divide-gray-100 overflow-hidden rounded-2xl bg-white shadow-sm">
       <% @articles.each do |article| %>
         <%= render "article_card", article: article %>
       <% end %>
