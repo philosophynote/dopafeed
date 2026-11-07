@@ -24,7 +24,7 @@ servers:
 # curl で確認するまでログイン画面にパスワードを入れない。
 proxy:
   ssl: true
-  host: dopafeed.net
+  host: dopafeed.dev
 
 # Where you keep your container images.
 registry:
@@ -53,6 +53,8 @@ env:
     - VAPID_PUBLIC_KEY
     - VAPID_PRIVATE_KEY
     - VAPID_SUBJECT
+    # 要約（app/services/claude/）の鍵。無いと要約の Job が全部 KeyError で落ちる。.kamal/secrets で credentials:fetch する（docs/runbook.md §0 手順 3）
+    - ANTHROPIC_API_KEY
   clear:
     # Litestream の複製先。バケットは nao が作って名前と region を埋める。未設定だと server は起動しない（bin/docker-entrypoint）
     LITESTREAM_BUCKET: dopafeed-litestream
@@ -61,6 +63,12 @@ env:
     # Run the Solid Queue Supervisor inside the web server's Puma process to do jobs.
     # When you start using multiple servers, you should split out job processing to a dedicated machine.
     SOLID_QUEUE_IN_PUMA: true
+
+    # 512 MB のサーバーに載せるための二つ（docs/decisions/0003 の 2026-11-07 追記）。
+    # async は Solid Queue の worker・dispatcher・scheduler を Puma と同じプロセスのスレッドで動かし、Ruby のプロセスを 1 本にする。
+    # YJIT は機械語の置き場ぶんメモリを食う。一人用の負荷なら速さよりメモリを取る
+    SOLID_QUEUE_MODE: async
+    YJIT_ENABLED: false
 
     # Set number of processes dedicated to Solid Queue (default: 1)
     # JOB_CONCURRENCY: 3

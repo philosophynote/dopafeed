@@ -1,4 +1,4 @@
-# ADR 0003: AWS Lightsail $7（Micro、1 GB）に Kamal でデプロイ
+# ADR 0003: AWS Lightsail に Kamal でデプロイ（2026-11-07 追記: まず $5 Nano 512 MB、苦しければ $7 Micro 1 GB）
 日付: 2026-10-22 状態: 採用
 Puma 1 worker + Solid Queue 1 プロセス + SQLite を一コンテナで。`kamal deploy` は nao が Mac から打つ。自動デプロイは Unit 10 を超えてから再検討。
 
@@ -10,3 +10,23 @@ Puma 1 worker + Solid Queue 1 プロセス + SQLite を一コンテナで。`kam
   kamal-proxy の挙動だけで閉じるため。Lightsail DNS / Route 53 は取得と DNS が別事業者になり管理が増える。
   CDN / WAF が欲しくなったら SSL/TLS を Full (strict) にして Proxied へ切り替える別 ADR
 - SSH は `ubuntu` ユーザー（Lightsail の Ubuntu は root で入れない）。22 番は管理用 Mac の IP だけに絞る
+
+追記 2026-11-07（初回デプロイ。上の「Nano は載らない」を改める）:
+- まず $5 Nano（512 MB / 2 vCPU / 20 GB）で試す。費用を抑えたいのと、1 GB への移行がスナップショットで後から一日で済むため。
+  実測（Ubuntu 24.04 ＋ Docker、アプリ無し）は使える総量 412 MB、空き 151 MB。要らない常駐（multipathd・networkd-dispatcher・udisks2・packagekit）を止めて 218 MB。
+  snapd と amazon-ssm-agent は残す（ブラウザ SSH の退路が SSM に頼るか確かめていない）。unattended-upgrades も残す（公開サーバーのセキュリティ更新）
+- 512 MB の間は二つ切り替える。どちらも config/deploy.yml の env で、1 GB に上げたら行を消して既定に戻す:
+  - Solid Queue を async（`SOLID_QUEUE_MODE=async`）。fork だと Puma の他に supervisor・dispatcher・worker・scheduler の 4 プロセスが立ち、
+    手元の production 起動で RSS がそれぞれ約 155 MB、async は 1 プロセス約 180 MB。RSS は fork 元と共有するページも数えるので fork 側は多めに出る。
+    本番イメージ（Ruby 4.0.7、jemalloc）での値は runbook §0-8 で測り直す。
+    Solid Queue の README は fork を勧めるが、理由は隔離と性能で、一人用のジョブ量では効かない。
+    async ではジョブのスレッドも Puma のプロセスに入るので、DB の接続数を primary 8・queue 12 に足した（内訳は config/database.yml）
+  - YJIT を切る（`YJIT_ENABLED=false`）。速さよりメモリ
+- 1 GB（$7 Micro）に上げる基準: ① `dmesg` に OOM kill、② deploy 中でない平常時に swap 使用が 300 MB を超え続ける、③ 表示が体感で遅い。
+  どれか一つで上げる。上げ方は docs/runbook.md §0 4-c（スナップショットから作り直し、静的 IP を付け替え。volume ごと移るので Litestream の復元は要らない）
+- ドメインは `dopafeed.dev`（Cloudflare Registrar、DNS も Cloudflare）。.dev は HSTS preload 済みでブラウザが最初から https しか使わず、force_ssl と食い違わない
+- 訂正: kamal-proxy の Let's Encrypt の認証は 443 番で受ける（Kamal 2.12 の configuration/docs/proxy.yml「port 443 must be open for the Let's Encrypt challenge」）。
+  上の「HTTP-01 の経路」という書き方は不正確（80 番で受けるかまでは確かめていない）。80 と 443 はどちらも開ける。
+  DNS only にする理由は、Cloudflare が 443 を受けると認証がサーバーに届かないから
+- レジストリは `localhost:5555`（Kamal の手元レジストリ）。Mac の Docker にレジストリを立て、SSH のポート転送でサーバーに pull させる。外部レジストリと PAT が要らない。
+  代わりに `kamal deploy` の間、Mac で Docker（OrbStack）が動いている必要がある
