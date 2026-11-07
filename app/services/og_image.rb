@@ -3,8 +3,9 @@ require "ipaddr"
 # 記事ページの HTML の meta から、記事を表す画像（og:image など）の URL を 1 つ選ぶ。HTTP は話さない。
 # 画像はサーバーが取りに行かず端末が配信元から直に読むので、端末に読ませてよい URL だけ返す:
 # https だけ（http は https のページで混在コンテンツになり、data: や javascript: は img の src に置かない）、
-# 内部ネットワークの IP を直に書いた URL と userinfo 付きの URL は捨てる（記事の書き手に端末から LAN へ GET を打たせない）。
-# 候補を順に試し、使えない候補は飛ばして次へ落ちる（http の og:image に https の twitter:image を添えるページがある）
+# 内部ネットワークを直に指す URL（IP・localhost）と userinfo 付きの URL は捨てる（記事の書き手に端末から LAN へ GET を打たせない）。
+# 候補を順に試し、使えない候補は飛ばして次へ落ちる（http の og:image に https の twitter:image を添えるページや、
+# og:image を複数並べるページがある）
 class OgImage
   # 探す meta。先にあるものを優先する
   SELECTORS = [
@@ -20,7 +21,7 @@ class OgImage
   def self.from(html, base)
     # meta は head にある。本文まで Nokogiri に通すと大きなページで重い（本文は readability がもう一度読む）
     document = Nokogiri::HTML(html[%r{\A.*?</head>}mi] || html)
-    SELECTORS.lazy.filter_map { |selector| usable(document.at_css(selector)&.[]("content"), base) }.first
+    SELECTORS.lazy.flat_map { |selector| document.css(selector).to_a }.filter_map { |meta| usable(meta["content"], base) }.first
   end
 
   # @return [String, nil] 端末に読ませてよい絶対 URL。だめなら nil
@@ -29,7 +30,7 @@ class OgImage
 
     uri = URI.join(base.to_s, content.strip)
     return unless uri.scheme == "https" && uri.host.present? && uri.userinfo.nil?
-    return if internal_literal?(uri.hostname)
+    return if internal_host?(uri.hostname)
 
     uri.to_s
   rescue URI::Error
@@ -37,13 +38,18 @@ class OgImage
   end
   private_class_method :usable
 
-  # 名前は引かない（引くのは端末で、ここで引いても端末の答えとは限らない）。IP を直に書いたものだけ見る
-  def self.internal_literal?(host)
+  # 名前は引かない（引くのは端末で、ここで引いても端末の答えとは限らない）。名前だけで内側と分かるものを見る。
+  # ブラウザ（WHATWG URL）は最後のラベルが数字のホストを IPv4 として読み、2130706433・0x7f000001・127.1・0177.0.0.1
+  # のような書き方も 127.0.0.1 に直す。IPAddr はそれらを読めないので、正規の四つ組で読めない数字のホストは丸ごと捨てる
+  def self.internal_host?(host)
+    host = host.downcase.delete_suffix(".")
+    return true if host == "localhost" || host.end_with?(".localhost")
+
     address = IPAddr.new(host)
     address = address.native if address.ipv4_mapped?
     HttpGet::INTERNAL_RANGES.any? { |range| range.include?(address) }
   rescue IPAddr::InvalidAddressError
-    false
+    host.split(".").last.to_s.match?(/\A(0x\h*|\d+)\z/i)
   end
-  private_class_method :internal_literal?
+  private_class_method :internal_host?
 end

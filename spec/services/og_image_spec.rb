@@ -29,8 +29,17 @@ RSpec.describe OgImage do
     expect(described_class.from(html(meta), base)).to eq("https://cdn.example.com/tw.png")
   end
 
-  it "内部ネットワークの IP を直に書いた URL と userinfo 付きの URL は捨てる" do
-    %w[https://127.0.0.1/og.png https://[::1]/og.png https://192.168.1.10/og.png https://[::ffff:10.0.0.1]/og.png https://u:p@cdn.example.com/og.png].each do |url|
+  it "og:image が複数あれば、使える最初のものを選ぶ" do
+    meta = '<meta property="og:image" content="http://cdn.example.com/a.png"><meta property="og:image" content="https://cdn.example.com/b.png">'
+    expect(described_class.from(html(meta), base)).to eq("https://cdn.example.com/b.png")
+  end
+
+  it "内部ネットワークを直に指す URL（IP・localhost）と userinfo 付きの URL は捨てる" do
+    %w[
+      https://127.0.0.1/og.png https://127.0.0.1./og.png https://[::1]/og.png https://192.168.1.10/og.png https://[::ffff:10.0.0.1]/og.png
+      https://2130706433/og.png https://0x7f000001/og.png https://127.1/og.png https://0177.0.0.1/og.png https://10.0x1/og.png
+      https://localhost/og.png https://app.localhost/og.png https://u:p@cdn.example.com/og.png
+    ].each do |url|
       expect(described_class.from(html(%(<meta property="og:image" content="#{url}">)), base)).to be_nil, url
     end
   end
@@ -38,6 +47,12 @@ RSpec.describe OgImage do
   it "head の後ろ（本文）にある meta は見ない" do
     page = '<html><head><title>t</title></head><body><meta property="og:image" content="https://cdn.example.com/body.png"></body></html>'
     expect(described_class.from(page, base)).to be_nil
+  end
+
+  it "数字で終わらない名前と、外の IP の四つ組はそのまま通す" do
+    %w[https://cdn1.example.com/og.png https://8.8.8.8/og.png https://example.com./og.png].each do |url|
+      expect(described_class.from(html(%(<meta property="og:image" content="#{url}">)), base)).to eq(url), url
+    end
   end
 
   it "相対 URL はページの URL で絶対にする" do
