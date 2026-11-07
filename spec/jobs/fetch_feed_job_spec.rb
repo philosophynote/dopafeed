@@ -12,7 +12,7 @@ RSpec.describe FetchFeedJob, type: :job do
     expect { perform_enqueued_jobs }.not_to raise_error
   end
 
-  it "同じフィードの Job が待ち・実行中なら、後から積んだ方は捨てる（取得を 2 回走らせない）" do
+  it "同じフィードの Job が待ち・実行中なら後から積んだ方を捨てる設定（捨てる動きは Solid Queue に任せる）" do
     other = create(:feed)
 
     expect(described_class.concurrency_on_conflict).to eq(:discard)

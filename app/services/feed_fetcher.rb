@@ -4,7 +4,8 @@
 # last_fetched_at は失敗でも更新する（取得が止まっているのか、失敗し続けているのかを見分けるため）。
 # 既存の記事は更新しない（要約と読了を守る）。本文はまず feedjira の entry.content か summary を入れ、記事ごとに {FetchArticleContentJob} を積んで
 # 記事ページの本文で置き換える。HTTP は {HttpGet}。想定外の例外（バグ）はそのまま上げ、Solid Queue の失敗に残す。
-# 恒久移転（301 / 308）の先で取れたら feeds.url を移転先に直す（毎回の往復が増え、移転先の ETag を旧 URL に送り続けるのを止める）
+# 恒久移転（301 / 308）の先で取り込めたら feeds.url を移転先に直す（毎回 1 往復余計にかかるのを止める）。
+# 解析に失敗したら直さない（フィードをやめたサイトがトップページへ 301 で飛ばすことがあり、直すと元の URL が消える）
 class FeedFetcher
   # 取得の結果
   # @!attribute status [r]
@@ -27,10 +28,10 @@ class FeedFetcher
   # @return [Result]
   def call
     response = HttpGet.call(feed.url, headers: conditional_headers)
-    move_to(response.permanent_url) if response.permanent_url
-    return not_modified if response.is_a?(Net::HTTPNotModified)
+    return not_modified(response.permanent_url) if response.is_a?(Net::HTTPNotModified)
 
     created = import(parse(response.body.to_s))
+    move_to(response.permanent_url)
     feed.update!(last_fetched_at: Time.current, last_error: nil, etag: response["ETag"], last_modified: response["Last-Modified"])
     Result.new(status: :updated, created: created, error: nil)
   rescue HttpGet::Error, FetchError => e
@@ -90,9 +91,11 @@ class FeedFetcher
     end
   end
 
-  # 移転先が他の購読の URL なら直さない（同じフィードを二つ購読している。どちらを残すかは人が決める）。今回の取得はそのまま続ける
+  # 移転先が他の購読の URL なら直さない（同じフィードを二つ購読している。どちらを残すかは人が決める）。
+  # https から http への移転も直さない（一度の応答で以後ずっと平文で取りに行くことになる）
   def move_to(url)
-    return if url == feed.url
+    return if url.nil? || url == feed.url
+    return if URI(feed.url).scheme == "https" && URI(url).scheme == "http"
     return keep_url(url) if Feed.exists?(url: url)
 
     feed.update!(url: url)
@@ -107,7 +110,8 @@ class FeedFetcher
   end
 
   # @return [Result] 304。試行時刻だけ更新し、ETag / Last-Modified は前回のまま
-  def not_modified
+  def not_modified(permanent_url)
+    move_to(permanent_url)
     feed.update!(last_fetched_at: Time.current, last_error: nil)
     Result.new(status: :not_modified, created: 0, error: nil)
   end

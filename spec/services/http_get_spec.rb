@@ -64,6 +64,13 @@ RSpec.describe HttpGet do
       expect(described_class.call(url).permanent_url).to be_nil
     end
 
+    it "ホストを小文字にしてフラグメントを落とす" do
+      stub_request(:get, url).to_return(status: 301, headers: { "Location" => "HTTPS://Fixtures.Example.com/moved#top" })
+      stub_request(:get, moved).to_return(status: 200, body: "ok")
+
+      expect(described_class.call(url).permanent_url).to eq(moved)
+    end
+
     it "移転先の 304 でも返す" do
       stub_request(:get, url).to_return(status: 301, headers: { "Location" => moved })
       stub_request(:get, moved).to_return(status: 304, body: "")

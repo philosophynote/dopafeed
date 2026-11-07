@@ -6,8 +6,7 @@ require "resolv"
 # 2xx / 304 以外と接続エラーを {Error} に畳む（文言は feeds.last_error / articles.content_error にそのまま残る）。
 # 時間を置けば通るかもしれない失敗は {TransientError}。呼ぶ側が待ってやり直すか決める。
 # content_types を渡すと、2xx でも Content-Type が合わない応答は本文を読まずに {UnexpectedContentType}（巨大な PDF や動画をメモリに載せない）。
-# タイムアウトは dopamine.yml の fetch.timeout_seconds（接続・読み取りとも）、本文の上限は fetch.max_body_megabytes。
-# 返す応答は {Moved} を持ち、最初から恒久リダイレクトだけで辿った先がわかる（呼ぶ側が保存している URL を移転先に直すため）
+# タイムアウトは dopamine.yml の fetch.timeout_seconds（接続・読み取りとも）、本文の上限は fetch.max_body_megabytes
 class HttpGet
   # 記録して終わりにする失敗（HTTP エラー、不正な URL、内部ネットワークの宛先、大きすぎる本文）
   class Error < StandardError; end
@@ -33,13 +32,13 @@ class HttpGet
     end
   end
 
-  # 応答に足す、恒久移転の行き先
+  # 返す応答に足す、恒久移転の行き先
   module Moved
-    # @return [String, nil] 最初の URL から 301 / 308 だけで辿った最後の URL。302 / 307 が挟まればその手前まで。移転が無ければ nil
+    # @return [String, nil] 最初の URL から 301 / 308 だけで辿った最後の URL。302 / 307 が挟まればその手前まで（一時的な寄り道の先は覚えない）。
+    #   ホストを小文字にしてフラグメントを落とす（保存済みの URL と突き合わせるため）。移転が無ければ nil
     attr_accessor :permanent_url
   end
 
-  # 恒久移転とみなすリダイレクト。302 / 307 は一時的な寄り道なので覚えない
   PERMANENT_REDIRECTS = [ Net::HTTPMovedPermanently, Net::HTTPPermanentRedirect ].freeze
   # 追うリダイレクトの上限。インフラの定数で報酬の数字ではないので dopamine.yml には置かない
   MAX_REDIRECTS = 3
@@ -59,7 +58,7 @@ class HttpGet
 
   # @param headers [Hash{String => String}] 足すヘッダ（Accept、条件付き GET の If-None-Match など）
   # @param content_types [Array<String>, nil] 受け入れる Content-Type（小文字、パラメータ抜き）。nil なら何でも読む
-  # @return [Net::HTTPResponse] 2xx か 304。本文は読み込み済み。{Moved} を足してある
+  # @return [Net::HTTPResponse, Moved] 2xx か 304。本文は読み込み済み
   # @raise [Error] http(s) でない、壊れた URL、ホスト名の無い URL、内部ネットワークの宛先、4xx、リダイレクト超過、本文が上限超
   # @raise [TransientError] 408・429・5xx、接続エラー（名前が引けない場合を含む）
   # @raise [UnexpectedContentType] content_types に無い Content-Type
@@ -140,10 +139,9 @@ class HttpGet
 
   private
 
-  # 最初から恒久リダイレクトが続いている間だけ、行き先を移転先として覚える
   def remember_move(response, location)
     @permanent_chain &&= PERMANENT_REDIRECTS.any? { |klass| response.is_a?(klass) }
-    @permanent_url = location.to_s if @permanent_chain
+    @permanent_url = location.dup.tap { |uri| uri.fragment = nil }.normalize.to_s if @permanent_chain
   end
 
   # ホスト名を解き、解けた全アドレスが内部ネットワークでないことを確かめる。一つでも内側なら取りに行かない。
