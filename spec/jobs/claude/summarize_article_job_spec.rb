@@ -1,5 +1,5 @@
 RSpec.describe Claude::SummarizeArticleJob, type: :job do
-  let(:article) { create(:article, :awaiting_summary) }
+  let(:article) { create(:article, :awaiting_summary, :opened) }
   let(:summarizer) { instance_double(Claude::Summarizer) }
   let(:three_lines) { "・1 行目\n・2 行目\n・3 行目" }
 
@@ -42,11 +42,20 @@ RSpec.describe Claude::SummarizeArticleJob, type: :job do
     expect(article.reload.summary_error).to eq("応答の形式が不正")
   end
 
-  it "書き終えたら、その記事の要約欄を購読している画面へ差し替えを送る" do
+  it "読むと決めていない記事は、積まれていても呼ばない（読む前提より前に積まれて滞留していた Job）" do
+    article.reading.destroy!
+
+    described_class.perform_now(article.reload)
+
+    expect(Claude::Summarizer).not_to have_received(:new)
+  end
+
+  it "書き終えたら、その記事の要約欄を購読している画面へ、購読ごと差し替える内容を送る" do
     allow(summarizer).to receive(:call).and_return(three_lines)
 
     expect { described_class.perform_now(article) }
-      .to have_broadcasted_to(summary_stream).with(a_string_including("turbo-stream", "replace", "summary_article_#{article.id}", "・1 行目"))
+      .to have_broadcasted_to(summary_stream).with(a_string_including("turbo-stream", "replace", "summary_box_article_#{article.id}", "・1 行目"))
+    expect(ActionCable.server.pubsub.broadcasts(summary_stream).last).not_to include("turbo-cable-stream-source")
   end
 
   it "失敗を記録したら、失敗の表示を送る" do

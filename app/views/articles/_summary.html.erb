@@ -1,19 +1,30 @@
-<%# Reader のカードの「Claude の 3 行要約」欄。要約は「読む」を押してから作るので、出来るまでは「作成中」を出す。
-    Job が書き終える・失敗する・その日の上限で捨てると、この frame ごと Turbo Stream で差し替わる（Claude::SummarizeArticleJob.broadcast）。
-    取り直し（GET /articles/:id/summary）もこの frame を返す。state は呼ぶ側が求めて渡してもよい（台帳を数える問い合わせを 1 回にする） %>
-<% state = local_assigns.fetch(:state) { summary_state(article) } %>
-<%= turbo_frame_tag dom_id(article, :summary) do %>
-  <section class="mt-4 rounded-xl bg-gray-50 p-3" aria-label="要約" data-state="<%= state %>">
-    <p class="text-xs text-gray-500">Claude の 3 行要約</p>
-    <% case state %>
-    <% when :ready %>
-      <p class="mt-2 whitespace-pre-line break-words text-sm leading-relaxed text-gray-800"><%= article.summary %></p>
-    <% when :failed %>
-      <p class="mt-2 text-sm text-gray-500">要約できませんでした。記事を開いて読めます</p>
-    <% when :exhausted %>
-      <p class="mt-2 text-sm text-gray-500">今日の要約の上限に達しました。記事を開いて読めます</p>
-    <% else %>
-      <p class="mt-2 animate-pulse text-sm text-gray-400" role="status">要約を作成中…</p>
-    <% end %>
-  </section>
-<% end %>
+<%# Reader のカードの「Claude の 3 行要約」欄と、その出来上がりを待つ購読。要約は「読む」を押してから作るので、出来るまでは「作成中」を出す。
+    Job が書き終える・失敗する・その日の上限で捨てると、外側の div ごと Turbo Stream で差し替わる（Claude::SummarizeArticleJob.broadcast）。
+    購読も div の中に置くのは、出来上がった差し替えで購読ごと消すため（Reader は無限に継ぎ足すので、残すと購読が溜まる）。
+    取り直し（GET /articles/:id/summary）はこの partial を返し、Turbo は中の frame だけを入れ替える。購読は入れ替わらないので、取り直しが取り直しを呼ばない %>
+<% state = summary_state(article) %>
+<div id="<%= dom_id(article, :summary_box) %>">
+  <%= turbo_frame_tag dom_id(article, :summary) do %>
+    <section class="mt-4 rounded-xl bg-gray-50 p-3" aria-label="要約" data-state="<%= state %>">
+      <p class="text-xs text-gray-500">Claude の 3 行要約</p>
+      <% case state %>
+      <% when :ready %>
+        <p class="mt-2 whitespace-pre-line break-words text-sm leading-relaxed text-gray-800"><%= article.summary %></p>
+      <% when :failed %>
+        <p class="mt-2 text-sm text-gray-500">要約できませんでした。記事を開いて読めます</p>
+      <% when :exhausted %>
+        <p class="mt-2 text-sm text-gray-500">今日の要約の上限に達しました。記事を開いて読めます</p>
+      <% else %>
+        <p class="mt-2 animate-pulse text-sm text-gray-400" role="status">要約を作成中…</p>
+      <% end %>
+    </section>
+  <% end %>
+  <%# 出来上がりを待つ間（作成中・その日の上限）だけ購読する。上限のカードも、日が変わって積み直した Job の差し替えを受ける。
+      つながるたびに、作成中なら欄を取り直す（つながっていない間の差し替えは届かないため） %>
+  <% if state.in?(%i[pending exhausted]) %>
+    <div data-controller="summary-refresh" data-summary-refresh-url-value="<%= summary_article_path(article) %>"
+         data-summary-refresh-frame-value="<%= dom_id(article, :summary) %>">
+      <%= turbo_stream_from article, :summary %>
+    </div>
+  <% end %>
+</div>

@@ -1,6 +1,7 @@
 module Claude
   # 記事 1 本に 3 行要約を付ける。積むのは読むと決めた（{Reading} のある）記事だけ（{.enqueue_if_awaiting}。読まない記事に払わない）。
-  # 要約済み・失敗を記録済みなら呼ばない（二度払いしない。失敗をやり直すのは人が戻したときだけ）。
+  # 走る時にも要約待ちかを確かめ直す。要約済み・失敗を記録済みなら呼ばない（二度払いしない。失敗をやり直すのは人が戻したときだけ）。
+  # 読むと決めていない記事も呼ばない（この条件より前に積まれて滞留していた Job が払わないように）。
   # 失敗は例外にせず articles.summary_failed_at / summary_error に残し、自動では再試行しない（本文なし・形式不正・4xx は時間が解決しない）。
   # 待てば通るかもしれない失敗（{Summarizer::TransientError}）だけ ActiveJob の既定の回数・間隔でやり直し、尽きたら同じ列に記録する。
   # 同じ記事の Job は 1 本ずつ走らせ、重なった分は待たせる（積む所が複数あり、同じ記事が二度積まれることがある）。
@@ -26,11 +27,10 @@ module Claude
     end
 
     def perform(article)
-      article.reload
-      return if article.summary.present? || article.summary_failed_at.present?
+      return unless Article.awaiting_summary.exists?(article.id)
 
       summary = Summarizer.new(article).call
-      article.with_lock do
+      article.reload.with_lock do
         article.update!(summary: summary, summary_failed_at: nil, summary_error: nil) if article.summary.blank?
       end
       self.class.broadcast(article)
@@ -53,7 +53,7 @@ module Claude
     end
 
     def self.broadcast(article)
-      Turbo::StreamsChannel.broadcast_replace_to(article, :summary, target: ActionView::RecordIdentifier.dom_id(article, :summary),
+      Turbo::StreamsChannel.broadcast_replace_to(article, :summary, target: ActionView::RecordIdentifier.dom_id(article, :summary_box),
                                                                     partial: "articles/summary", locals: { article: article })
     end
   end

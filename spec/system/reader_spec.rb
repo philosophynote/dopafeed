@@ -162,6 +162,7 @@ RSpec.describe "Reader", type: :system do
 
       expect(page).to have_css("section[aria-label='要約']", text: "・できた要約")
       expect(page).to have_no_text("要約を作成中")
+      expect(page).to have_no_css("turbo-cable-stream-source", visible: :all) # 出来上がったら購読を残さない（継ぎ足すたびに溜まる）
       screenshot!("ready")
     end
 
