@@ -33,6 +33,9 @@ production:
   queue:
     <<: *default
     database: storage/production_queue.sqlite3
+    # Solid Queue を async で Puma に同居させると、queue の接続が 1 プロセスに集まる:
+    # worker（スレッド 3 ＋ポーリング＋heartbeat）、dispatcher、scheduler、supervisor、ジョブを積む Puma のスレッド 3
+    max_connections: 12
     migrations_paths: db/queue_migrate
   cable:
     <<: *default
