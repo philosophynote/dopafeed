@@ -11,7 +11,7 @@ self.addEventListener("activate", (event) => {
 
 // Push の受信。サーバーが送る JSON（title / body / path / unread / tag）をそのまま通知にする。
 // iOS は受信のたびに通知を見せないと（黙って捨てると）許可を取り消すので、本文が読めなくても必ず 1 枚出す。
-// アイコンのバッジは OS が再起動で消すので、受信のたびに未読数で書き直す（ページが開いていなくても届く唯一の機会）
+// アイコンのバッジは OS が再起動で消すので、受信のたびに unread で書き直す
 self.addEventListener("push", (event) => {
   let data = {}
   try {

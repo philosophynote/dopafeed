@@ -22,6 +22,9 @@ RSpec.describe Push::Digest do
 
       with_push(digest_at: 27_000)
       expect(described_class.new(day).due?(Time.zone.local(2026, 11, 7, 7, 30))).to be(true)
+
+      with_push(digest_at: "7時半")
+      expect(described_class.new(day).due?(Time.zone.local(2026, 11, 7, 12))).to be(false)
     end
   end
 

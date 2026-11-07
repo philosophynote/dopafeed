@@ -64,13 +64,47 @@ RSpec.describe Push::DispatchJob, type: :job do
     expect(PushSubscription.exists?(destroyed.id)).to be(false)
   end
 
-  it "通知が「今日は出さない」（payload が nil）なら送らず印も付けない。条件が整った回に送る" do
+  it "通知が「今日は出さない」（payload が nil）なら送らずに印だけ書き、その日は後から条件が整っても送らない（深夜に鳴らさない）" do
     allow_any_instance_of(Push::StreakWarning).to receive(:payload).and_return(nil)
     subscription = create(:push_subscription, digest_sent_on: Date.new(2026, 11, 7))
 
     run(Time.zone.local(2026, 11, 7, 21, 5))
     expect(sender).not_to have_received(:deliver)
-    expect(subscription.reload.streak_warning_sent_on).to be_nil
+    expect(subscription.reload.streak_warning_sent_on).to eq(Date.new(2026, 11, 7))
+
+    allow_any_instance_of(Push::StreakWarning).to receive(:payload).and_call_original
+    run(Time.zone.local(2026, 11, 8, 2))
+    expect(sender).not_to have_received(:deliver)
+  end
+
+  it "差し替え無しで通す: 新着の無い朝は印だけ、新着が入った翌朝に本物の文面で送る" do
+    allow_any_instance_of(Push::Digest).to receive(:payload).and_call_original
+    subscription = create(:push_subscription)
+
+    run(Time.zone.local(2026, 11, 7, 7, 40))
+    expect(sender).not_to have_received(:deliver)
+    expect(subscription.reload.digest_sent_on).to eq(Date.new(2026, 11, 7))
+
+    travel_to(Time.zone.local(2026, 11, 8, 6)) { create(:article, title: "新着") }
+    run(Time.zone.local(2026, 11, 8, 7, 40))
+    expect(sender).to have_received(:deliver).with(subscription, hash_including(title: "今日の新着 1 本が届きました", unread: 1, path: "/")).once
+    expect(subscription.reload.digest_sent_on).to eq(Date.new(2026, 11, 8))
+  end
+
+  it "サーバーの VAPID 鍵が読めなければログに残して止まり、購読は消さず印も書かない" do
+    allow(Push::Sender).to receive(:new).and_raise(Push::Sender::ConfigurationError, "VAPID 鍵が読めません (ArgumentError)")
+    subscription = create(:push_subscription)
+    log = StringIO.new
+
+    with_rails_logger(Logger.new(log)) { run(Time.zone.local(2026, 11, 7, 8)) }
+
+    expect(log.string).to include("[push] VAPID 鍵が読めません")
+    expect(subscription.reload.digest_sent_on).to be_nil
+  end
+
+  it "前の回が終わる前の次の回は捨てる（同じ端末に二重に送らない）" do
+    expect(described_class.concurrency_on_conflict).to eq(:discard)
+    expect(described_class.new.concurrency_key).to be_present
   end
 
   it "印の無い購読が無ければ文面を組み立てない" do

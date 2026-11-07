@@ -4,19 +4,19 @@ module Push
   # 送った印（push_subscriptions の *_sent_on）を読み書きするのは {DispatchJob} で、ここは日付と時刻しか知らない。
   # 日付が読書日（{ReadingDay}）なのは、reset_hour 前の深夜も「同じ日」として二度送らないため（ADR 0013）
   class Notice
-    # @return [Symbol] dopamine.yml の push の下の時刻の鍵
     def self.time_key
       raise NotImplementedError
     end
 
-    # @return [Symbol] push_subscriptions の「送った読書日」の列
     def self.sent_on_column
       raise NotImplementedError
     end
 
+    # 読書日の時刻の形。これ以外（引用符を忘れて 27000 になったものは {Dopamine.clock_time} が先に直す）は鍵が無いのと同じに扱う
+    TIME = /\A(\d{1,2}):(\d{2})\z/
+
     attr_reader :day
 
-    # @param day [Date] 読書日
     def initialize(day = ReadingDay.of)
       @day = day
     end
@@ -30,9 +30,8 @@ module Push
     def due_at
       return @due_at if defined?(@due_at)
 
-      time = Dopamine.clock_time(self.class.time_key)
-      hour, minute = time&.split(":")&.map(&:to_i)
-      @due_at = time && day.in_time_zone.change(hour: hour, min: minute)
+      hour, minute = Dopamine.clock_time(self.class.time_key).to_s.match(TIME)&.captures&.map(&:to_i)
+      @due_at = hour && day.in_time_zone.change(hour: hour, min: minute)
     end
 
     # @return [Hash, nil] 端末に送る内容（title / body / path / unread / tag）。今日は出さないなら nil
@@ -42,8 +41,7 @@ module Push
 
     private
 
-    # service worker がアイコンのバッジに書き直す数。通知を受けた端末は開かれていないことが多く、
-    # ページの Stimulus では直せないのでここに載せる
+    # service worker がアイコンのバッジに書き直す数（通知を受けた端末は開かれていないことが多く、ページの Stimulus では直せない）
     def unread_count
       Article.unread.count
     end

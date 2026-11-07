@@ -58,7 +58,7 @@ class HttpGet
     fold_errors { new(headers, content_types).get(URI(url)) }
   end
 
-  # 取りに行かずに宛先だけ検査する。自前で HTTP を話す相手（Web Push の endpoint は端末が申告した URL）に同じ判定を通すため。
+  # 取りに行かずに宛先だけ検査する。自前で HTTP を話す相手にも同じ判定を通すため。
   # 繋ぐのは呼ぶ側なので、検査の後に名前を引き直される DNS rebinding までは防げない。申告の時点で内側を指す URL を弾くのが役目
   #
   # @return [nil]

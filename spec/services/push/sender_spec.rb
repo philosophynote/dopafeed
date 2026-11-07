@@ -46,18 +46,52 @@ RSpec.describe Push::Sender do
     expect(PushSubscription.exists?(other.id)).to be(false)
   end
 
-  it "5xx・429・接続エラーは偽を返すが購読は残し、ログに残す（次の回に送り直す）" do
+  it "401 / 403（鍵が合わない。VAPID 鍵の交換後の古い購読）も消す" do
+    stub_request(:post, endpoint).to_return(status: 403)
+    expect(deliver).to be(false)
+    expect(PushSubscription.exists?(subscription.id)).to be(false)
+  end
+
+  it "5xx・429・413・接続エラーは偽を返すが購読は残し、ログには id と例外の型だけ残す（次の回に送り直す）" do
     log = StringIO.new
     stub_request(:post, endpoint).to_return(status: 503)
     with_rails_logger(Logger.new(log)) { expect(deliver).to be(false) }
     expect(subscription.reload).to be_persisted
-    expect(log.string).to include("[push]", "WebPush::PushServiceError")
+    expect(log.string).to include("[push] subscription #{subscription.id} failed: WebPush::PushServiceError")
+    expect(log.string).not_to include(endpoint)
 
-    stub_request(:post, endpoint).to_return(status: 429)
-    expect(deliver).to be(false)
+    [ 429, 413 ].each do |status|
+      stub_request(:post, endpoint).to_return(status: status)
+      expect(deliver).to be(false)
+    end
 
     stub_request(:post, endpoint).to_timeout
     expect(deliver).to be(false)
+    expect(subscription.reload).to be_persisted
+  end
+
+  it "暗号化した本文が大きすぎる（web-push の ArgumentError）のは購読のせいではないので残す" do
+    expect(with_env(vapid) { described_class.new.deliver(subscription, payload.merge(body: "あ" * 2000)) }).to be(false)
+
+    expect(a_request(:post, /./)).not_to have_been_made
+    expect(subscription.reload).to be_persisted
+  end
+
+  it "想定外の例外は error reporter に渡し、購読は残して偽を返す（1 つの購読で残りを止めない）" do
+    allow(WebPush).to receive(:payload_send).and_raise(NoMethodError, "boom")
+    allow(Rails.error).to receive(:report).and_call_original
+
+    expect(deliver).to be(false)
+
+    expect(Rails.error).to have_received(:report).with(an_instance_of(NoMethodError), hash_including(handled: true))
+    expect(subscription.reload).to be_persisted
+  end
+
+  it "サーバーの VAPID 鍵が読めなければ ConfigurationError で止まり、購読は消さない（打ち間違い、別のペア）" do
+    other_key = WebPush.generate_key
+    [ vapid.merge("VAPID_PRIVATE_KEY" => "broken"), vapid.merge("VAPID_PUBLIC_KEY" => other_key.public_key) ].each do |env|
+      expect { with_env(env) { described_class.new } }.to raise_error(described_class::ConfigurationError, /VAPID 鍵が読めません/)
+    end
     expect(subscription.reload).to be_persisted
   end
 
@@ -79,12 +113,15 @@ RSpec.describe Push::Sender do
     expect(subscription.reload).to be_persisted
   end
 
-  it "鍵が壊れていて暗号化できない購読は消す（端末が作り直すまで送れない）" do
-    subscription.update!(p256dh: "BFakeP256dhKey")
+  it "鍵が壊れていて暗号化できない購読は消す（base64 でない、曲線上の点でない、auth が base64 でない）" do
+    not_a_point = Base64.urlsafe_encode64("\x04" + "\x01" * 64, padding: false)
+    [ { p256dh: "BFakeP256dhKey" }, { p256dh: not_a_point }, { auth: "!!!" } ].each do |broken|
+      broken_subscription = create(:push_subscription, endpoint: "https://push.example.com/sub/#{broken.keys.first}", p256dh: p256dh, auth: auth)
+      broken_subscription.update_columns(broken)
 
-    expect(deliver).to be(false)
-
+      expect(with_env(vapid) { described_class.new.deliver(broken_subscription, payload) }).to be(false)
+      expect(PushSubscription.exists?(broken_subscription.id)).to be(false)
+    end
     expect(a_request(:post, /./)).not_to have_been_made
-    expect(PushSubscription.exists?(subscription.id)).to be(false)
   end
 end

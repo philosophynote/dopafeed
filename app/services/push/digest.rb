@@ -1,6 +1,6 @@
 module Push
-  # 朝のダイジェスト。前の回（24 時間前）以降に届いた未読の本数を題に、新しい順の見出しを本文にする。
-  # Claude による選定が入るまでの代替で、タップ先は Main（ADR 0013）。新着が無い朝は出さない（空の通知で呼ばない）。
+  # 朝のダイジェスト。前の回以降に届いた未読の本数を題に、新しい順の見出しを本文にする。
+  # Claude による選定が入るまでの代替（ADR 0013）。新着が無い朝は出さない（空の通知で呼ばない）。
   # 本文に載せる本数は dopamine.yml の push.digest_articles。無ければ題だけ
   class Digest < Notice
     def self.time_key
@@ -12,6 +12,7 @@ module Push
     end
 
     def payload
+      # 「前の回」は 1 日 1 回なので 24 時間前。窓の広さの調整値ではなく回数から決まる
       articles = Article.unread.where(created_at: (due_at - 1.day)..).newest_first
       count = articles.count
       return if count.zero?
