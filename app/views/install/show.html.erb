@@ -1,11 +1,13 @@
 <%# Install（docs/screens/install.md）。手順 3 段と、standalone でだけ有効になる通知の入口。
-    Safari のタブか standalone かはサーバーには分からないので Stimulus install が見分けて注記を切り替える %>
+    Safari のタブか standalone か、通知を許可済みかはサーバーには分からないので Stimulus install が見分けてボタンと注記を切り替える %>
 <header class="flex items-center gap-2">
   <%= link_to "設定に戻る", learning_path, class: "flex h-11 items-center rounded-full px-3 text-sm font-semibold text-orange-600 hover:bg-white" %>
   <h1 class="text-xl font-bold">ホーム画面に追加</h1>
 </header>
 
-<div data-controller="install">
+<% digest_at = Dopamine.clock_time(:digest_at) %>
+<% streak_warning_at = Dopamine.clock_time(:streak_warning_at) %>
+<div data-controller="install" data-install-vapid-public-key-value="<%= Push::Vapid.public_key %>" data-install-subscribe-url-value="<%= push_subscription_path %>">
   <section class="mt-4 flex items-center gap-4 rounded-2xl bg-white p-4 shadow-sm" aria-label="アイコン">
     <span class="relative shrink-0">
       <%= image_tag "/icon-180.png", alt: "Dopafeed のアイコン", class: "h-16 w-16 rounded-2xl", size: "64x64" %>
@@ -32,20 +34,24 @@
   </section>
 
   <section class="mt-4 rounded-2xl bg-white p-4 shadow-sm" aria-label="通知">
-    <button type="button" class="flex h-12 w-full items-center justify-center rounded-xl bg-gray-200 font-bold text-gray-400" disabled>通知を許可する</button>
+    <button type="button" class="flex h-12 w-full items-center justify-center rounded-xl bg-orange-500 font-bold text-white active:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 data-[enabled]:disabled:bg-green-100 data-[enabled]:disabled:text-green-700" data-install-target="permit" data-action="install#permit" disabled>通知を許可する</button>
+    <% unless Push::Vapid.configured? %>
+      <p class="mt-3 text-xs font-semibold text-red-600">サーバーに通知の鍵がありません。VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBJECT を入れてください（docs/runbook.md 2-h）</p>
+    <% end %>
     <p class="mt-3 text-xs text-gray-500" data-install-target="browser">Safari のタブのままでは通知もバッジも使えません。ホーム画面から開いた時だけ有効になるのが iOS の仕様です</p>
-    <p class="mt-3 text-xs text-gray-500" data-install-target="standalone" hidden>ホーム画面から開いています。通知を許可するとバッジも出ます（許可のボタンは準備中）</p>
+    <p class="mt-3 text-xs text-gray-500" data-install-target="standalone" hidden>ホーム画面から開いています。通知を許可するとアイコンのバッジも出ます</p>
+    <p class="mt-3 text-xs font-semibold text-red-600" data-install-target="denied" hidden>通知が拒否されています。iPhone の設定から通知を許可してください（設定 › 通知 › Dopafeed）</p>
   </section>
 
   <section class="mt-4" aria-label="届く通知">
     <h2 class="px-1 text-sm font-bold text-gray-500">届く通知（1 日最大 2 件）</h2>
     <ul class="mt-2 space-y-2 text-sm">
       <li class="rounded-2xl bg-white p-4 shadow-sm">
-        <p class="font-bold">朝のダイジェスト</p>
+        <p class="font-bold"><%= "#{digest_at} " if digest_at %>朝のダイジェスト</p>
         <p class="mt-1 text-gray-600">「今日の新着 3 本が届きました」 → タップで一覧へ（Claude が選ぶ 3 本は「あなた向け」ができてから）</p>
       </li>
       <li class="rounded-2xl bg-white p-4 shadow-sm">
-        <p class="font-bold">ストリークの警告</p>
+        <p class="font-bold"><%= "#{streak_warning_at} " if streak_warning_at %>ストリークの警告</p>
         <p class="mt-1 text-gray-600">「3 日連続が切れます。<%= Dopamine.settings.dig(:daily_goal, :reset_hour) %> 時までに 1 本」 → あと 1 本読めば継続</p>
       </li>
     </ul>

@@ -291,6 +291,33 @@ user.sessions.destroy_all   # 既存の Cookie を全部無効にする（Rails 
    そこには記事と読書ログしか無いが、`production.sqlite3` には `users.password_digest` と `sessions` が入っている。
    2-f の手順でパスワードを変え、セッションを全部破棄する
 
+## 2-h. Web Push の VAPID 鍵（ADR 0013）
+
+通知（Install 画面の「通知を許可する」）に要る。無くても起動はするが、Install が「サーバーに通知の鍵がありません」を出し、購読を受け付けない。
+
+### 作る（一度だけ）
+鍵は手順 0-3 と同じく credentials に入れ、`.kamal/secrets` では復号して取る（秘密鍵を平文のファイルや git に残さない）。
+```sh
+bin/rails runner 'k = WebPush.generate_key; puts "  public_key: #{k.public_key}", "  private_key: #{k.private_key}"'
+```
+出た 2 行を `EDITOR="zed --wait" bin/rails credentials:edit` で開いた中に `vapid:` の下に貼り、`subject` を足す:
+```yaml
+vapid:
+  public_key: "B..."
+  private_key: "..."
+  subject: "mailto:<自分のメール>"
+```
+`.kamal/secrets` に 3 行足す（config/deploy.yml の env.secret に名前は入っている。**無いと `kamal deploy` が `Secret 'VAPID_PUBLIC_KEY' not found` で止まる**ので、deploy.yml にこの 3 行が入った版を出す前に済ませる）:
+```sh
+VAPID_PUBLIC_KEY=$(bin/rails credentials:fetch vapid.public_key)
+VAPID_PRIVATE_KEY=$(bin/rails credentials:fetch vapid.private_key)
+VAPID_SUBJECT=$(bin/rails credentials:fetch vapid.subject)
+```
+確認は 0-3 と同じ `kamal secrets print | sed ...` で 3 行が `(set)`。手元で試すなら、サーバーを起動するシェルで `export VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=...`（Rails は `.env` を読まない）。無いままでも動き、Install が「鍵が無い」を出すだけ。
+
+### 交換する（漏えいしたとき）
+鍵を変えると既存の購読は全部送れなくなる。credentials の `vapid:` を作り直して deploy したあと `bin/rails runner 'PushSubscription.delete_all'` で行を消し、iPhone の Install を開いて「通知を許可する」を押し直す（Install は古い鍵の購読を見つけると解除してボタンを有効に戻す。iOS 側の許可は残っているのでダイアログは出ず、購読だけ作り直される）。
+
 ## 3. よく使う
 ```sh
 kamal logs            # tail

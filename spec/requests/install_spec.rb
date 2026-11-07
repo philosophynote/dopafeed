@@ -39,5 +39,35 @@ RSpec.describe "Install", type: :request do
 
       expect(page).to have_no_css("[data-unread-badge]")
     end
+
+    it "VAPID 鍵があれば公開鍵と購読先を Stimulus に渡し、拒否時の文言も用意する" do
+      with_env("VAPID_PUBLIC_KEY" => "BPublic", "VAPID_PRIVATE_KEY" => "private", "VAPID_SUBJECT" => "mailto:nao@example.com") { get install_path }
+
+      install = page.find("[data-controller=install]")
+      expect(install["data-install-vapid-public-key-value"]).to eq("BPublic")
+      expect(install["data-install-subscribe-url-value"]).to eq(push_subscription_path)
+      expect(page).to have_css("[data-install-target=denied]", text: "iPhone の設定から通知を許可してください", visible: :all)
+      expect(page).to have_no_text("通知の鍵")
+    end
+
+    it "VAPID 鍵が無ければ「サーバーに通知の鍵が無い」と出し、Stimulus に鍵を渡さない" do
+      with_env("VAPID_PUBLIC_KEY" => nil, "VAPID_PRIVATE_KEY" => nil, "VAPID_SUBJECT" => nil) { get install_path }
+
+      expect(page).to have_text("サーバーに通知の鍵がありません")
+      expect(page.find("[data-controller=install]")["data-install-vapid-public-key-value"]).to be_blank
+    end
+
+    it "届く通知の時刻は dopamine.yml の push.digest_at / push.streak_warning_at。鍵が無い間は時刻を出さない" do
+      get install_path
+      expect(page.find("section[aria-label='届く通知']")).to have_no_text(":")
+
+      # 21:00 は引用符を忘れて書かれた形（YAML の六十進数 = 75600）。それでも 21:00 と出す
+      settings = Dopamine.settings.merge(push: { digest_at: "07:30", streak_warning_at: 75_600 })
+      allow(Dopamine).to receive(:settings).and_return(settings)
+      get install_path
+      notices = page.find("section[aria-label='届く通知']")
+      expect(notices).to have_text("07:30")
+      expect(notices).to have_text("21:00")
+    end
   end
 end

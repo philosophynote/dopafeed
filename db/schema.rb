@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_05_160000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_07_000001) do
   create_table "articles", force: :cascade do |t|
     t.integer "feed_id", null: false
     t.string "title", null: false
@@ -65,6 +65,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_05_160000) do
     t.string "etag"
     t.string "last_modified"
     t.index ["url"], name: "index_feeds_on_url", unique: true
+  end
+
+  create_table "push_subscriptions", force: :cascade do |t|
+    t.string "endpoint", null: false
+    t.string "p256dh", null: false
+    t.string "auth", null: false
+    t.string "user_agent"
+    t.date "digest_sent_on"
+    t.date "streak_warning_sent_on"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["endpoint"], name: "index_push_subscriptions_on_endpoint", unique: true
   end
 
   create_table "readings", force: :cascade do |t|
