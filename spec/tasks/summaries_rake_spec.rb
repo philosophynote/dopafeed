@@ -20,8 +20,8 @@ RSpec.describe "summaries の rake task" do
       expect(enqueued_jobs).to be_empty
     end
 
-    it "失敗が無ければそう言う" do
-      expect { run("summaries:retry") }.to output(/要約に失敗した記事はありません/).to_stdout
+    it "失敗が無ければそう言い、予算の残りも出す" do
+      expect { run("summaries:retry") }.to output(/要約に失敗した記事はありません。今日の予算の残りは #{Claude::Budget.default_limit} 回です/).to_stdout
     end
   end
 

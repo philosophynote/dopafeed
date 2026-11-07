@@ -3,10 +3,11 @@ namespace :summaries do
   desc "要約に失敗した記事を要約待ちに戻す（API は呼ばない。定期の要約ジョブがその日の予算の範囲で拾う）"
   task retry: :environment do
     count = Article.retry_failed_summaries
+    remaining = Claude::Budget.new.remaining
     if count.zero?
-      puts "要約に失敗した記事はありません"
+      puts "要約に失敗した記事はありません。今日の予算の残りは #{remaining} 回です"
     else
-      puts "#{count} 本を要約待ちに戻しました。次の定期の要約ジョブが、今日の予算の残り（#{Claude::Budget.new.remaining} 回）の範囲で拾います"
+      puts "#{count} 本を要約待ちに戻しました。次の定期の要約ジョブが、今日の予算の残り（#{remaining} 回）の範囲で拾います"
     end
   end
 
