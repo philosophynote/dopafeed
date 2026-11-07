@@ -21,7 +21,8 @@ module Dopafeed
     # These settings can be overridden in specific environments using the files
     # in config/environments, which are processed later.
     #
-    # config.time_zone = "Central Time (US & Canada)"
+    # 読書の日付（ReadingDay、daily_goal.reset_hour）と Claude::Budget の「今日」の基準。ADR 0006
+    config.time_zone = "Tokyo"
     # config.eager_load_paths << Rails.root.join("extras")
   end
 end

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>Solid Queue を本番で運用して分かったこと | Fixture Blog</title>
+</head>
+<body>
+  <header class="site-header">
+    <nav><a href="/">ホーム</a> <a href="/about">このブログについて</a> <a href="/feed">RSS</a></nav>
+  </header>
+  <main>
+    <article class="post">
+      <h1>Solid Queue を本番で運用して分かったこと</h1>
+      <p>Rails 8 で標準になった Solid Queue を SQLite のまま半年ほど本番で動かした。結論から言うと、一人用のサービスなら設定をいじる必要はほとんど無く、ワーカー 1 プロセス・3 スレッドで数千ジョブ毎時をさばけた。</p>
+      <p>詰まりやすいのは polling_interval ではなく、失敗ジョブの扱いだった。FailedExecution を放置するとダッシュボードが見づらくなるので、失敗を業務上の「もう呼ばない」と「後でもう一度」に分け、前者は discard_on で捨てるようにした。</p>
+      <p>recurring.yml の定期実行は cron 代わりに十分で、every 30 minutes のような自然な表記が効く。間隔の数字は一箇所にだけ置くのが肝心で、二重に持つと必ず食い違う。</p>
+      <pre><code>config.active_job.queue_adapter = :solid_queue</code></pre>
+    </article>
+  </main>
+  <aside class="sidebar">
+    <h2>関連記事</h2>
+    <ul><li><a href="/posts/1">SQLite が本番で使える理由</a></li><li><a href="/posts/2">Kamal 2 で一台運用</a></li></ul>
+  </aside>
+  <footer class="site-footer"><p>© Fixture Blog. 無断転載を禁じます。</p></footer>
+</body>
+</html>

@@ -10,6 +10,16 @@
 #     schedule: at 5am every day
 
 production:
+  # 全フィードの取得（Unit 3）。間隔はここにだけ置く（docs/screens/feeds.md 未決 2）
+  fetch_all_feeds:
+    class: FetchAllFeedsJob
+    queue: feeds
+    schedule: every 30 minutes
+  # 要約待ちの記事を予算の残りぶんだけ積む。取得より細かく回し、本文取得が済んだ記事を長く待たせない
+  summarize_pending_articles:
+    class: Claude::SummarizePendingArticlesJob
+    queue: claude
+    schedule: every 10 minutes
   clear_solid_queue_finished_jobs:
     command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
     schedule: every hour at minute 12

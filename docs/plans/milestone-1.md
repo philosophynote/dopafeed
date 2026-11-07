@@ -4,6 +4,7 @@
 Unit 0（縄張り）, 1（モック写経）, 2（ドメインモデル）, 3（フィード取得ジョブ）, 4（要約ジョブ）,
 5（Main + ReadDone）, 6（Roulette + Jackpot）, 7（DailyGoal）, 10（Install）, 15（Login）。
 出力段 6 画面（Gacha, Garden, Quest, Hypothesis, Suggest, NetaBox）は対象外。本丸を一週間使ってから決める。
+前倒し: Unit 8a（Swipe の左スワイプ「興味なし」だけ。#56、2026-11-05 nao の要望）。Swipe の残りは第二の陣のまま。
 
 ## 完了条件
 - Lightsail 上の本番 URL を iPhone のホーム画面に追加できる

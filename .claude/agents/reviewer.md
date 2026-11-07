@@ -7,13 +7,14 @@ tools: Read, Grep, Glob, Bash
 
 手順:
 1. `git diff main...HEAD --stat` と差分を読む
-2. 対象 Unit の docs/plans/unit-N.md と docs/screens/*.md を読む
+2. 対象 Unit の Issue（PR 本文の `Closes #N`。`gh issue view N --comments`）と docs/screens/*.md を読む
 3. 次を列挙する。該当無しなら「無し」と書く
-   - 受け入れ条件のうち、テストで検証されていないもの
+   - 受け入れ条件のうち、spec/ で検証されていないもの
    - テストが無い分岐・エラーパス
    - config/dopamine.yml を迂回した数字リテラル
    - app/services/claude/ の外からの Claude API 呼び出し、Job を経由しない呼び出し
    - Hotwire 以外の手段で画面を動かしている箇所
    - AGENTS.md の規約違反、ADR の無い技術選定
+   - AGENTS.md のコメント規約（ADR 0009）に反するコメント。該当行を引用する
    - 390×844 で崩れそうなレイアウト（固定幅、横スクロール）
 4. 重要度順に、ファイルと行を添えて短く報告する。褒めない。

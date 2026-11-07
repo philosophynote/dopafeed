@@ -1,0 +1,101 @@
+RSpec.describe DailyGoal, type: :model do
+  it "day が必須" do
+    goal = DailyGoal.new
+    expect(goal).not_to be_valid
+    expect(goal.errors[:day]).to include("can't be blank")
+  end
+
+  it "同じ日に 2 行は作れない（宝箱は 1 日 1 回）" do
+    existing = create(:daily_goal)
+    dup = build(:daily_goal, day: existing.day)
+    expect(dup).not_to be_valid
+    expect(dup.errors[:day]).to include("has already been taken")
+  end
+
+  it "achieved? は achieved_at の有無" do
+    expect(build(:daily_goal, :achieved)).to be_achieved
+    expect(build(:daily_goal)).not_to be_achieved
+  end
+
+  it "bonus_xp の既定は 0（鍵 daily_goal.bonus_xp が入るまで加算しない）" do
+    expect(create(:daily_goal).bonus_xp).to eq(0)
+  end
+end
+
+# 達成の記録。5 本目（daily_goal.articles）の完読で 1 行、2 回目は作らない（docs/screens/daily_goal.md）
+RSpec.describe DailyGoal, ".achieve_if_reached!" do
+  let(:settings) { Dopamine.settings }
+  let(:goal_articles) { settings.dig(:daily_goal, :articles) }
+  let(:reset_hour) { settings.dig(:daily_goal, :reset_hour) }
+  let(:noon) { Time.zone.local(2026, 10, 20, reset_hour) + 8.hours }
+  let(:today) { ReadingDay.of(noon) }
+
+  def complete(count, at: noon - 1.hour)
+    count.times { create(:reading, :completed, opened_at: at) }
+  end
+
+  it "完読が goal に満たなければ行を作らず nil" do
+    complete(goal_articles - 1)
+    expect(DailyGoal.achieve_if_reached!(at: noon)).to be_nil
+    expect(DailyGoal.count).to eq(0)
+  end
+
+  it "goal 本目で achieved_at = at の行を作る。鍵 daily_goal.bonus_xp が無ければ bonus_xp は 0" do
+    complete(goal_articles)
+    goal = DailyGoal.achieve_if_reached!(at: noon)
+
+    expect(goal.day).to eq(today)
+    expect(goal.achieved_at).to eq(noon)
+    expect(goal.bonus_xp).to eq(0)
+  end
+
+  it "鍵 daily_goal.bonus_xp があればその値を bonus_xp に残す" do
+    allow(Dopamine).to receive(:settings).and_return(settings.deep_merge(daily_goal: { bonus_xp: 100 }))
+    complete(goal_articles)
+
+    expect(DailyGoal.achieve_if_reached!(at: noon).bonus_xp).to eq(100)
+    expect(DailyGoal.bonus_total).to eq(100)
+  end
+
+  it "2 回呼んでも行は 1 つで、bonus_xp は増えない（1 日 1 回）" do
+    allow(Dopamine).to receive(:settings).and_return(settings.deep_merge(daily_goal: { bonus_xp: 100 }))
+    complete(goal_articles + 1)
+
+    first = DailyGoal.achieve_if_reached!(at: noon)
+    second = DailyGoal.achieve_if_reached!(at: noon + 1.hour)
+
+    expect(second).to eq(first)
+    expect(DailyGoal.count).to eq(1)
+    expect(DailyGoal.bonus_total).to eq(100)
+  end
+
+  it "同時に 2 本届いて後の 1 本が一意性の検証で落ちたら先の行を使う" do
+    complete(goal_articles)
+    existing = create(:daily_goal, :achieved, day: today)
+    # 1 回目の find_by では行がまだ見えず、落ちた後の find_by! では見える体にする
+    allow(DailyGoal).to receive(:find_by).and_return(nil, existing)
+
+    expect(DailyGoal.achieve_if_reached!(at: noon)).to eq(existing)
+    expect(DailyGoal.count).to eq(1)
+  end
+
+  it "検証をすり抜けて DB の一意制約で落ちても先の行を使う" do
+    complete(goal_articles)
+    existing = create(:daily_goal, :achieved, day: today)
+    # 1 回目の find_by では行がまだ見えず、落ちた後の find_by! では見える体にする
+    allow(DailyGoal).to receive(:find_by).and_return(nil, existing)
+    allow(DailyGoal).to receive(:create!).and_raise(ActiveRecord::RecordNotUnique)
+
+    expect(DailyGoal.achieve_if_reached!(at: noon)).to eq(existing)
+  end
+
+  it "reset_hour の手前（3:59）の完読は前日の行、ちょうど（4:00）は当日の行" do
+    before_reset = Time.zone.local(2026, 10, 21, reset_hour) - 1.minute
+    complete(goal_articles, at: before_reset - 10.minutes)
+    expect(DailyGoal.achieve_if_reached!(at: before_reset).day).to eq(today)
+
+    at_reset = Time.zone.local(2026, 10, 21, reset_hour)
+    complete(goal_articles, at: at_reset)
+    expect(DailyGoal.achieve_if_reached!(at: at_reset + 5.minutes).day).to eq(today + 1)
+  end
+end

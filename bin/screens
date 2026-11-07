@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# 全システムテストを 390×844 で回し、tmp/screenshots/ に絵を集める。
+# spec/system 全部を回す。引数は bin/rspec にそのまま足す（例: bin/screens --seed 123）
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+rm -rf tmp/screenshots
+mkdir -p tmp/screenshots
+
+# 古い CSS で撮らないよう、毎回ビルドする（bin/rspec は tailwindcss:build を呼ばない）
+bin/rails tailwindcss:build
+
+bin/rspec spec/system "$@"
+
+echo
+echo "== tmp/screenshots =="
+ls -1 tmp/screenshots

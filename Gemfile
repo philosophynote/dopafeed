@@ -20,7 +20,7 @@ gem "tailwindcss-rails"
 gem "jbuilder"
 
 # Use Active Model has_secure_password [https://guides.rubyonrails.org/active_model_basics.html#securepassword]
-# gem "bcrypt", "~> 3.1.7"
+gem "bcrypt", "~> 3.1.7"
 
 # Windows does not include zoneinfo files, so bundle the tzinfo-data gem
 gem "tzinfo-data", platforms: %i[ windows jruby ]
@@ -42,6 +42,21 @@ gem "thruster", require: false
 # Use Active Storage variants [https://guides.rubyonrails.org/active_storage_overview.html#transforming-images]
 gem "image_processing", "~> 1.2"
 
+# RSS / Atom の取得と本文抽出
+gem "feedjira"
+gem "ruby-readability"
+gem "guess_html_encoding" # ArticleContentFetcher が直接呼ぶ（readability の推定は Ruby 4 で動かない）
+
+# Claude API（app/services/claude/ からだけ呼ぶ。ADR 0002）
+gem "anthropic"
+
+# iOS PWA への Web Push
+gem "web-push"
+
+# article-vault（GitHub）へのコミット
+gem "octokit"
+gem "faraday-retry"
+
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
   gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"
@@ -54,15 +69,29 @@ group :development, :test do
 
   # Omakase Ruby styling [https://github.com/rails/rubocop-rails-omakase/]
   gem "rubocop-rails-omakase", require: false
+
+  # テストは RSpec + FactoryBot（ADR 0007）。fixtures は使わない
+  gem "rspec-rails"
+  gem "factory_bot_rails"
 end
 
 group :development do
   # Use console on exceptions pages [https://github.com/rails/web-console]
   gem "web-console"
+
+  # ERB の lint（bin/ci と bin/hooks/rubocop-file が使う）
+  gem "erb_lint", require: false
+
+  # Git hooks（lefthook.yml）
+  gem "lefthook", require: false
 end
 
 group :test do
   # Use system testing [https://guides.rubyonrails.org/testing.html#system-testing]
   gem "capybara"
   gem "selenium-webdriver"
+
+  # 外部通信（Claude API、RSS）はカセットで再生。CI は実通信ゼロ
+  gem "vcr"
+  gem "webmock"
 end
