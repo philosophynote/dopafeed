@@ -74,19 +74,20 @@
    production では既定値が無いので、未設定だと `KeyError` でコンテナが上がらない（意図どおり）。
    2 回目以降の起動では seed は走らない（ユーザーが居れば触らない）
 4. `config/deploy.yml` の `LITESTREAM_BUCKET` / `LITESTREAM_REGION` を実際の値にする
-4-a. Lightsail を作る（ADR 0003: まず $5 Nano 1 台。苦しければ 4-c で $7 Micro へ）
+4-a. Lightsail を作る（ADR 0003: 今は $7 Micro 1 台。$5 Nano で試して 4-c で上げた）
    1. インスタンス: リージョンは東京（S3 と同じリージョンで遅延が小さい。Lightsail の転送枠は S3 向けも、IN も OUT も消費するので
       安くはならない）、Linux、ネットワークタイプは「デュアルスタック」（IPv6 専用だと静的 IPv4 が付かず、4-b の A レコードも
       Mac からの SSH も成立しない。IPv6 専用の価格表示は $2 安く出るので見間違えない）、ブループリントは「OS のみ」の Ubuntu 24.04 LTS、
-      プランは General purpose の $5 Nano（512 MB / 2 vCPU / 20 GB / 転送 1 TB）。1 GB に上げる基準は ADR 0003 の 2026-11-07 追記。
-      自動スナップショットは付けない（DB は Litestream が S3 に複製する。1 GB に上げるときだけ手動で撮る）。
+      プランは General purpose の $7 Micro（1 GB / 2 vCPU / 40 GB）。$5 Nano（512 MB）は swap 頼みになった（ADR 0003 の 2026-11-07 追記）。
+      自動スナップショットは付けない（DB は Litestream が S3 に複製する。プランを上げるときだけ手動で撮る）。
       Lightsail 独自の初月無料トライアルは廃止済み。2025 年 7 月 15 日以降に作った AWS アカウントならクレジット方式の
       Free Tier が充当されうるが、無料になる前提で予算を組まない。
       インスタンス名は作成後に変えられないので決めて付ける（例: `dopafeed-tokyo-1`）。
       x86 なので `builder.arch: amd64` のまま（公式に明記は無い。初回 SSH 時に `uname -m` が `x86_64` を返すのを見る）。
       SSH キーは自分の公開鍵（`~/.ssh/id_ed25519.pub` など）を「Upload key」で登録する。Kamal が Mac の ssh と同じ鍵探索で繋がり、
       AWS 生成の秘密鍵を保管しなくて済む
-   2. 静的 IP を作ってアタッチし、`config/deploy.yml` の `servers.web` に書く（再起動で IP が変わらないように）。
+   2. 静的 IP を作ってアタッチする（再起動で IP が変わらないように）。`config/deploy.yml` の `servers.web` には IP でなく
+      `dopafeed.dev` を書いてある（リポジトリが public。4-b の A レコードがこの IP を指していれば Kamal はそのまま繋がる）。
       アタッチ中は無料、外して 1 時間を超えると $0.005/時。1-a でサーバーを作り直すときは古い方から外してすぐ新しい方に付ける
    3. ファイアウォール（インスタンスの「ネットワーキング」タブ）:
       - 80 / 443 は「任意の IPv4 アドレス」で公開（443 は既定に無いので足す。送信元を Custom で聞かれたら `0.0.0.0/0`）。
@@ -111,21 +112,21 @@
       sudo fallocate -l 1G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
       echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
       ```
-      swap は Puma + Solid Queue + Litestream + kamal-proxy が 512 MB に同居し、deploy 中は新旧のコンテナが並ぶための保険。
-      Nano では要らない常駐を止めて 60 MB ほど空ける（いずれもディスク 1 本のサーバーでは使わない。デスクトップ向けか SAN 向け）:
+      swap は Puma + Solid Queue + Litestream + kamal-proxy が一台に同居し、deploy 中は新旧のコンテナが並ぶための保険。
+      要らない常駐を止めて 60 MB ほど空ける（Nano で始めたときに入れた。今の Micro はそのスナップショットから作ったので止まっている。いずれもディスク 1 本のサーバーでは使わない。デスクトップ向けか SAN 向け）:
       ```sh
       sudo systemctl disable --now multipathd.service multipathd.socket networkd-dispatcher.service udisks2.service
       sudo systemctl mask --now packagekit.service
       sudo reboot
       ```
-      入り直して `free -m` の Swap が 1023 前後、available が 200 MB 前後（2026-11-07 実測 218 MB）、
+      入り直して `free -m` の Swap が 1023 前後、available が Nano で 200 MB 前後（2026-11-07 実測 218 MB）、Micro のアプリ無しは測っていない）、
       `systemctl is-active multipathd multipathd.socket networkd-dispatcher udisks2 packagekit` が全部 `inactive`、`docker --version` が出れば終わり。
       snapd と amazon-ssm-agent は止めない（ブラウザ SSH の退路が SSM に頼るか確かめていない）。unattended-upgrades も止めない（セキュリティ更新）
    5. レジストリは `config/deploy.yml` の `registry.server: localhost:5555` のまま（Kamal の手元レジストリ）。
       `kamal` が Mac の Docker にレジストリのコンテナを立てて push し、サーバーは SSH のポート転送越しにそこから pull する。
       外部レジストリも PAT も要らない。代わりに `kamal setup` / `kamal deploy` の間は Mac で OrbStack を起動しておく。
       イメージも Mac でビルドする（`builder.arch: amd64`）。OrbStack が無ければ `brew install --cask orbstack` で入れて一度起動し、
-      `docker version` に Server が出るのを見る。サーバーでビルドする `builder.remote` は使わない（512 MB では bundle install とアセットのビルドが落ちる）
+      `docker version` に Server が出るのを見る。サーバーでビルドする `builder.remote` は使わない（1 GB でも bundle install とアセットのビルドはメモリが足りず、512 MB では落ちる）
 4-b. ドメイン `dopafeed.dev` は Cloudflare Registrar で取り、DNS は Cloudflare に置く（Lightsail の DNS ゾーンは使わない）
    1. 取得: Cloudflare ダッシュボード → Domain Registration → Register Domains で `dopafeed.dev` を検索して購入する（2026-11-07 取得済み）。
       Cloudflare は原価販売（レジストリ + ICANN 料金に上乗せ無し）で、更新も同額。
@@ -166,26 +167,30 @@
    ```ruby
    [Article.count, Article.where.not(summary: nil).count, ClaudeApiCall.where(created_at: Time.current.all_day).count]
    ```
-8. メモリを見る（初回と、しばらく使った後）。値は Issue に残す（4-c の判断材料）:
+8. メモリを見る（初回と、しばらく使った後）。値は Issue に残す（プランを上げるか、fork・YJIT を戻すかの判断材料）:
    ```sh
    ssh ubuntu@<静的IP> 'free -m; docker stats --no-stream; sudo dmesg | grep -i oom'
    ```
    Solid Queue が Puma の中で動いているかは `kamal console` で `SolidQueue::Process.pluck(:kind, :pid)`。
    pid が全部同じで `Supervisor(async)` があれば async（ADR 0003 の 2026-11-07 追記）
 
-4-c. 1 GB（$7 Micro）に上げる（ADR 0003 の基準に当たったら）
+4-c. プランを上げる（Nano → Micro は 2026-11-07 に実施。ADR 0003 の基準に当たったら）
    **新旧 2 台のアプリを同時に動かさない。** 両方が同じ S3 のパスへ複製してバックアップが壊れ、定期ジョブと Push が二重になり、
    Claude の日次予算も DB ごとに数えるので倍使える。
    1. `kamal app stop` で必ず止めてから、Lightsail でインスタンスの手動スナップショットを撮る（DB が静止した状態で写る。
       止めたコンテナはスナップショットから作った新しい方でも勝手には上がらない）
-   2. スナップショットから新しいインスタンスを作る。プランだけ $7 Micro を選び、名前は新しく付ける（例: `dopafeed-tokyo-2`）
+   2. スナップショットから新しいインスタンスを作る。プランだけ上のもの（2026-11-07 は $7 Micro）を選び、名前は新しく付ける（例: `dopafeed-tokyo-2`）
    3. **静的 IP を付け替える前に**、新しい方のファイアウォールを 4-a-3 のとおりにする（22 番が全開で上がることがある）
    4. 静的 IP（`dopafeed-ip`）を古い方から外して新しい方に付け、**古いインスタンスはすぐ Lightsail で停止する**（削除は 7 で）。
-      A レコードも `servers.web` も IP は変わらない
-   5. Mac で `ssh-keygen -R <静的IP>` を打ってから `ssh ubuntu@<静的IP>` で入る（作り直しでホスト鍵が変わり、そのままだと ssh も kamal も止まる）
-   6. `config/deploy.yml` の `SOLID_QUEUE_MODE` と `YJIT_ENABLED` の行を消して `kamal deploy`（fork・YJIT 有効の既定に戻る）。
-      その前に 8 の `free -m` と `docker stats` で、fork の 5 プロセスと deploy 中の新旧の重なりが 1 GB に収まりそうかを見る。苦しければ async は残す
-   7. 1-e で複製が続いているのを確かめ、数日動かしてから止めておいた古いインスタンスとスナップショットを消す
+      静的 IP が同じなので A レコードも `servers.web`（`dopafeed.dev`）も書き換えない
+      ただし AAAA を置いているなら、IPv6 は新しいインスタンスで変わる。5 で名前から繋ぐ前に新しい IPv6 へ書き換えるか消す
+      （古いままだと ssh と Kamal が止めた古い方の IPv6 へ繋ぎに行き、IPv6 の利用者も古い方へ届く）
+   5. Mac で `ssh-keygen -R dopafeed.dev` と `ssh-keygen -R <静的IP>` の両方を打ってから `ssh ubuntu@dopafeed.dev` で入る
+      （作り直しでホスト鍵が変わり、そのままだと ssh も kamal も止まる。known_hosts には名前と IP の両方で載っている）
+   6. `config/deploy.yml` はそのまま `kamal deploy`（async・YJIT 無しのまま上げる。2026-11-07 はこれで available 400 MB）。
+      `SOLID_QUEUE_MODE` と `YJIT_ENABLED` の行を消して fork・YJIT 有効の既定に戻すかは、8 の `free -m` と `docker stats` を
+      しばらく見てから別に決める（fork は Ruby プロセスが 4 本増え、deploy 中は新旧のコンテナが重なる）
+   7. 1-e で複製が続いているのを確かめたら（スナップショットの時刻は引き継がれるので `wal` の時刻で見る）古いインスタンスを消す（止めていても料金がかかる）。手動スナップショットは戻り先として数日残してから消す
    volume ごと移るので Litestream からの復元は要らない
 
 `LITESTREAM_BUCKET` / `LITESTREAM_REGION` が無いと server は起動しない（bin/docker-entrypoint）。バックアップ無しで静かに動くより止まるほうを選んでいる（ADR 0004）。
@@ -193,7 +198,7 @@
 ## 1. 復元
 
 ### 1-a. サーバーを作り直す（自動復元）
-新しいインスタンスで §0 4-a の 1〜4 をやり直す（静的 IP は古い方から外して付け替える。`ssh.user: ubuntu` なので Kamal は
+新しいインスタンスで §0 4-a の 1〜4 をやり直す（静的 IP は古い方から外して付け替え、Mac でホスト鍵を消す（4-c-5）。`ssh.user: ubuntu` なので Kamal は
 Docker を入れてくれない。swap とファイアウォールも手で入れる）。そのうえで `kamal setup`（デプロイを含む。`kamal deploy` を
 別に打つ必要は無い）。volume が空なので entrypoint の
 `litestream restore -if-db-not-exists -if-replica-exists` が S3 から `storage/production.sqlite3` を戻してから Puma が上がる。
