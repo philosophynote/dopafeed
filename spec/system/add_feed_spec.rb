@@ -5,13 +5,13 @@ RSpec.describe "AddFeed", type: :system do
     sign_in
     click_on "フィードを追加"
     within("dialog[open]") do
-      fill_in "フィードの URL", with: url
+      fill_in "フィードまたはサイトの URL", with: url
       page.execute_script("window.__feedFetch = window.fetch; window.fetch = (...args) => new Promise(resolve => { window.__releaseFeed = () => resolve(window.__feedFetch(...args)) })")
       click_on "追加", exact: true
       expect(page).to have_css("dialog button:disabled", count: 6)
       page.execute_script("window.fetch = window.__feedFetch; window.__releaseFeed()")
       expect(page).to have_text("サーバーエラー (HTTP 503)")
-      expect(page).to have_field("フィードの URL", with: url)
+      expect(page).to have_field("フィードまたはサイトの URL", with: url)
       stub_request(:get, url).to_return(body: file_fixture("feeds/rss2.xml").read)
       click_on "追加", exact: true
       expect(page).to have_text("Fixture RSS")
@@ -45,5 +45,29 @@ RSpec.describe "AddFeed", type: :system do
     expect(page).to have_text("登録済み")
     find("dialog").send_keys(:escape)
     expect(page).to have_no_css("dialog[open]")
+  end
+  it "サイトの入力を保って未検出・時間切れを表示し、検出した購読を一覧に反映する" do
+    site = "https://fixtures.example.com/"
+    stub_request(:get, site).to_return(body: "<html></html>", headers: { "Content-Type" => "text/html" })
+    %w[feed rss atom.xml index.xml].each { |path| stub_request(:get, "#{site}#{path}").to_return(status: 404) }
+    sign_in
+    visit feeds_path
+    click_on "フィードを追加"
+    fill_in "フィードまたはサイトの URL", with: site
+    click_on "追加", exact: true
+    expect(page).to have_text("フィードが見つかりません")
+    expect(page).to have_field("フィードまたはサイトの URL", with: site)
+    screenshot!("not_found")
+    allow(HttpGet).to receive(:call).and_raise(FeedDiscovery::Expired)
+    click_on "追加", exact: true
+    expect(page).to have_text("確認がタイムアウト")
+    expect(page).to have_field("フィードまたはサイトの URL", with: site)
+    allow(HttpGet).to receive(:call).and_call_original
+    stub_request(:get, "#{site}feed").to_return(body: file_fixture("feeds/rss2.xml").read)
+    click_on "追加", exact: true
+    expect(page).to have_text("Fixture RSS")
+    screenshot!("discovered")
+    click_on "閉じる"
+    expect(page).to have_css("[data-feed]", text: "Fixture RSS")
   end
 end
