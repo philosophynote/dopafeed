@@ -1,9 +1,10 @@
-<%# Reader の 1 枚。フィード名・見出し・出目の帯・Claude の 3 行要約（articles/_summary）と、元サイトを開く「記事を開く」。
+<%# Reader の 1 枚。OGP 画像（あれば上端）・フィード名・見出し・出目の帯・Claude の 3 行要約（articles/_summary）と、元サイトを開く「記事を開く」。
     本文は描かない。元サイトの見た目のまま、別窓（iPhone のホーム画面アプリではシート）で読む（ADR 0011）。
     その下に「読み終えた」の form を置き、判定が済んでいれば form の代わりに結果を出す（再読込で二度送らない） %>
 <% article = reading.article %>
 <div class="flex flex-col gap-4" data-controller="sheet" data-sheet-start-url-value="<%= start_reading_path(reading) %>">
   <article id="<%= dom_id(article, :reader) %>" class="rounded-2xl bg-white p-4 shadow-sm">
+    <%= render "articles/image", article: article %>
     <p class="flex items-center gap-2 text-xs text-gray-500">
       <span class="font-semibold text-gray-700"><%= article.feed.title %></span>
       <% if article.published_at %>
