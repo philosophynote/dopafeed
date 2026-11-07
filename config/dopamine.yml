@@ -18,6 +18,9 @@ shared:
   fetch:
     timeout_seconds: 10 # RSS・記事ページの HTTP 取得（HttpGet）。接続・読み取りとも
     max_body_megabytes: 5 # 応答本文（解凍後）の上限。超えたら読むのをやめて失敗にする
+  swipe:
+    dismiss_threshold_ratio: 0.4 # カード幅に対して、ここまで左へ引いて離すと「興味なし」を送る。手前で離すと戻る
+    submit_timeout_seconds: 10 # 「興味なし」の送信の応答をこの秒数待っても来なければ、送れなかった扱いでカードを戻す
   claude:
     summary_model: claude-haiku-5-5
     curation_model: claude-sonnet-5-5
