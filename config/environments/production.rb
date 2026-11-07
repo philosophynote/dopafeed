@@ -41,8 +41,8 @@ Rails.application.configure do
   # Change to "debug" to log everything (including potentially personally-identifiable information!).
   config.log_level = ENV.fetch("RAILS_LOG_LEVEL", "info")
 
-  # 512 MB のサーバーでは YJIT を切ってメモリを空ける（config/deploy.yml の YJIT_ENABLED、docs/decisions/0003）
-  config.yjit = ENV.fetch("YJIT_ENABLED", "true") == "true"
+  # 既定は有効。"false" と明示したときだけ切る（config/deploy.yml の YJIT_ENABLED）
+  config.yjit = ENV.fetch("YJIT_ENABLED", "true") != "false"
 
   # Prevent health checks from clogging up the logs.
   config.silence_healthcheck_path = "/up"

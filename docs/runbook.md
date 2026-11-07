@@ -119,11 +119,13 @@
       sudo reboot
       ```
       入り直して `free -m` の Swap が 1023 前後、available が 200 MB 前後（2026-11-07 実測 218 MB）、
-      `systemctl is-active multipathd.socket networkd-dispatcher udisks2 packagekit` が全部 `inactive`、`docker --version` が出れば終わり。
+      `systemctl is-active multipathd multipathd.socket networkd-dispatcher udisks2 packagekit` が全部 `inactive`、`docker --version` が出れば終わり。
       snapd と amazon-ssm-agent は止めない（ブラウザ SSH の退路が SSM に頼るか確かめていない）。unattended-upgrades も止めない（セキュリティ更新）
    5. レジストリは `config/deploy.yml` の `registry.server: localhost:5555` のまま（Kamal の手元レジストリ）。
       `kamal` が Mac の Docker にレジストリのコンテナを立てて push し、サーバーは SSH のポート転送越しにそこから pull する。
-      外部レジストリも PAT も要らない。代わりに `kamal setup` / `kamal deploy` の間は Mac で OrbStack を起動しておく
+      外部レジストリも PAT も要らない。代わりに `kamal setup` / `kamal deploy` の間は Mac で OrbStack を起動しておく。
+      イメージも Mac でビルドする（`builder.arch: amd64`）。OrbStack が無ければ `brew install --cask orbstack` で入れて一度起動し、
+      `docker version` に Server が出るのを見る。サーバーでビルドする `builder.remote` は使わない（512 MB では bundle install とアセットのビルドが落ちる）
 4-b. ドメイン `dopafeed.dev` は Cloudflare Registrar で取り、DNS は Cloudflare に置く（Lightsail の DNS ゾーンは使わない）
    1. 取得: Cloudflare ダッシュボード → Domain Registration → Register Domains で `dopafeed.dev` を検索して購入する（2026-11-07 取得済み）。
       Cloudflare は原価販売（レジストリ + ICANN 料金に上乗せ無し）で、更新も同額。
@@ -155,7 +157,10 @@
    Feed.create!(title: "Ruby on Rails Blog", url: "https://rubyonrails.org/blog/feed.xml", site_url: "https://rubyonrails.org/blog")
    FetchAllFeedsJob.perform_later
    ```
-   要約は 10 分おきの Job が付ける。`kamal logs | grep "\[claude\]"` で呼び出しが見える
+   要約は 10 分おきの Job が付ける。付いたかは console で見る（成功した呼び出しはログに出ない。`[claude]` が出るのは予算切れなどで捨てたときだけ）:
+   ```ruby
+   [Article.count, Article.where.not(summary: nil).count, ClaudeApiCall.where(created_at: Time.current.all_day).count]
+   ```
 8. メモリを見る（初回と、しばらく使った後）。値は Issue に残す（4-c の判断材料）:
    ```sh
    ssh ubuntu@<静的IP> 'free -m; docker stats --no-stream; sudo dmesg | grep -i oom'
@@ -164,12 +169,18 @@
    pid が全部同じで `Supervisor(async)` があれば async（ADR 0003 の 2026-11-07 追記）
 
 4-c. 1 GB（$7 Micro）に上げる（ADR 0003 の基準に当たったら）
-   1. Lightsail でインスタンスの手動スナップショットを撮る（`kamal app stop` してから撮ると DB が静止した状態で写る）
+   **新旧 2 台のアプリを同時に動かさない。** 両方が同じ S3 のパスへ複製してバックアップが壊れ、定期ジョブと Push が二重になり、
+   Claude の日次予算も DB ごとに数えるので倍使える。
+   1. `kamal app stop` で必ず止めてから、Lightsail でインスタンスの手動スナップショットを撮る（DB が静止した状態で写る。
+      止めたコンテナはスナップショットから作った新しい方でも勝手には上がらない）
    2. スナップショットから新しいインスタンスを作る。プランだけ $7 Micro を選び、名前は新しく付ける（例: `dopafeed-tokyo-2`）
-   3. 静的 IP（`dopafeed-ip`）を古い方から外し、新しい方にすぐ付ける。A レコードも `servers.web` も IP は変わらない
-   4. 新しい方のファイアウォールが 4-a-3 のとおりかを見る（スナップショットからの作成では引き継がれないことがある）
-   5. `config/deploy.yml` の `SOLID_QUEUE_MODE` と `YJIT_ENABLED` の行を消して `kamal deploy`（fork・YJIT 有効の既定に戻る）
-   6. 1-e で複製が続いているのを確かめ、数日動かしてから古いインスタンスとスナップショットを消す
+   3. **静的 IP を付け替える前に**、新しい方のファイアウォールを 4-a-3 のとおりにする（22 番が全開で上がることがある）
+   4. 静的 IP（`dopafeed-ip`）を古い方から外して新しい方に付け、**古いインスタンスはすぐ Lightsail で停止する**（削除は 7 で）。
+      A レコードも `servers.web` も IP は変わらない
+   5. Mac で `ssh-keygen -R <静的IP>` を打ってから `ssh ubuntu@<静的IP>` で入る（作り直しでホスト鍵が変わり、そのままだと ssh も kamal も止まる）
+   6. `config/deploy.yml` の `SOLID_QUEUE_MODE` と `YJIT_ENABLED` の行を消して `kamal deploy`（fork・YJIT 有効の既定に戻る）。
+      その前に 8 の `free -m` と `docker stats` で、fork の 5 プロセスと deploy 中の新旧の重なりが 1 GB に収まりそうかを見る。苦しければ async は残す
+   7. 1-e で複製が続いているのを確かめ、数日動かしてから止めておいた古いインスタンスとスナップショットを消す
    volume ごと移るので Litestream からの復元は要らない
 
 `LITESTREAM_BUCKET` / `LITESTREAM_REGION` が無いと server は起動しない（bin/docker-entrypoint）。バックアップ無しで静かに動くより止まるほうを選んでいる（ADR 0004）。

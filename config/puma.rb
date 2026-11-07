@@ -37,9 +37,13 @@ plugin :tmp_restart
 # Run the Solid Queue supervisor inside of Puma for single-server deployments.
 plugin :solid_queue if ENV["SOLID_QUEUE_IN_PUMA"]
 
-# 既定の fork は supervisor・worker・dispatcher・scheduler を別プロセスにする。小さいサーバーでは async で 1 プロセスにまとめる
-# （config/deploy.yml の SOLID_QUEUE_MODE、docs/decisions/0003）。solid_queue_mode は上の plugin が読み込まれて初めて使える
-solid_queue_mode ENV.fetch("SOLID_QUEUE_MODE", "fork") if ENV["SOLID_QUEUE_IN_PUMA"]
+# solid_queue_mode は上の plugin が読み込まれて初めて使える。plugin は :async 以外を黙って fork に倒すので、綴り違いは起動時に落とす
+if ENV["SOLID_QUEUE_IN_PUMA"]
+  solid_queue_mode_name = ENV.fetch("SOLID_QUEUE_MODE", "fork")
+  raise ArgumentError, "SOLID_QUEUE_MODE must be fork or async, got #{solid_queue_mode_name.inspect}" unless %w[fork async].include?(solid_queue_mode_name)
+
+  solid_queue_mode solid_queue_mode_name
+end
 
 # Specify the PID file. Defaults to tmp/pids/server.pid in development.
 # In other environments, only set the PID file if requested.

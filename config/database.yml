@@ -26,6 +26,9 @@ production:
   primary:
     <<: *default
     database: storage/production.sqlite3
+    # SOLID_QUEUE_MODE=async ではジョブのスレッドも Puma と同じプロセスで primary を使う。
+    # Puma のスレッド（RAILS_MAX_THREADS、既定 3）＋ queue.yml の worker の threads（3）＋予備 2
+    max_connections: 8
   cache:
     <<: *default
     database: storage/production_cache.sqlite3
@@ -33,8 +36,9 @@ production:
   queue:
     <<: *default
     database: storage/production_queue.sqlite3
-    # Solid Queue を async で Puma に同居させると、queue の接続が 1 プロセスに集まる:
-    # worker（スレッド 3 ＋ポーリング＋heartbeat）、dispatcher、scheduler、supervisor、ジョブを積む Puma のスレッド 3
+    # async では queue の接続が 1 プロセスに集まる。worker 5（queue.yml の threads 3 ＋ポーリング＋heartbeat）、
+    # dispatcher 2（ポーリング＋同時実行の保守）、scheduler 1、supervisor の heartbeat 1、ジョブを積む Puma のスレッド 3。
+    # RAILS_MAX_THREADS か queue.yml の threads を変えたらここも足し直す（Solid Queue の警告は worker 分しか見ない）
     max_connections: 12
     migrations_paths: db/queue_migrate
   cable:

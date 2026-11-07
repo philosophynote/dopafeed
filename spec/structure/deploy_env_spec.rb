@@ -6,7 +6,7 @@ RSpec.describe "config/deploy.yml の env" do
 
   it "app/ と lib/ が読む環境変数を全部渡している" do
     read = Dir[Rails.root.join("{app,lib}/**/*.rb")].flat_map do |f|
-      File.read(f).scan(/ENV(?:\.fetch\(|\[)\s*["']([A-Z0-9_]+)["']/).flatten
+      File.readlines(f).grep_v(/^\s*#/).join.scan(/ENV(?:\.fetch\(|\[)\s*["']([A-Z0-9_]+)["']/).flatten
     end.uniq
 
     missing = read - declared

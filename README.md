@@ -7,7 +7,7 @@ Swift 版（参考・後で削除予定）: ../dopafeed-swift
 ## 決定事項
 - Ruby 4.0.7 / Rails 8.1.4 / Kamal 2.12（2026-10-11 時点の最新）
 - SQLite + Solid Queue + Solid Cache（Rails 8 標準構成）
-- デプロイ: AWS Lightsail $7 プラン（Micro、1GB）に Kamal + Docker
+- デプロイ: AWS Lightsail に Kamal + Docker。まず $5 Nano（512 MB）、苦しければ $7 Micro（1 GB）へ（ADR 0003）
 - Claude API: 3 行要約（Haiku）、朝の 3 本選定・ネタのクエスト生成（Sonnet）、週次コメント
 - アウトプット側は article-vault（GitHub）へサーバーからコミット
 

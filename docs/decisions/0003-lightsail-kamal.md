@@ -1,4 +1,4 @@
-# ADR 0003: AWS Lightsail $7（Micro、1 GB）に Kamal でデプロイ
+# ADR 0003: AWS Lightsail に Kamal でデプロイ（2026-11-07 追記: まず $5 Nano 512 MB、苦しければ $7 Micro 1 GB）
 日付: 2026-10-22 状態: 採用
 Puma 1 worker + Solid Queue 1 プロセス + SQLite を一コンテナで。`kamal deploy` は nao が Mac から打つ。自動デプロイは Unit 10 を超えてから再検討。
 
@@ -17,13 +17,16 @@ Puma 1 worker + Solid Queue 1 プロセス + SQLite を一コンテナで。`kam
   snapd と amazon-ssm-agent は残す（ブラウザ SSH の退路が SSM に頼るか確かめていない）。unattended-upgrades も残す（公開サーバーのセキュリティ更新）
 - 512 MB の間は二つ切り替える。どちらも config/deploy.yml の env で、1 GB に上げたら行を消して既定に戻す:
   - Solid Queue を async（`SOLID_QUEUE_MODE=async`）。fork だと Puma の他に supervisor・dispatcher・worker・scheduler の 4 プロセスが立ち、
-    手元の production 起動で RSS がそれぞれ約 155 MB（共有ページを含む）。async は 1 プロセス約 180 MB に収まる。
-    Solid Queue の README は fork を勧めるが、理由は隔離と性能で、一人用のジョブ量では効かない。queue DB の接続数は async の合算で 12 にした
+    手元の production 起動で RSS がそれぞれ約 155 MB、async は 1 プロセス約 180 MB。RSS は fork 元と共有するページも数えるので fork 側は多めに出る。
+    本番イメージ（Ruby 4.0.7、jemalloc）での値は runbook §0-8 で測り直す。
+    Solid Queue の README は fork を勧めるが、理由は隔離と性能で、一人用のジョブ量では効かない。
+    async ではジョブのスレッドも Puma のプロセスに入るので、DB の接続数を primary 8・queue 12 に足した（内訳は config/database.yml）
   - YJIT を切る（`YJIT_ENABLED=false`）。速さよりメモリ
 - 1 GB（$7 Micro）に上げる基準: ① `dmesg` に OOM kill、② deploy 中でない平常時に swap 使用が 300 MB を超え続ける、③ 表示が体感で遅い。
   どれか一つで上げる。上げ方は docs/runbook.md §0 4-c（スナップショットから作り直し、静的 IP を付け替え。volume ごと移るので Litestream の復元は要らない）
 - ドメインは `dopafeed.dev`（Cloudflare Registrar、DNS も Cloudflare）。.dev は HSTS preload 済みでブラウザが最初から https しか使わず、force_ssl と食い違わない
 - 訂正: kamal-proxy の Let's Encrypt の認証は 443 番で受ける（Kamal 2.12 の configuration/docs/proxy.yml「port 443 must be open for the Let's Encrypt challenge」）。
-  上の「HTTP-01」は誤り。80 番は HTTP → HTTPS 転送のために開ける。DNS only にする理由は、Cloudflare が 443 を受けると認証がサーバーに届かないから
+  上の「HTTP-01 の経路」という書き方は不正確（80 番で受けるかまでは確かめていない）。80 と 443 はどちらも開ける。
+  DNS only にする理由は、Cloudflare が 443 を受けると認証がサーバーに届かないから
 - レジストリは `localhost:5555`（Kamal の手元レジストリ）。Mac の Docker にレジストリを立て、SSH のポート転送でサーバーに pull させる。外部レジストリと PAT が要らない。
   代わりに `kamal deploy` の間、Mac で Docker（OrbStack）が動いている必要がある
