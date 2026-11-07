@@ -1,14 +1,14 @@
-<%# 下タブ。フィードだけ有効で現在地。保存・レポート・購読は画面ができるまで無効（見た目とタップ領域は保つ） %>
+<%# 保存・レポートは無効のまま、フィードと購読の現在地を示す %>
 <nav class="fixed inset-x-0 bottom-0 border-t border-gray-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur" aria-label="タブバー">
   <ul class="mx-auto grid max-w-md grid-cols-4">
     <li>
-      <%= link_to root_path, class: "relative flex h-14 flex-col items-center justify-center text-xs font-semibold text-orange-600", "aria-current": "page" do %>
+      <%= link_to root_path, class: "relative flex h-14 flex-col items-center justify-center text-xs font-semibold text-gray-500 aria-[current=page]:text-orange-600", "aria-label": "フィード", "aria-current": current_page?(root_path) ? "page" : nil do %>
         <span class="text-xl" aria-hidden="true">📰</span>
         <span>フィード</span>
         <%= render "main/unread_badge", unread_count: @unread_count %>
       <% end %>
     </li>
-    <% [ [ "🔖", "保存" ], [ "📈", "レポート" ], [ "📡", "購読" ] ].each do |icon, label| %>
+    <% [ [ "🔖", "保存" ], [ "📈", "レポート" ] ].each do |icon, label| %>
       <li>
         <span class="flex h-14 flex-col items-center justify-center text-xs text-gray-400" aria-disabled="true">
           <span class="text-xl" aria-hidden="true"><%= icon %></span>
@@ -16,5 +16,11 @@
         </span>
       </li>
     <% end %>
+    <li>
+      <%= link_to feeds_path, class: "flex h-14 flex-col items-center justify-center text-xs font-semibold text-gray-500 aria-[current=page]:text-orange-600", "aria-current": current_page?(feeds_path) ? "page" : nil do %>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-6 w-6" aria-hidden="true"><circle cx="5" cy="19" r="1"></circle><path d="M4 11a9 9 0 0 1 9 9M4 4a16 16 0 0 1 16 16"></path></svg>
+        <span>購読</span>
+      <% end %>
+    </li>
   </ul>
 </nav>
