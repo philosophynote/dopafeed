@@ -260,6 +260,8 @@ RSpec.describe "Readings", type: :request do
 
         expect(response.media_type).to eq("text/vnd.turbo-stream.html")
         expect(reading.reload).to be_completed
+        # 完読で未読が 2 本（新しい記事・次の記事）になり、アイコンのバッジも書き直す
+        expect(page).to have_css("turbo-stream[action='replace'][target='app-badge'] #app-badge[data-badge-count-value='2']", visible: :all)
         expect(reading.xp).to eq(base)
         divider = page.find("turbo-stream[action='replace'][target='end_reading_#{reading.id}']")
         expect(divider).to have_css("section[aria-label='判定']", text: "読了！")

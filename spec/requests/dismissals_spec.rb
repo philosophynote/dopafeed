@@ -39,6 +39,7 @@ RSpec.describe "Dismissals", type: :request do
         expect(card).to have_no_button("読む")
         expect(page.find("turbo-stream[action='update'][target='unread-count']")).to have_text("1")
         expect(page.find("turbo-stream[action='replace'][target='unread-badge']")).to have_css("[data-unread-badge]", text: "1")
+        expect(page).to have_css("turbo-stream[action='replace'][target='app-badge'] #app-badge[data-badge-count-value='1']", visible: :all)
       end
 
       it "Reading を作らず、読了・XP・今日のゴール・コンボ・ストリークを変えない" do
@@ -100,6 +101,7 @@ RSpec.describe "Dismissals", type: :request do
         expect(card).to have_no_button("元に戻す")
         expect(page.find("turbo-stream[action='update'][target='unread-count']")).to have_text("1")
         expect(page.find("turbo-stream[action='replace'][target='unread-badge']")).to have_css("[data-unread-badge]", text: "1")
+        expect(page).to have_css("turbo-stream[action='replace'][target='app-badge'] #app-badge[data-badge-count-value='1']", visible: :all)
       end
 
       it "興味なしにした後に読み終えていた記事は、カードを戻さず帯だけ消す（未読ではない）" do

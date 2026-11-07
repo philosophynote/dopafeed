@@ -5,10 +5,10 @@
 </header>
 
 <section class="mt-4 rounded-2xl bg-white shadow-sm" aria-label="ホーム画面">
-  <button type="button" class="flex h-14 w-full items-center justify-between px-4 text-left text-gray-400" disabled>
+  <%= link_to install_path, class: "flex h-14 w-full items-center justify-between px-4 text-left active:bg-orange-50" do %>
     <span>ホーム画面に追加</span>
-    <span class="text-xs">準備中</span>
-  </button>
+    <span class="text-xs text-gray-400">通知・バッジ ›</span>
+  <% end %>
 </section>
 
 <section class="mt-4 rounded-2xl bg-white shadow-sm" aria-label="アカウント">

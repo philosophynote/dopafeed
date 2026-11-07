@@ -7,13 +7,15 @@ Rails.application.routes.draw do
   # Can be used by load balancers and uptime monitors to verify that the app is live.
   get "up" => "rails/health#show", as: :rails_health_check
 
-  # Render dynamic PWA files from app/views/pwa/* (remember to link manifest in application.html.erb)
-  # get "manifest" => "rails/pwa#manifest", as: :pwa_manifest
-  # get "service-worker" => "rails/pwa#service_worker", as: :pwa_service_worker
+  # PWA の manifest と service worker（app/views/pwa/）。ホーム画面に追加する前に読まれるので認証の外（Rails::PwaController）
+  get "manifest" => "rails/pwa#manifest", as: :pwa_manifest
+  get "service-worker" => "rails/pwa#service_worker", as: :pwa_service_worker
 
   # ログイン後の着地点（after_authentication_url が root_url を使う）
   root "main#show"
   resource :learning, only: :show, controller: :learning
+  # ホーム画面に追加する手順と、通知・バッジの入口
+  resource :install, only: :show, controller: :install
   # 今日のゴール（宝箱）。描くだけで書き込まない
   resource :daily_goal, only: :show
   resources :articles, only: [] do

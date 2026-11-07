@@ -2,3 +2,6 @@
 <%= turbo_stream.replace "unread-badge" do %>
   <%= render "main/unread_badge", unread_count: unread_count %>
 <% end %>
+<%= turbo_stream.replace "app-badge" do %>
+  <%= render "shared/app_badge", unread_count: unread_count %>
+<% end %>
