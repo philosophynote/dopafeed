@@ -1,4 +1,4 @@
-# Main のカードを読まずに片付ける（docs/screens/swipe.md）。「興味なし」で消え、「元に戻す」で戻る、左スワイプで同じことが起きる、を 390×844 で通す。
+# Main の行を読まずに片付ける（docs/screens/swipe.md）。左スワイプで帯に替わり、「元に戻す」で戻る、を 390×844 で通す。「興味なし」の見えるボタンは無い。
 # スワイプは Pointer Events を JS から送って作る（system spec は touch を切っている。spec/support/system_click.rb）。
 # 本物の指との違いは座標の出どころだけで、横か縦かの判定・閾値・form の送信は同じ道を通る
 RSpec.describe "Swipe", type: :system do
@@ -46,16 +46,18 @@ RSpec.describe "Swipe", type: :system do
     card_shift(title)
   end
 
-  it "「興味なし」でカードが帯に替わり未読数が減り、「元に戻す」でカードが戻る" do
+  it "左スワイプで行が帯に替わり未読数が減り、「元に戻す」で行が戻る" do
     create(:article, title: "関心の無い記事", published_at: now - 1.hour)
     create(:article, title: "読みたい記事", published_at: now - 2.hours)
     sign_in
+    width = card_width("関心の無い記事")
 
     expect(page).to have_text("未読 2 件")
-    within("article", text: "関心の無い記事") { click_on "興味なし" }
+    expect(page).to have_no_button("削除")
+    drag_card("関心の無い記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 1.3, 40 ])
 
     # 帯は見出しだけを省略するために 3 つの span に分かれ、見える文字は改行を挟んで読まれる。文として一致させず、帯の中に見出しがあることを見る
-    strip = find("li", text: "を興味なしにした")
+    strip = find("li", text: "を削除した")
     expect(strip).to have_text("関心の無い記事")
     expect(strip).to have_button("元に戻す")
     expect(page).to have_css("article", count: 1)
@@ -67,7 +69,7 @@ RSpec.describe "Swipe", type: :system do
     click_on "元に戻す"
 
     expect(page).to have_css("article", count: 2)
-    expect(page).to have_no_text("を興味なしにした")
+    expect(page).to have_no_text("を削除した")
     expect(page).to have_text("未読 2 件")
     expect(Article.find_by(title: "関心の無い記事")).not_to be_dismissed
   end
@@ -83,12 +85,20 @@ RSpec.describe "Swipe", type: :system do
     drag_card("飛ばす記事", from: [ width / 2, 40 ], to: [ width / 2 - pull, 40 ], release: false)
     expect(card_shift("飛ばす記事")).to be < -(pull * 0.8)
     expect(rail_opacity("飛ばす記事")).to be > 0.3
-    expect(page).to have_css("[data-swipe-target='rail']", text: "興味なし")
+    # 引いた幅だけ右から赤い丸型の背景が伸び、ゴミ箱のアイコンと「削除」が出る（閾値の手前ではまだ薄い色）
+    rail = find("article", text: "飛ばす記事").find(:xpath, "..").find("[data-swipe-target='rail']", visible: :all)
+    expect(rail).to have_css("svg", visible: :all)
+    expect(rail).to have_text("削除", normalize_ws: true)
+    expect(rail.evaluate_script("this.getBoundingClientRect().width")).to be_within(16).of(pull)
+    expect(rail[:class]).not_to include("swipe-armed")
     expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "引いている間に横スクロールが出ている"
     screenshot!("swiping")
 
-    drag_card("飛ばす記事", from: [ width / 2 - pull, 40 ], to: [ width / 2 - width * dismiss_ratio * 1.3, 40 ])
-    expect(page).to have_text("を興味なしにした")
+    drag_card("飛ばす記事", from: [ width / 2 - pull, 40 ], to: [ width / 2 - width * dismiss_ratio * 1.1, 40 ], release: false)
+    expect(rail[:class]).to include("swipe-armed")
+    screenshot!("armed")
+    drag_card("飛ばす記事", from: [ width / 2 - width * dismiss_ratio * 1.1, 40 ], to: [ width / 2 - width * dismiss_ratio * 1.3, 40 ])
+    expect(page).to have_text("を削除した")
     expect(page).to have_css("article", count: 1)
     expect(page).to have_text("未読 1 件")
     expect(Article.find_by(title: "飛ばす記事")).to be_dismissed
@@ -111,10 +121,18 @@ RSpec.describe "Swipe", type: :system do
     expect(settled_shift("戻る記事")).to eq(0)
     expect(rail_opacity("戻る記事")).to eq(0)
 
-    # ボタンの上から始めた触りはタップに任せ、引いてもカードは動かない
+    # 行全体は「読む」のボタン。その上から始めた触りも引け、引いて戻した後に来る click では読まない
     read_button = find("article", text: "戻る記事").find_button("読む")
-    drag_card("戻る記事", from: [ width - 40, 100 ], to: [ width - 40 - width * dismiss_ratio * 1.5, 100 ], on: read_button)
+    drag_card("戻る記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 0.6, 40 ], on: read_button, release: false)
+    expect(card_shift("戻る記事")).to be < 0
+    read_button.execute_script(<<~JS)
+      const rect = this.getBoundingClientRect()
+      this.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 7, pointerType: "touch", isPrimary: true, clientX: rect.left + 40, clientY: rect.top + 40 }))
+    JS
     expect(settled_shift("戻る記事")).to eq(0)
+    read_button.execute_script("this.click()")
+    expect(page).to have_no_css("[role='dialog'][aria-label='ルーレット']")
+    expect(Article.find_by(title: "戻る記事").reading).to be_nil
 
     # 縦に動いた触りはスクロールに任せ、横へ少し流れてもカードは動かない
     drag_card("戻る記事", from: [ width / 2, 20 ], to: [ width / 2 - 30, 160 ])
@@ -138,7 +156,7 @@ RSpec.describe "Swipe", type: :system do
     drag_card("一枚目", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
     drag_card("二枚目", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
 
-    expect(page).to have_css("li", text: "を興味なしにした", count: 2)
+    expect(page).to have_css("li", text: "を削除した", count: 2)
     expect(page).to have_no_css("article")
     expect(page).to have_text("未読 0 件")
     expect(Article.where.not(dismissed_at: nil).count).to eq(2)
@@ -159,7 +177,7 @@ RSpec.describe "Swipe", type: :system do
 
     page.execute_script("window.fetch = window.__fetch")
     drag_card("圏外の記事", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
-    expect(page).to have_text("を興味なしにした")
+    expect(page).to have_text("を削除した")
     expect(Article.find_by(title: "圏外の記事")).to be_dismissed
   end
 
@@ -185,7 +203,7 @@ RSpec.describe "Swipe", type: :system do
 
     page.execute_script("window.fetch = window.__fetch")
     drag_card("次の記事", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
-    expect(page).to have_text("を興味なしにした")
+    expect(page).to have_text("を削除した")
     expect(Article.find_by(title: "次の記事")).to be_dismissed
   end
 end

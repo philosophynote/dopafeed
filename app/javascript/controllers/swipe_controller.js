@@ -1,15 +1,14 @@
 import { Controller } from "@hotwired/stimulus"
 import { EDGE_PX, LOCK_PX } from "controllers/swipe_thresholds"
 
-// 一覧のカード 1 枚。左へ引いて離すと「興味なし」の form を送る。記録と差し替えはサーバー（Turbo Stream）の仕事で、ここは指の動きを form の送信に変えるだけ。
+// 一覧の 1 行。左へ引いて離すと「興味なし」の form を送り、触れて離すと「読む」の form を送る。記録と差し替えはサーバー（Turbo Stream）の仕事で、ここは指の動きを form の送信に変えるだけ。
+// 行全体が「読む」のボタンなので、引く操作とタップを同じコントローラで見分ける（引いた後の click を読みにしない）。
 // Pointer Events を使うのは、iPhone の指も Mac のマウスも同じ道で扱い、touch 固有の API を持たないため。
 // 縦の動きはブラウザのスクロールに任せ（CSS の touch-action: pan-y）、横と決めてからカードを指に追従させる。
 // 右へ引いても動かさない（右に充てる動作は無い。ADR 0012）
 
 // 送るときに流す先。カード幅より大きくして画面の外まで出す
 const FLY_OUT_RATIO = 1.2
-// 引いている間に傾ける最大の角度。流れ出す感じを出すだけの演出
-const MAX_TILT_DEG = 6
 // transitionend を待つ上限に足す余裕。合図が来なくても止まった頃に次へ進むため
 const SETTLE_MARGIN_MS = 100
 
@@ -18,7 +17,7 @@ const SETTLE_MARGIN_MS = 100
 let submissions = Promise.resolve()
 
 export default class extends Controller {
-  static targets = ["card", "rail", "form"]
+  static targets = ["card", "rail", "form", "read"]
   // 送る閾値（カード幅に対する比）と、送信の応答を待つ上限（秒）。dopamine.yml の値を view が渡す
   static values = { dismissRatio: Number, submitTimeoutSeconds: Number }
 
@@ -28,9 +27,11 @@ export default class extends Controller {
   }
 
   start(event) {
-    if (this.flying || !event.isPrimary || event.button !== 0 || event.clientX < EDGE_PX) return
-    // ボタンやリンクの上から始まった触りはタップとして押させる（押しながら引く操作は要らない）
-    if (event.target.closest("a, button, input, select, textarea")) return
+    this.swiped = false
+    if (this.flying || this.opening || !event.isPrimary || event.button !== 0 || event.clientX < EDGE_PX) return
+    // 行を覆う「読む」以外のボタンやリンクの上から始まった触りはタップとして押させる（押しながら引く操作は要らない）
+    const control = event.target.closest("a, button, input, select, textarea")
+    if (control && control !== this.readTarget) return
 
     this.pointerId = event.pointerId
     this.startX = event.clientX
@@ -40,6 +41,7 @@ export default class extends Controller {
     this.dx = 0
     this.settleCleanup?.()
     this.cardTarget.classList.remove("swipe-settling")
+    this.railTarget.classList.remove("swipe-settling")
   }
 
   move(event) {
@@ -55,6 +57,7 @@ export default class extends Controller {
       if (Math.abs(dx) < LOCK_PX) return
 
       this.horizontal = true
+      this.swiped = true
       this.element.classList.add("swipe-active")
       this.capture()
     }
@@ -95,10 +98,14 @@ export default class extends Controller {
     return this.cardTarget.offsetWidth * this.dismissRatioValue
   }
 
+  // 引いた幅だけ背景を伸ばし、閾値に届いたら色を変えて「離せば消える」と知らせる
   render(dx) {
     const progress = Math.min(1, -dx / this.threshold())
-    this.cardTarget.style.transform = dx === 0 ? "" : `translateX(${dx}px) rotate(${-MAX_TILT_DEG * progress}deg)`
+    // 一覧の行は横へ平らに滑らせる（傾けると隣の行と背景の丸に食い込む）
+    this.cardTarget.style.transform = dx === 0 ? "" : `translateX(${dx}px)`
     this.railTarget.style.opacity = progress
+    this.railTarget.style.width = `${-dx}px`
+    this.railTarget.classList.toggle("swipe-armed", progress >= 1)
   }
 
   // 離した後の動き（戻る・流れ出す）は CSS の transition に任せ、止まってから done を呼ぶ。
@@ -107,6 +114,7 @@ export default class extends Controller {
     this.settleCleanup?.()
     const card = this.cardTarget
     card.classList.add("swipe-settling")
+    this.railTarget.classList.add("swipe-settling")
     const duration = parseFloat(getComputedStyle(card).transitionDuration) * 1000
     this.render(dx)
 
@@ -133,31 +141,47 @@ export default class extends Controller {
     this.settle(-this.cardTarget.offsetWidth * FLY_OUT_RATIO, () => this.submit())
   }
 
+  // 送れなかったら（圏外など）行を戻して、もう一度引けるようにする
   submit() {
+    this.enqueue(this.formTarget, null, (success) => { if (!success) this.restore() })
+  }
+
+  // form を列に並べて送り、turbo:submit-end（または時間切れ）で done(成功したか) を呼ぶ
+  enqueue(form, submitter, done) {
     submissions = submissions.then(() => new Promise((resolve) => {
-      const form = this.formTarget
       if (!form.isConnected) return resolve()
 
-      // 列は必ず進める。結果を待たずに外されても（画面を移ってカードが消えた）ここで解いて、次のカードが止まらないようにする
+      // 列は必ず進める。結果を待たずに外されても（画面を移って行が消えた）ここで解いて、次の行が止まらないようにする
       const finish = () => {
         clearTimeout(timer)
         document.removeEventListener("turbo:submit-end", ended)
         this.submitCleanup = null
         resolve()
       }
-      // 送れなかったら（圏外など）カードを戻して、もう一度引けるようにする
       const ended = (event) => {
         if (event.target !== form) return
 
         finish()
-        if (!event.detail.success) this.restore()
+        done(event.detail.success)
       }
-      // 応答が来ないまま待ち続けない。送れなかった扱いでカードを戻す（届いていれば後から Turbo が差し替える）
-      const timer = setTimeout(() => { finish(); this.restore() }, this.submitTimeoutSecondsValue * 1000)
+      // 応答が来ないまま待ち続けない。送れなかった扱いにする（届いていれば後から Turbo が差し替える）
+      const timer = setTimeout(() => { finish(); done(false) }, this.submitTimeoutSecondsValue * 1000)
       document.addEventListener("turbo:submit-end", ended)
       this.submitCleanup = finish
-      form.requestSubmit()
+      form.requestSubmit(submitter)
     }))
+  }
+
+  // 「読む」のボタンの click。横へ引いた触りの後に来た click は読まない（引いて戻した行が開いてしまう）。
+  // 送信は興味なしと同じ列に並べる（送信中の興味なしの応答を Turbo に捨てさせない）。二度押しでルーレットを重ねない
+  open(event) {
+    event.preventDefault()
+    const swiped = this.swiped
+    this.swiped = false
+    if (swiped || this.flying || this.opening) return
+
+    this.opening = true
+    this.enqueue(this.readTarget.form, this.readTarget, () => { this.opening = false })
   }
 
   restore() {

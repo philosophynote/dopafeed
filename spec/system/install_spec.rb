@@ -202,7 +202,8 @@ RSpec.describe "Install", type: :system do
 
     sign_in
     expect_last_badge(2)
-    click_on "興味なし", match: :first
+    # 興味なしは左スワイプが隠れた form を送る。ここではバッジだけ見るので form を直に送る
+    page.execute_script("document.querySelector('article form[data-swipe-target=form]').requestSubmit()")
 
     expect(page).to have_text("元に戻す")
     expect_last_badge(1)

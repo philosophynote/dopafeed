@@ -28,21 +28,22 @@ RSpec.describe "Main", type: :request do
       expect(page.all("article h2").map(&:text)).to eq(%w[新しい 中くらい 古い])
     end
 
-    it "カードにフィード名・相対時刻（日本語）・要約（2 行で切る）・「読む」が出る" do
+    it "行に見出し・フィード名・相対時刻（日本語）が出て、行全体が「読む」の POST。要約と文字ボタンは出さない" do
       feed = create(:feed, title: "Ruby Weekly")
-      create(:article, feed: feed, title: "記事 A", summary: "・一\n・二\n・三", url: "https://example.com/a", published_at: noon - 3.hours)
+      article = create(:article, feed: feed, title: "記事 A", summary: "・一\n・二\n・三", url: "https://example.com/a", published_at: noon - 3.hours)
 
       travel_to(noon) { get root_path }
 
       card = page.find("article")
+      expect(card).to have_css("h2", text: "記事 A")
       expect(card).to have_text("Ruby Weekly")
       expect(card).to have_text("約3時間前")
-      expect(card).to have_css("p.line-clamp-2", text: "・一")
-      expect(card).to have_button("読む")
+      expect(card).to have_no_text("・一")
+      expect(card.find("form[action='#{article_reading_path(article)}']")).to have_button("「記事 A」を読む")
     end
 
-    it "興味なしにした記事はカードにも未読数にも出ない。カードには「興味なし」のボタンがある" do
-      create(:article, title: "残る記事")
+    it "興味なしにした記事は行にも未読数にも出ない。「興味なし」は見えるボタンにせず、スワイプが送る form だけ置く" do
+      article = create(:article, title: "残る記事")
       create(:article, :dismissed, title: "興味なしの記事")
 
       get root_path
@@ -50,7 +51,8 @@ RSpec.describe "Main", type: :request do
       expect(page).to have_css("article h2", text: "残る記事")
       expect(page).to have_no_text("興味なしの記事")
       expect(page).to have_text("未読 1 件")
-      expect(page.find("article")).to have_button("興味なし")
+      expect(page.find("article")).to have_no_button("削除")
+      expect(page.find("article")).to have_css("form[hidden][action='#{article_dismissal_path(article)}'][data-swipe-target='form']", visible: :all)
     end
 
     it "published_at が無い記事は相対時刻を出さない" do
