@@ -94,7 +94,7 @@ RSpec.describe Push::Sender do
     [ vapid.merge("VAPID_PRIVATE_KEY" => "broken"), vapid.merge("VAPID_PUBLIC_KEY" => other_key.public_key) ].each do |env|
       expect { with_env(env) { described_class.new } }.to raise_error(described_class::ConfigurationError, /VAPID 鍵が読めません/)
     end
-    [ "nao@example.com", "http://example.com", "mailto:" ].each do |subject|
+    [ "nao@example.com", "http://example.com", "mailto:", "https:///", "https://", "https:// x", "" ].each do |subject|
       expect { with_env(vapid.merge("VAPID_SUBJECT" => subject)) { described_class.new } }.to raise_error(described_class::ConfigurationError, /subject/)
     end
     with_env(vapid.merge("VAPID_SUBJECT" => "https://dopafeed.example.com/")) { described_class.new }

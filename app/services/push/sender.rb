@@ -14,15 +14,13 @@ module Push
     class ConfigurationError < StandardError; end
 
     CURVE = "prime256v1".freeze
-    # Push サービスが VAPID の subject として受け付ける形（RFC 8292 2.1）。外れると 401 / 403 が全購読に返る
-    SUBJECT = %r{\A(mailto:[^@\s]+@[^@\s]+|https://\S+)\z}
     # auth の生バイト数（RFC 8291 3.2）。web-push は長さを見ずに HKDF へ通すので、違う長さでも送れてしまい端末で復号できない
     AUTH_BYTES = 16
 
     # @raise [ConfigurationError]
     def initialize
       @vapid = { subject: Vapid.subject, public_key: Vapid.public_key, private_key: Vapid.private_key }
-      raise ConfigurationError, "VAPID の subject が mailto: か https: ではありません" unless SUBJECT.match?(@vapid[:subject].to_s)
+      raise ConfigurationError, "VAPID の subject が mailto: か https: ではありません" unless self.class.valid_subject?(@vapid[:subject])
 
       # from_keys は base64 しか見ない。公開鍵と秘密鍵が別のペアなのは check_key で分かる
       WebPush::VapidKey.from_keys(@vapid[:public_key], @vapid[:private_key]).curve.check_key
@@ -48,6 +46,18 @@ module Push
       # 1 つの購読の想定外で残りの購読ともう一方の通知を道連れにしない。見落とさないよう error reporter にも渡す
       Rails.error.report(e, handled: true, context: { push_subscription_id: subscription.id })
       keep(subscription, e)
+    end
+
+    # Push サービスが VAPID の subject として受け付ける形（RFC 8292 2.1: 宛先のある mailto: か、ホストのある https:）。
+    # 外れると 401 / 403 が全購読に返る。正規表現では https:/// のようなホスト無しを通すので URI に解かせる
+    def self.valid_subject?(subject)
+      case (uri = URI(subject.to_s))
+      when URI::MailTo then uri.to.present?
+      when URI::HTTPS then uri.host.present?
+      else false
+      end
+    rescue URI::Error
+      false
     end
 
     private
