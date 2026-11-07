@@ -57,4 +57,46 @@ RSpec.describe FetchArticleContentJob, type: :job do
     expect(log.string).to include("[feeds] FetchArticleContentJob discarded:")
     expect(enqueued_jobs).to be_empty
   end
+
+  describe "取得を試し終えたら、読むと決めた記事の要約を積む" do
+    let(:article) { create(:article, :unsummarized, :opened) }
+    let(:fetcher) { instance_double(ArticleContentFetcher) }
+
+    before do
+      allow(ArticleContentFetcher).to receive(:new).with(article).and_return(fetcher)
+      allow(fetcher).to receive(:call) { article.update!(content_fetched_at: Time.current) }
+    end
+
+    it "「読む」で行ができていれば積む（本文取得を待っていた要約）" do
+      described_class.perform_now(article)
+
+      expect(Claude::SummarizeArticleJob).to have_been_enqueued.with(article)
+    end
+
+    it "本文の取得に失敗しても積む（フィードの本文で要約する）" do
+      allow(fetcher).to receive(:call) { article.update!(content_fetched_at: Time.current, content_error: "本文を抽出できません") }
+
+      described_class.perform_now(article)
+
+      expect(Claude::SummarizeArticleJob).to have_been_enqueued.with(article)
+    end
+
+    it "まだ読むと決めていない記事は積まない（読まない記事に払わない）" do
+      article.reading.destroy!
+
+      described_class.perform_now(article.reload)
+
+      expect(Claude::SummarizeArticleJob).not_to have_been_enqueued
+    end
+
+    it "やり直しが尽きて失敗を記録した後も積む" do
+      allow(fetcher).to receive(:call).and_raise(HttpGet::TransientError, "サーバーエラー (HTTP 503)")
+      allow(fetcher).to receive(:record_failure) { article.update!(content_fetched_at: Time.current, content_error: "サーバーエラー (HTTP 503)") }
+
+      perform_enqueued_jobs(only: described_class) { described_class.perform_later(article) }
+
+      expect(fetcher).to have_received(:record_failure).once
+      expect(Claude::SummarizeArticleJob).to have_been_enqueued.with(article).once
+    end
+  end
 end

@@ -1,4 +1,4 @@
-# Reader（Unit 5c #43、5d #50）
+# Reader（Unit 5c #43、5d #50、要約 #85）
 
 ## 目的
 「無限供給」と「報酬距離」を担う。記事のカードを 1 枚ずつ並べ、「記事を開く」で元サイトを見た目のままアプリ内ブラウザ（シート）に開く。閉じて戻るとその場で判定と XP の区切りを挟み、下に次の未読のカードを継ぎ足す。
@@ -13,7 +13,7 @@
    - OGP 画像（DB: image_url。あればカードの上端に 1.91:1 で全幅、無い・読めなければ出さない。#87、ADR 0016）
    - フィード名・相対時刻・見出し（DB）
    - 出目の帯「出目 掘り出し物 ×3 ・ 完読で +30 XP」（DB: readings.tier。倍率は `xp.tiers`、XP は `xp.base` × multiplier）
-   - 「Claude の 3 行要約」（DB: summary。無ければ「要約を準備中」）。本文は描かない
+   - 「Claude の 3 行要約」（DB: summary）。本文は描かない。要約は「読む」を押してから作る（ADR 0015）ので、出来るまでは「要約を作成中…」、出来るとその欄だけ差し替わる（Turbo Stream）。失敗なら「要約できませんでした。記事を開いて読めます」、その日の上限（`claude.daily_call_limit`）なら「今日の要約の上限に達しました。記事を開いて読めます」
    - 「記事を開く」（橙の大きなボタン。元サイトを別窓で開く。iPhone のホーム画面アプリではシート）
 3. 「読み終えた」ボタン。「記事を開く」を押すまで隠す（JS が無いときは最初から見える）。判定が済むと区切りに置き換わる
 4. 区切り（判定）: 完読なら橙で「読了！ +N XP」「完読ボーナス +A ・ コンボ ×C +B」「滞在 X ・ n 本連続」（A = `xp.base` × 出目の倍率、N = A × C）、未完なら灰で「未完 ・ +0 XP」「滞在 X。S 秒未満なら XP なし」（S = `read.complete_after_seconds`）。どちらも「今日のゴール n / 5 ・ あと m 本で宝箱」（`daily_goal.articles`）。完読数がちょうど 5 本目の区切りには金色の「宝箱を開く」（→ DailyGoal。Unit 7 #55）
@@ -38,13 +38,19 @@
 - Given 判定が済んだ記事 When もう一度「記事を開く」を押す Then 滞在は書き換わらない
 - Given 「読む」を押していない記事 When `/articles/:id/read` を開く Then Main へ戻る
 - Given 記事に OGP 画像がある When Reader のカードを見る Then カードの上端に横長の画像が出る
+- Given 要約の無い記事 When 「読む」を押す Then 要約の Job が積まれ、カードに「要約を作成中…」が出る。Job が書き終えると、再読込せずに要約が出る
+- Given 要約の無い次の記事 When 読み終えて次のカードが継ぎ足される Then その記事の要約の Job も積まれる
+- Given 要約済みの記事 When もう一度「読む」を押す Then Job は積まれず、保存済みの要約が出る（払うのは 1 回）
+- Given 要約に失敗した記事・その日の上限 When カードを見る Then その旨が出て、「記事を開く」はそのまま使える
+- Given 本文取得がまだの記事 When 「読む」を押す Then 「作成中」のまま待ち、本文取得を試し終えたら要約の Job が積まれる
+- Given 「読む」を押していない記事 When 新しい記事が取り込まれる Then 要約は作られない（API を呼ばない）
 
 ## 使う設定の鍵
-dopamine.yml: `read.complete_after_seconds`, `xp.base`, `xp.tiers`, `xp.combo_multiplier_step`, `xp.combo_max_multiplier`, `daily_goal.articles`
+dopamine.yml: `read.complete_after_seconds`, `claude.daily_call_limit`, `xp.base`, `xp.tiers`, `xp.combo_multiplier_step`, `xp.combo_max_multiplier`, `daily_goal.articles`
 personas.yml: なし
 
 ## 外部 API
-なし（要約は `Claude::SummarizeArticleJob` が事前に付ける。元サイトは端末のブラウザが直接開く）
+Claude（要約。「読む」と継ぎ足しのときに `Claude::SummarizeArticleJob` を積み、画面は待つだけ。ADR 0015）。元サイトは端末のブラウザが直接開く
 
 ## 未決
 1. 滞在の上限（シートを開いたまま放置して翌朝戻ると完読になる）。#41 の `read.max_dwell_seconds`

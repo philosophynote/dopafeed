@@ -35,7 +35,7 @@
 ## 受け入れ条件（Given-When-Then）
 - Given 未読記事が 3 本ある When Main を開く Then 3 本が published_at の新しい順に並ぶ
 - Given 記事に summary がある When カードを見る Then 要約が 2 行で切れて表示される
-- Given 記事に summary が無い（要約ジョブ未完）When カードを見る Then 要約欄が空で見出しだけ出る
+- Given 記事に summary が無い（要約は「読む」を押してから作るので、読む前の記事はほぼこれ。ADR 0015）When カードを見る Then 要約欄が空で見出しだけ出る
 - Given 今日 3 本読了している When Main を開く Then 「今日のゴール 3 / 5」とドットが 3 個塗られる（5 は dopamine.yml）
 - Given 今日 0 本 When Main を開く Then 「今日のゴール 0 / 5」で全ドットが灰色
 - Given 昨日まで 3 日連続で 1 本以上完読している When 今日 Main を開く Then 「3日連続」が出る（ストリークの定義は daily_goal.md の未決 6）
@@ -54,7 +54,7 @@ dopamine.yml: `daily_goal.articles`, `xp.base`, `xp.tiers`, `xp.combo_multiplier
 personas.yml: なし
 
 ## 外部 API
-なし（記事とフィードの取得は Unit 3 の Job、要約は Unit 4 の Job。画面は DB を読むだけ。OGP 画像は端末が配信元から直に読む）
+なし（記事とフィードの取得は Unit 3 の Job。要約は「読む」が積む Job（Reader、ADR 0015）。画面は DB を読むだけ。OGP 画像は端末が配信元から直に読む）
 
 ## 未決
 1. 「あなた向け」セグメントを第一の陣でどう出すか（非表示 / 無効 / 「すべて」と同じ）

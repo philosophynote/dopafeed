@@ -155,4 +155,65 @@ RSpec.describe "Reader", type: :system do
     expect(page).to have_css("section[aria-label='判定']", text: "読了！")
     expect(article.reading.reload).to be_completed
   end
+
+  describe "要約は「読む」を押してから作る" do
+    let(:summarizer) { instance_double(Claude::Summarizer, call: "・できた要約\n・二\n・三") }
+
+    before { allow(Claude::Summarizer).to receive(:new).and_return(summarizer) }
+
+    def stream_connected
+      find("turbo-cable-stream-source[connected]", visible: :all)
+    end
+
+    it "出来るまでは「作成中」、Job が書き終えるとその欄だけ差し替わる" do
+      article = create(:article, :awaiting_summary, title: "要約待ちの記事", url: source_url("pending"))
+      sign_in
+
+      click_on "読む"
+      expect(page).to have_current_path(read_article_path(article))
+      expect(page).to have_text("要約を作成中")
+      expect(page).to have_link("記事を開く", href: article.url)
+      stream_connected
+      screenshot!("pending")
+
+      Claude::SummarizeArticleJob.perform_now(article)
+
+      expect(page).to have_css("section[aria-label='要約']", text: "・できた要約")
+      expect(page).to have_no_text("要約を作成中")
+      expect(page).to have_no_css("turbo-cable-stream-source", visible: :all) # 出来上がったら購読を残さない（継ぎ足すたびに溜まる）
+      screenshot!("ready")
+    end
+
+    it "つながり直したとき作成中なら欄を取り直す（つながっていない間に書き終えた分）" do
+      article = create(:article, :awaiting_summary, :opened, title: "取り直す記事", url: source_url("refresh"))
+      sign_in
+
+      visit read_article_path(article)
+      stream_connected
+      article.update!(summary: "・切れている間の要約") # broadcast しない
+      page.execute_script(<<~JS)
+        const source = document.querySelector("[data-controller='summary-refresh'] turbo-cable-stream-source")
+        source.removeAttribute("connected")
+        source.setAttribute("connected", "")
+      JS
+
+      expect(page).to have_css("section[aria-label='要約']", text: "・切れている間の要約")
+      expect(page).to have_no_css("turbo-cable-stream-source", visible: :all) # 取り直しで出来上がったら購読を外す
+    end
+
+    it "失敗したら「要約できませんでした」。記事はそのまま開ける" do
+      allow(summarizer).to receive(:call).and_raise(Claude::Summarizer::EmptyContent, "本文が空")
+      article = create(:article, :awaiting_summary, :opened, title: "要約できない記事", url: source_url("failed"))
+      sign_in
+
+      visit read_article_path(article)
+      stream_connected
+      Claude::SummarizeArticleJob.perform_now(article)
+
+      expect(page).to have_css("section[aria-label='要約']", text: "要約できませんでした")
+      expect(page).to have_link("記事を開く", href: article.url)
+      expect(no_horizontal_scroll?).to be(true), "カードが横にはみ出している"
+      screenshot!("failed")
+    end
+  end
 end

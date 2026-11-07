@@ -60,6 +60,28 @@ RSpec.describe "Readings", type: :request do
         expect(reading.returned_at).to be_nil
       end
 
+      it "要約待ちの記事なら要約の Job を積む（要約は読むと決めた記事だけ。ADR 0015）" do
+        article = create(:article, :awaiting_summary)
+
+        post article_reading_path(article)
+
+        expect(Claude::SummarizeArticleJob).to have_been_enqueued.with(article).once
+      end
+
+      it "要約済み・失敗済み・本文取得前の記事では積まない（一度作った要約は使い回す）" do
+        [ create(:article), create(:article, :summary_failed), create(:article, :unsummarized) ].each { |article| post article_reading_path(article) }
+
+        expect(Claude::SummarizeArticleJob).not_to have_been_enqueued
+      end
+
+      it "要約済みの記事を開き直しても積まない" do
+        article = create(:article, :opened)
+
+        post article_reading_path(article)
+
+        expect(Claude::SummarizeArticleJob).not_to have_been_enqueued
+      end
+
       it "無い記事なら 404" do
         post article_reading_path(0)
         expect(response).to have_http_status(:not_found)
@@ -316,6 +338,17 @@ RSpec.describe "Readings", type: :request do
 
         expect(pending.reload.opened_at).to eq(noon + threshold)
         expect(pending.tier).to eq(rare)
+      end
+
+      it "継ぎ足す次の記事が要約待ちなら、その要約の Job を積む" do
+        following = create(:article, :awaiting_summary, published_at: noon - 1.hour)
+
+        travel_to(noon + threshold) { post_turbo(reading) }
+
+        expect(Claude::SummarizeArticleJob).to have_been_enqueued.with(following).once
+        appended = page.find("turbo-stream[action='append'][target='reader']")
+        expect(appended).to have_css("turbo-frame#summary_article_#{following.id}", text: "要約を作成中")
+        expect(appended).to have_css("[data-controller='summary-refresh'] turbo-cable-stream-source")
       end
 
       it "古い未読が尽きたら「全部読んだ」と閉じるを継ぎ足す" do

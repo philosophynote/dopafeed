@@ -11,6 +11,9 @@ RSpec.describe "Articles", type: :request do
   it "未ログインならログイン画面へ" do
     get read_article_path(create(:article, :opened))
     expect(response).to redirect_to(new_session_path)
+
+    get summary_article_path(create(:article, :opened))
+    expect(response).to redirect_to(new_session_path)
   end
 
   context "ログイン済み" do
@@ -67,16 +70,6 @@ RSpec.describe "Articles", type: :request do
       expect(page).to have_text("・要約")
     end
 
-    it "要約がまだ無ければ「要約を準備中」" do
-      article = create(:article, :unsummarized)
-      create(:reading, article: article, opened_at: noon)
-
-      get read_article_path(article)
-
-      expect(page).to have_text("要約を準備中")
-      expect(page).to have_link("記事を開く", href: article.url)
-    end
-
     it "判定が済んだ記事は form の代わりに結果を出す（再読込で二度送らない）" do
       reading = create(:reading, :completed, opened_at: noon)
 
@@ -94,6 +87,88 @@ RSpec.describe "Articles", type: :request do
     it "無い記事なら 404" do
       get read_article_path(0)
       expect(response).to have_http_status(:not_found)
+    end
+
+    describe "Reader の要約欄" do
+      let(:article) { create(:article, :awaiting_summary, :opened) }
+
+      def subscribed?
+        page.has_css?("[data-controller='summary-refresh'][data-summary-refresh-url-value='#{summary_article_path(article)}'] turbo-cable-stream-source")
+      end
+
+      it "要約が無い間は「要約を作成中」を出し、できたら差し替わるよう購読する" do
+        get read_article_path(article)
+
+        expect(page).to have_css("turbo-frame#summary_article_#{article.id}", text: "要約を作成中")
+        expect(subscribed?).to be(true)
+      end
+
+      it "開くたびに要約待ちなら Job を積み直す（予算切れで捨てた翌日に開き直したとき）" do
+        get read_article_path(article)
+
+        expect(Claude::SummarizeArticleJob).to have_been_enqueued.with(article)
+      end
+
+      it "本文取得がまだの記事も「作成中」で待つ（Job は本文取得の後に積まれる）" do
+        article.update!(content_fetched_at: nil)
+
+        get read_article_path(article)
+
+        expect(page).to have_css("turbo-frame#summary_article_#{article.id}", text: "要約を作成中")
+        expect(subscribed?).to be(true)
+        expect(Claude::SummarizeArticleJob).not_to have_been_enqueued
+      end
+
+      it "要約があれば出し、購読しない" do
+        article.update!(summary: "・一\n・二\n・三")
+
+        get read_article_path(article)
+
+        expect(page).to have_css("turbo-frame#summary_article_#{article.id}", text: "・一")
+        expect(subscribed?).to be(false)
+        expect(Claude::SummarizeArticleJob).not_to have_been_enqueued
+      end
+
+      it "失敗した記事は「要約できませんでした」。記事を開くのはそのまま" do
+        article.update!(summary_failed_at: Time.current, summary_error: "本文が空")
+
+        get read_article_path(article)
+
+        expect(page).to have_css("turbo-frame#summary_article_#{article.id}", text: "要約できませんでした")
+        expect(page).to have_link("記事を開く", href: article.url)
+        expect(subscribed?).to be(false)
+      end
+
+      it "今日の上限に達していれば「今日の要約の上限に達しました」" do
+        allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true))
+
+        get read_article_path(article)
+
+        expect(page).to have_css("turbo-frame#summary_article_#{article.id}", text: "今日の要約の上限に達しました")
+        expect(page).to have_link("記事を開く", href: article.url)
+        expect(subscribed?).to be(true) # 日が変わって積み直した Job の差し替えを受ける
+      end
+
+      it "GET /articles/:id/summary は要約欄の frame だけを描く（購読がつながる前に書き終えた分の取り直し）" do
+        article.update!(summary: "・一\n・二\n・三")
+
+        get summary_article_path(article)
+
+        expect(response).to have_http_status(:ok)
+        expect(page).to have_css("turbo-frame#summary_article_#{article.id}", text: "・一")
+        expect(page).to have_no_css("h1")
+      end
+
+      it "summary は書き込まない（Job も積まない）" do
+        get summary_article_path(article)
+
+        expect(Claude::SummarizeArticleJob).not_to have_been_enqueued
+      end
+
+      it "summary は無い記事なら 404" do
+        get summary_article_path(0)
+        expect(response).to have_http_status(:not_found)
+      end
     end
   end
 end

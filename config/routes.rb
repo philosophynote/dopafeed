@@ -24,6 +24,8 @@ Rails.application.routes.draw do
     resource :reading, only: :create
     # アプリ内のリーダー。描くだけで書き込まない（行は「読む」と advance が作る）
     get :read, on: :member
+    # 要約欄だけを描く（Turbo Frame）。購読がつながる前に要約が書き終わっていた分を取り直す
+    get :summary, on: :member
     # 読まずに片付ける（POST）と、その取り消し（DELETE）
     resource :dismissal, only: %i[create destroy]
   end
