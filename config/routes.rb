@@ -12,6 +12,7 @@ Rails.application.routes.draw do
 
   # ログイン後の着地点（after_authentication_url が root_url を使う）
   root "main#show"
+  resources :feeds, only: %i[index new create destroy]
   resource :learning, only: :show, controller: :learning
   # ホーム画面に追加する手順と、通知・バッジの入口
   resource :install, only: :show, controller: :install
@@ -23,6 +24,8 @@ Rails.application.routes.draw do
     resource :reading, only: :create
     # アプリ内のリーダー。描くだけで書き込まない（行は「読む」と advance が作る）
     get :read, on: :member
+    # 要約欄だけを描く（Turbo Frame）。購読がつながる前に要約が書き終わっていた分を取り直す
+    get :summary, on: :member
     # 読まずに片付ける（POST）と、その取り消し（DELETE）
     resource :dismissal, only: %i[create destroy]
   end

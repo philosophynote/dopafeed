@@ -1,14 +1,11 @@
 import { Controller } from "@hotwired/stimulus"
+import { EDGE_PX, LOCK_PX } from "controllers/swipe_thresholds"
 
 // 一覧のカード 1 枚。左へ引いて離すと「興味なし」の form を送る。記録と差し替えはサーバー（Turbo Stream）の仕事で、ここは指の動きを form の送信に変えるだけ。
 // Pointer Events を使うのは、iPhone の指も Mac のマウスも同じ道で扱い、touch 固有の API を持たないため。
 // 縦の動きはブラウザのスクロールに任せ（CSS の touch-action: pan-y）、横と決めてからカードを指に追従させる。
 // 右へ引いても動かさない（右に充てる動作は無い。ADR 0012）
 
-// 画面の左端からの横スワイプは iOS の「戻る」なので、この幅の中で始まった触りは拾わない
-const EDGE_PX = 24
-// 横か縦かを決めるまでの遊び。これより小さい動きはタップの揺れとして無視する
-const LOCK_PX = 10
 // 送るときに流す先。カード幅より大きくして画面の外まで出す
 const FLY_OUT_RATIO = 1.2
 // 引いている間に傾ける最大の角度。流れ出す感じを出すだけの演出

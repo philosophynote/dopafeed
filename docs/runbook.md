@@ -21,6 +21,9 @@
    量が増え続け、漏えいした Litestream の鍵（手順 2 でそのバケット全体に Get / Delete を持つ）で監査記録を読まれ消される。
    手順 2 の IAM ユーザーにはログバケットの権限を一切付けない。
    トレイルを作り、イベントタイプで「データイベント」→ S3 を選び、対象を `dopafeed-litestream` だけに絞る。
+   高度なイベントセレクターの画面なら、ログセレクターテンプレートを「カスタム」にし、`resources.ARN` が「次で始まる」`arn:aws:s3:::dopafeed-litestream/` を足す
+   （「すべてのイベントをログに記録する」のままだと全バケットが対象になり、ログ用バケット自身も記録する）。readOnly では絞らない。
+   「ログファイルの SSE-KMS 暗号化」は外してよい（KMS の鍵代が月 $1。外しても S3 標準の暗号化はかかる）。
    トレイルは既定で管理イベントしか記録せず、S3 の Get/Put/Delete は「イベント履歴」にも出ない。後から有効にしても過去は見えない。
    費用は 10 万イベントあたり $0.10 で、Litestream の PUT 頻度なら月 $0.1 前後 + ログ保存の S3 代
 3. 実値は Rails の暗号化 credentials に入れる。平文を永続保存せず、git にも入れない。
@@ -39,20 +42,31 @@
    litestream:
      access_key_id: "AKIA..."
      secret_access_key: "..."
+   anthropic:
+     api_key: "sk-ant-..."     # console.anthropic.com で発行。Limits で月の上限額も決めておく
+   vapid:                      # 鍵の作り方は §2-h
+     public_key: "B..."
+     private_key: "..."
+     subject: "mailto:<自分のメール>"
    ```
-   `.kamal/secrets` に 4 行足す（このファイルは git に入っているが、値は `kamal` 実行時に Mac 上で復号して取る）:
+   `.kamal/secrets` に 8 行足す（このファイルは git に入っているが、値は `kamal` 実行時に Mac 上で復号して取る）。
+   config/deploy.yml の `env.secret` に名前があるのに 1 行でも欠けると、`kamal deploy` が `Secret '...' not found` で止まる:
    ```sh
    DOPAFEED_USER_EMAIL=$(bin/rails credentials:fetch dopafeed.user_email)
    DOPAFEED_USER_PASSWORD=$(bin/rails credentials:fetch dopafeed.user_password)
    LITESTREAM_ACCESS_KEY_ID=$(bin/rails credentials:fetch litestream.access_key_id)
    LITESTREAM_SECRET_ACCESS_KEY=$(bin/rails credentials:fetch litestream.secret_access_key)
+   ANTHROPIC_API_KEY=$(bin/rails credentials:fetch anthropic.api_key)
+   VAPID_PUBLIC_KEY=$(bin/rails credentials:fetch vapid.public_key)
+   VAPID_PRIVATE_KEY=$(bin/rails credentials:fetch vapid.private_key)
+   VAPID_SUBJECT=$(bin/rails credentials:fetch vapid.subject)
    ```
    `bin/rails credentials:fetch` は mise の Ruby が要るので、`kamal` は mise が効いているシェルで打つ。
    確認は値を端末に出さずに行う（`kamal secrets print` 単体は値をそのまま表示するので使わない）:
    ```sh
    kamal secrets print | sed -E 's/=.+/=(set)/; s/=$/=(EMPTY!)/'
    ```
-   `DOPAFEED_*` / `LITESTREAM_*` の 4 行が `(set)` なら OK（`RAILS_MASTER_KEY` と、4-a-5 で足す `KAMAL_REGISTRY_PASSWORD` も並ぶ）。
+   8 行と `RAILS_MASTER_KEY` が全部 `(set)` なら OK。
    `(EMPTY!)` は credentials のキー名の打ち間違い。
    別案: macOS のキーチェーン（`security add-generic-password -a dopafeed -s LITESTREAM_SECRET_ACCESS_KEY -w` で入れ、
    `.kamal/secrets` で `$(security find-generic-password -a dopafeed -s LITESTREAM_SECRET_ACCESS_KEY -w)`）。どちらも平文ファイル無し。
@@ -60,22 +74,24 @@
    production では既定値が無いので、未設定だと `KeyError` でコンテナが上がらない（意図どおり）。
    2 回目以降の起動では seed は走らない（ユーザーが居れば触らない）
 4. `config/deploy.yml` の `LITESTREAM_BUCKET` / `LITESTREAM_REGION` を実際の値にする
-4-a. Lightsail を作る（ADR 0003: $7 Micro 1 台）
+4-a. Lightsail を作る（ADR 0003: 今は $7 Micro 1 台。$5 Nano で試して 4-c で上げた）
    1. インスタンス: リージョンは東京（S3 と同じリージョンで遅延が小さい。Lightsail の転送枠は S3 向けも、IN も OUT も消費するので
       安くはならない）、Linux、ネットワークタイプは「デュアルスタック」（IPv6 専用だと静的 IPv4 が付かず、4-b の A レコードも
       Mac からの SSH も成立しない。IPv6 専用の価格表示は $2 安く出るので見間違えない）、ブループリントは「OS のみ」の Ubuntu 24.04 LTS、
-      プランは $7 の Micro（1 GB / 2 vCPU / 40 GB / 転送 2 TB）。$5 は Nano で 0.5 GB / 20 GB しか無いので選ばない。
+      プランは General purpose の $7 Micro（1 GB / 2 vCPU / 40 GB）。$5 Nano（512 MB）は swap 頼みになった（ADR 0003 の 2026-11-07 追記）。
+      自動スナップショットは付けない（DB は Litestream が S3 に複製する。プランを上げるときだけ手動で撮る）。
       Lightsail 独自の初月無料トライアルは廃止済み。2025 年 7 月 15 日以降に作った AWS アカウントならクレジット方式の
       Free Tier が充当されうるが、無料になる前提で予算を組まない。
       インスタンス名は作成後に変えられないので決めて付ける（例: `dopafeed-tokyo-1`）。
       x86 なので `builder.arch: amd64` のまま（公式に明記は無い。初回 SSH 時に `uname -m` が `x86_64` を返すのを見る）。
       SSH キーは自分の公開鍵（`~/.ssh/id_ed25519.pub` など）を「Upload key」で登録する。Kamal が Mac の ssh と同じ鍵探索で繋がり、
       AWS 生成の秘密鍵を保管しなくて済む
-   2. 静的 IP を作ってアタッチし、`config/deploy.yml` の `servers.web` に書く（再起動で IP が変わらないように）。
+   2. 静的 IP を作ってアタッチする（再起動で IP が変わらないように）。`config/deploy.yml` の `servers.web` には IP でなく
+      `dopafeed.dev` を書いてある（リポジトリが public。4-b の A レコードがこの IP を指していれば Kamal はそのまま繋がる）。
       アタッチ中は無料、外して 1 時間を超えると $0.005/時。1-a でサーバーを作り直すときは古い方から外してすぐ新しい方に付ける
    3. ファイアウォール（インスタンスの「ネットワーキング」タブ）:
-      - 80 / 443 は「任意の IPv4 アドレス」で公開（443 は既定に無いので足す）。80 は Let's Encrypt の発行と
-        HTTP → HTTPS 転送に要るので閉じない
+      - 80 / 443 は「任意の IPv4 アドレス」で公開（443 は既定に無いので足す。送信元を Custom で聞かれたら `0.0.0.0/0`）。
+        443 は Let's Encrypt の認証（kamal-proxy は 443 で受ける）と本番の https、80 は HTTP → HTTPS 転送に要る。どちらも閉じない
       - 22 は既定の「任意の IPv4 アドレス」ルールを削除し、管理用 Mac の接続元 IP だけを許可するルールを作る
         （「IP アドレスに制限」にチェック、`curl -4 https://checkip.amazonaws.com` で出た IP を入れる）。
         追加だけでは絞れない。同じポートに複数ルールがあると最も緩いものが勝つので、既定ルールは必ず消す。
@@ -96,43 +112,93 @@
       sudo fallocate -l 1G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
       echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
       ```
-      swap は Puma + Solid Queue + Litestream + kamal-proxy が 1 GB に同居するための保険。一度ログアウトして docker グループを効かせる
-   5. レジストリ: `config/deploy.yml` の `registry.server` を決める（例: `ghcr.io`、`username` は GitHub ユーザー名）。
-      Kamal は push 先を `<registry.server>/<image>` で組むので、`image: dopafeed` のままだと `ghcr.io/dopafeed` になり
-      ghcr に拒否される（ghcr は `ghcr.io/<owner>/<name>` を要求する）。`image:` を `<GitHubユーザー名>/dopafeed` に変える。
-      `write:packages` の PAT を credentials に `registry.password` として入れ、`.kamal/secrets` に
-      `KAMAL_REGISTRY_PASSWORD=$(bin/rails credentials:fetch registry.password)` を足し、`registry.password` の
-      コメントを外す
-4-b. ドメインを Cloudflare Registrar で取り、DNS は Cloudflare に置く（Lightsail の DNS ゾーンは使わない）
-   1. 取得: Cloudflare ダッシュボード → Domain Registration → Register Domains で `dopafeed.net` を検索して購入する。
-      Cloudflare は原価販売（レジストリ + ICANN 料金に上乗せ無し）で、.net は年 $12 前後、更新も同額。
+      swap は Puma + Solid Queue + Litestream + kamal-proxy が一台に同居し、deploy 中は新旧のコンテナが並ぶための保険。
+      要らない常駐を止めて 60 MB ほど空ける（Nano で始めたときに入れた。今の Micro はそのスナップショットから作ったので止まっている。いずれもディスク 1 本のサーバーでは使わない。デスクトップ向けか SAN 向け）:
+      ```sh
+      sudo systemctl disable --now multipathd.service multipathd.socket networkd-dispatcher.service udisks2.service
+      sudo systemctl mask --now packagekit.service
+      sudo reboot
+      ```
+      入り直して `free -m` の Swap が 1023 前後、available が Nano で 200 MB 前後（2026-11-07 実測 218 MB）、Micro のアプリ無しは測っていない）、
+      `systemctl is-active multipathd multipathd.socket networkd-dispatcher udisks2 packagekit` が全部 `inactive`、`docker --version` が出れば終わり。
+      snapd と amazon-ssm-agent は止めない（ブラウザ SSH の退路が SSM に頼るか確かめていない）。unattended-upgrades も止めない（セキュリティ更新）
+   5. レジストリは `config/deploy.yml` の `registry.server: localhost:5555` のまま（Kamal の手元レジストリ）。
+      `kamal` が Mac の Docker にレジストリのコンテナを立てて push し、サーバーは SSH のポート転送越しにそこから pull する。
+      外部レジストリも PAT も要らない。代わりに `kamal setup` / `kamal deploy` の間は Mac で OrbStack を起動しておく。
+      イメージも Mac でビルドする（`builder.arch: amd64`）。OrbStack が無ければ `brew install --cask orbstack` で入れて一度起動し、
+      `docker version` に Server が出るのを見る。サーバーでビルドする `builder.remote` は使わない（1 GB でも bundle install とアセットのビルドはメモリが足りず、512 MB では落ちる）
+4-b. ドメイン `dopafeed.dev` は Cloudflare Registrar で取り、DNS は Cloudflare に置く（Lightsail の DNS ゾーンは使わない）
+   1. 取得: Cloudflare ダッシュボード → Domain Registration → Register Domains で `dopafeed.dev` を検索して購入する（2026-11-07 取得済み）。
+      Cloudflare は原価販売（レジストリ + ICANN 料金に上乗せ無し）で、更新も同額。
       メール認証とカードが要る。無料プランでよい。自動更新は既定でオンなので切らない（切れるとオリジンが変わり、
       ホーム画面の PWA と Push の購読が全部無効になる）。WHOIS の個人情報は無料で非公開になる。
       新規登録から 60 日は他社へ移管できない。ネームサーバーは Cloudflare 固定で、登録中は他社 DNS に変えられない
    2. A レコード: Cloudflare の DNS → Records → Add record。Type `A`、Name `@`、IPv4 address は 4-a-2 の静的 IP、
       **Proxy status は「DNS only」（灰色の雲）**、TTL は Auto。
-      Proxied（橙色の雲）にしない。kamal-proxy が Let's Encrypt の発行（80 番の HTTP-01）と HTTP → HTTPS 転送を
+      Proxied（橙色の雲）にしない。kamal-proxy が Let's Encrypt の認証（443 番）と HTTP → HTTPS 転送を
       自分で行う設計（ADR 0003）で、Cloudflare が TLS を終端すると発行経路も下の確認も Cloudflare の挙動に左右される。
       CDN / WAF が欲しくなったら SSL/TLS を Full (strict) にしてから切り替える別作業（ADR を足す）。
       4-a で IPv6 を残しているなら `AAAA` も同じく DNS only で足す。消したなら足さない。IPv6 アドレスは静的 IP のように
       固定できず、インスタンスを削除すると解放される。1-a で作り直したら AAAA を書き換える。
-      AAAA を足したら `curl -6 -I https://dopafeed.net/up` が 200 を返すのを見る。Docker の公開ポートが IPv6 で待ち受けるかは
+      AAAA を足したら `curl -6 -I https://dopafeed.dev/up` が 200 を返すのを見る。Docker の公開ポートが IPv6 で待ち受けるかは
       daemon の ip6tables 設定に依存し、届かないと IPv6 優先の iPhone 回線で遅延や失敗が起きる。返らなければ AAAA を消す
-   3. 反映確認: `dig +short dopafeed.net` が静的 IP を返す（数分で反映）。Cloudflare の IP が返るなら Proxied になっている
-   4. `config/deploy.yml` の `proxy:` が `ssl: true` / `host: dopafeed.net` になっていることを確認する（既に書いてある）
+   3. 反映確認: `dig +short dopafeed.dev` が静的 IP を返す（数分で反映）。Cloudflare の IP が返るなら Proxied になっている
+   4. `config/deploy.yml` の `proxy:` が `ssl: true` / `host: dopafeed.dev` になっていることを確認する（既に書いてある）
    **TLS が有効で HTTP → HTTPS に転送されることを確認するまで、ログイン画面にパスワードを入力しない。**
    production.rb の `assume_ssl` は通信を暗号化しない。proxy が HTTP を通していると Rails は「HTTPS で届いた」と
    扱うため転送も起きず、送ったパスワードは平文で流れる（secure Cookie が落ちてログインが成立しないのは結果であって防御ではない）。
    確認: `curl -I http://<ドメイン>/up` が 301/308 で https へ、`curl -I https://<ドメイン>/up` が 200
 5. `kamal config` で env が解決されることを確認し、`kamal build push` で Dockerfile（Litestream の COPY を含む）が通ることを確認
 6. 初回は `kamal setup`（kamal-proxy の導入とデプロイをまとめて行う）、2 回目以降は `kamal deploy`。起動ログに `litestream` の `replicating to: name="s3"` が出れば複製が動いている
+   `target failed to become healthy within configured timeout` で止まったら、起動が `deploy_timeout`（config/deploy.yml、120 秒）に
+   間に合っていないか、`/up` が失敗している。止められたコンテナのログを時刻付きで見る（接続できなかった行だけ除き、`/up` の status は残す）:
+   `ssh ubuntu@<静的IP> 'docker logs -t $(docker ps -a -q --filter label=service=dopafeed --latest) 2>&1 | grep -v "Unable to proxy request" | head -60'`。
+   見分け方: `Listening on` が出ないまま止められていれば遅さ（`deploy_timeout` を延ばす）。`Listening on` の前に例外があれば起動の失敗。
+   `Listening on` の後も `/up` の行が 200 以外（500・404 など）なら、起動はしていて `/up` か転送先のポートがおかしい
+7. 最初のフィードを足す。購読を足す画面はまだ無いので console で入れる（取得は recurring.yml で 30 分おき。待たずに回すなら下の 2 行目）:
+   ```sh
+   kamal console
+   ```
+   ```ruby
+   Feed.create!(title: "Ruby on Rails Blog", url: "https://rubyonrails.org/blog/feed.xml", site_url: "https://rubyonrails.org/blog")
+   FetchAllFeedsJob.perform_later
+   ```
+   要約は「読む」を押した記事にだけ Job が付ける（ADR 0015。取り込んだだけでは付かない）。付いたかは console で見る（成功した呼び出しはログに出ない。`[claude]` が出るのは予算切れなどで捨てたときだけ）:
+   ```ruby
+   [Article.count, Article.where.not(summary: nil).count, ClaudeApiCall.where(created_at: Time.current.all_day).count]
+   ```
+8. メモリを見る（初回と、しばらく使った後）。値は Issue に残す（プランを上げるか、fork・YJIT を戻すかの判断材料）:
+   ```sh
+   ssh ubuntu@<静的IP> 'free -m; docker stats --no-stream; sudo dmesg | grep -i oom'
+   ```
+   Solid Queue が Puma の中で動いているかは `kamal console` で `SolidQueue::Process.pluck(:kind, :pid)`。
+   pid が全部同じで `Supervisor(async)` があれば async（ADR 0003 の 2026-11-07 追記）
+
+4-c. プランを上げる（Nano → Micro は 2026-11-07 に実施。ADR 0003 の基準に当たったら）
+   **新旧 2 台のアプリを同時に動かさない。** 両方が同じ S3 のパスへ複製してバックアップが壊れ、定期ジョブと Push が二重になり、
+   Claude の日次予算も DB ごとに数えるので倍使える。
+   1. `kamal app stop` で必ず止めてから、Lightsail でインスタンスの手動スナップショットを撮る（DB が静止した状態で写る。
+      止めたコンテナはスナップショットから作った新しい方でも勝手には上がらない）
+   2. スナップショットから新しいインスタンスを作る。プランだけ上のもの（2026-11-07 は $7 Micro）を選び、名前は新しく付ける（例: `dopafeed-tokyo-2`）
+   3. **静的 IP を付け替える前に**、新しい方のファイアウォールを 4-a-3 のとおりにする（22 番が全開で上がることがある）
+   4. 静的 IP（`dopafeed-ip`）を古い方から外して新しい方に付け、**古いインスタンスはすぐ Lightsail で停止する**（削除は 7 で）。
+      静的 IP が同じなので A レコードも `servers.web`（`dopafeed.dev`）も書き換えない
+      ただし AAAA を置いているなら、IPv6 は新しいインスタンスで変わる。5 で名前から繋ぐ前に新しい IPv6 へ書き換えるか消す
+      （古いままだと ssh と Kamal が止めた古い方の IPv6 へ繋ぎに行き、IPv6 の利用者も古い方へ届く）
+   5. Mac で `ssh-keygen -R dopafeed.dev` と `ssh-keygen -R <静的IP>` の両方を打ってから `ssh ubuntu@dopafeed.dev` で入る
+      （作り直しでホスト鍵が変わり、そのままだと ssh も kamal も止まる。known_hosts には名前と IP の両方で載っている）
+   6. `config/deploy.yml` はそのまま `kamal deploy`（async・YJIT 無しのまま上げる。2026-11-07 はこれで available 400 MB）。
+      `SOLID_QUEUE_MODE` と `YJIT_ENABLED` の行を消して fork・YJIT 有効の既定に戻すかは、8 の `free -m` と `docker stats` を
+      しばらく見てから別に決める（fork は Ruby プロセスが 4 本増え、deploy 中は新旧のコンテナが重なる）
+   7. 1-e で複製が続いているのを確かめたら（スナップショットの時刻は引き継がれるので `wal` の時刻で見る）古いインスタンスを消す（止めていても料金がかかる）。手動スナップショットは戻り先として数日残してから消す
+   volume ごと移るので Litestream からの復元は要らない
 
 `LITESTREAM_BUCKET` / `LITESTREAM_REGION` が無いと server は起動しない（bin/docker-entrypoint）。バックアップ無しで静かに動くより止まるほうを選んでいる（ADR 0004）。
 
 ## 1. 復元
 
 ### 1-a. サーバーを作り直す（自動復元）
-新しいインスタンスで §0 4-a の 1〜4 をやり直す（静的 IP は古い方から外して付け替える。`ssh.user: ubuntu` なので Kamal は
+新しいインスタンスで §0 4-a の 1〜4 をやり直す（静的 IP は古い方から外して付け替え、Mac でホスト鍵を消す（4-c-5）。`ssh.user: ubuntu` なので Kamal は
 Docker を入れてくれない。swap とファイアウォールも手で入れる）。そのうえで `kamal setup`（デプロイを含む。`kamal deploy` を
 別に打つ必要は無い）。volume が空なので entrypoint の
 `litestream restore -if-db-not-exists -if-replica-exists` が S3 から `storage/production.sqlite3` を戻してから Puma が上がる。

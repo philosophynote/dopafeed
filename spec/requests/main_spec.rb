@@ -138,12 +138,13 @@ RSpec.describe "Main", type: :request do
       expect(page).to have_no_css("article")
     end
 
-    it "フィード以外のタブは無効で、フィードが現在地" do
+    it "購読タブは有効で、保存とレポートは無効、フィードが現在地" do
       get root_path
 
       nav = page.find("nav[aria-label='タブバー']")
       expect(nav).to have_css("[aria-current=page]", text: "フィード")
-      expect(nav).to have_css("[aria-disabled=true]", count: 3)
+      expect(nav).to have_link("購読", href: feeds_path)
+      expect(nav).to have_css("[aria-disabled=true]", count: 2)
     end
 
     it "今日のゴールの行は DailyGoal へのリンク" do

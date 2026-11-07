@@ -16,9 +16,6 @@ class FeedFetcher
   #   @return [String, nil] 失敗の文言（feeds.last_error と同じ）
   Result = Data.define(:status, :created, :error)
 
-  # 記録して終わりにする失敗（解析エラー。HTTP・接続エラーは {HttpGet::Error}）
-  class FetchError < StandardError; end
-
   def initialize(feed)
     @feed = feed
   end
@@ -30,13 +27,13 @@ class FeedFetcher
     response = HttpGet.call(feed.url, headers: conditional_headers)
     return not_modified(response.permanent_url) if response.is_a?(Net::HTTPNotModified)
 
-    created = import(parse(response.body.to_s))
+    created = import(FeedDocument.parse(response.body.to_s))
     move_to(response.permanent_url)
     feed.update!(last_fetched_at: Time.current, last_error: nil, etag: response["ETag"], last_modified: response["Last-Modified"])
     Result.new(status: :updated, created: created, error: nil)
-  rescue HttpGet::Error, FetchError => e
+  rescue HttpGet::Error => e
     failed(e.message)
-  rescue Feedjira::NoParserAvailable
+  rescue FeedDocument::Error
     failed("フィードを解析できません")
   end
 
@@ -51,18 +48,6 @@ class FeedFetcher
       "If-None-Match" => feed.etag,
       "If-Modified-Since" => feed.last_modified
     }.compact
-  end
-
-  # 本文を Feedjira で解析する。Feedjira は途中で切れた XML も黙って entries 空で返すので、先に Nokogiri の strict で閉じを確かめる
-  #
-  # @return [Feedjira::Parser::RSS, Feedjira::Parser::Atom]
-  # @raise [FetchError] XML として壊れている
-  # @raise [Feedjira::NoParserAvailable] XML だがフィードではない
-  def parse(body)
-    Nokogiri::XML(body, &:strict)
-    Feedjira.parse(body)
-  rescue Nokogiri::XML::SyntaxError
-    raise FetchError, "フィードを解析できません"
   end
 
   # 解析した entry を記事にする。title か http(s) の url の無い entry は飛ばす。

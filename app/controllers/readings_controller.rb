@@ -1,11 +1,13 @@
 # 「読む」で抽選して記事を開き、元の記事を開いて戻ったら判定して次の記事を開く。
-# 判定の時刻はすべてサーバーの時計。抽選は行を作るときに 1 回だけ
+# 判定の時刻はすべてサーバーの時計。抽選は行を作るときに 1 回だけ。
+# 行を作った記事（= 読むと決めた記事）の要約はここで積む。読まない記事に払わないため（ADR 0015）
 class ReadingsController < ApplicationController
   # Turbo の POST には抽選結果を埋めたルーレットのモーダルを返す（演出はクライアント、結果はサーバー）。
   # JS が無い通常の POST は演出なしでリーダーへ redirect する
   def create
     @article = Article.find(params[:article_id])
     @reading = Reading.open!(@article)
+    Claude::SummarizeArticleJob.enqueue_if_awaiting(@article)
     respond_to do |format|
       format.turbo_stream
       format.html { redirect_to read_article_path(@article) }
@@ -34,6 +36,7 @@ class ReadingsController < ApplicationController
       false
     end
     @next_reading = next_reading_after(@reading.article, reuse_pending: judged)
+    Claude::SummarizeArticleJob.enqueue_if_awaiting(@next_reading.article) if @next_reading
     respond_to do |format|
       format.turbo_stream
       format.html { redirect_to @next_reading ? read_article_path(@next_reading.article) : root_path }

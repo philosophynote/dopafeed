@@ -28,6 +28,63 @@ RSpec.describe "Main", type: :system do
     end
   end
 
+  it "OGP 画像のある記事はカードの上端に横長で出し、無い記事・読めない画像は枠ごと出さない" do
+    create(:article, title: "画像のある記事", image_url: "/icon.png", published_at: 1.hour.ago)
+    create(:article, title: "画像の無い記事", published_at: 2.hours.ago)
+    create(:article, title: "画像が消えた記事", image_url: "/missing-og.png", published_at: 3.hours.ago)
+    sign_in
+
+    within("article", text: "画像のある記事") do
+      image = find("figure img", visible: :all)
+      expect(image[:src]).to end_with("/icon.png")
+      expect(image[:referrerpolicy]).to eq("no-referrer")
+      expect(image[:loading]).to eq("lazy")
+      expect(image[:draggable]).to eq("false")
+      expect(page).to have_css("figure:first-child") # カードの上端
+    end
+    within("article", text: "画像の無い記事") { expect(page).to have_no_css("figure") }
+    within("article", text: "画像が消えた記事") { expect(page).to have_no_css("figure") }
+    expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "横スクロールが出ている"
+    screenshot!
+
+    # 画像の真ん中に触れて左へ引くと、画像ではなくカードがポインタを受けて「興味なし」になる（iPhone で画像の上から引いても切れない）
+    touched = page.evaluate_script(<<~JS)
+      (() => {
+      const rect = document.querySelector("article figure img").getBoundingClientRect()
+      const y = rect.top + rect.height / 2
+      const origin = document.elementFromPoint(rect.left + rect.width * 0.9, y)
+      const fire = (type, x) => origin.dispatchEvent(new PointerEvent(type, {
+        bubbles: true, cancelable: true, composed: true, pointerId: 7, pointerType: "touch", isPrimary: true,
+        button: type === "pointermove" ? -1 : 0, buttons: 1, clientX: x, clientY: y
+      }))
+      fire("pointerdown", rect.left + rect.width * 0.9)
+      for (let i = 1; i <= 4; i++) fire("pointermove", rect.left + rect.width * (0.9 - 0.2 * i))
+      fire("pointerup", rect.left + rect.width * 0.1)
+      return origin.tagName
+      })()
+    JS
+    expect(touched).not_to eq("IMG"), "画像がポインタを受けている（iPhone では画像のドラッグや長押しでスワイプが切れる）"
+    expect(page).to have_button("元に戻す")
+    expect(Article.find_by(title: "画像のある記事")).to be_dismissed
+  end
+
+  it "画面の外のカードの画像は、読みに行く前に枠を外さず、スクロールして見えたら読む" do
+    feed = create(:feed)
+    6.times { |i| create(:article, feed: feed, title: "上の記事 #{i}", published_at: 1.hour.ago - i.minutes) }
+    create(:article, feed: feed, title: "下の画像の記事", image_url: "/icon.png", published_at: 1.day.ago)
+    sign_in
+
+    card = find("article", text: "下の画像の記事")
+    expect(card.evaluate_script("this.getBoundingClientRect().top > window.innerHeight")).to be(true), "カードが画面内にある（例の前提が崩れた）"
+    expect(card).to have_css("figure img", visible: :all)
+
+    card.scroll_to(card, align: :center)
+    expect(card).to have_css("figure img", visible: :all)
+    Timeout.timeout(Capybara.default_max_wait_time) do
+      sleep 0.05 until card.find("figure img", visible: :all).evaluate_script("this.complete && this.naturalWidth > 0")
+    end
+  end
+
   it "未読 0 本なら空状態が出る" do
     create(:article, :read)
     sign_in
