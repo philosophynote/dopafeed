@@ -23,4 +23,13 @@ RSpec.describe "articles:refetch_images" do
     expect(FetchArticleContentJob).not_to have_been_enqueued.with(with_image)
     expect(FetchArticleContentJob).not_to have_been_enqueued.with(pending)
   end
+
+  it "Job を積めなかったら本文取得の印を戻して止まる（印を外したまま取り残さない）" do
+    fetched_at = Time.zone.local(2026, 10, 1, 10)
+    article = create(:article, content_fetched_at: fetched_at)
+    allow(FetchArticleContentJob).to receive(:perform_later).and_raise(ActiveJob::EnqueueError, "queue down")
+
+    expect { task.invoke }.to raise_error(ActiveJob::EnqueueError)
+    expect(article.reload.content_fetched_at).to eq(fetched_at)
+  end
 end
