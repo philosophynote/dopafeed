@@ -28,6 +28,7 @@ shared:
     daily_call_limit: 200 # 超えたらジョブを落とす（久秀の指摘）
     summary_max_tokens: 300
     summary_input_chars: 6000
+    timeout_seconds: 30 # Claude API への HTTP 要求 1 回の待ちの上限。超えたら Job の retry_on がやり直す
   comments:
     personas_shown: 3
   push:

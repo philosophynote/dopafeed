@@ -1,6 +1,7 @@
 # Claude API は VCR（spec/support/vcr.rb）。正常系のカセット spec/vcr_cassettes/claude/summary/ok.yml は手書き。
 # 本物に置き換えるには: VCR_RECORD=all ANTHROPIC_API_KEY=<実キー> bin/rspec spec/services/claude/summarizer_spec.rb
-# エラー系は WebMock の stub_request。ヘッダ x-should-retry: false で SDK の再試行を止め、待ち時間を無くす
+# エラー系は WebMock の stub_request。SDK の再試行は Claude::Client が切っているので、1 回の失敗がそのまま例外になる
+# （再試行しないことは「HTTP 要求は 1 回」の例がヘッダ無しで確かめる。他の例の x-should-retry: false は待ち時間を無くすため）
 RSpec.describe Claude::Summarizer do
   let(:article) { create(:article, :awaiting_summary, title: "RSpec で Claude を試す", url: "https://fixtures.example.com/articles/claude") }
   let(:settings) { Dopamine.settings.fetch(:claude) }
@@ -161,6 +162,13 @@ RSpec.describe Claude::Summarizer do
     it "タイムアウトは TransientError" do
       stub_request(:post, endpoint).to_timeout
       expect { described_class.new(article).call }.to raise_error(described_class::TransientError, "接続エラー (APITimeoutError)")
+    end
+
+    it "待てば通る失敗でも HTTP 要求は 1 回で、台帳の 1 行と数が合う（SDK は再試行せず、やり直しは Job が持つ）" do
+      stub_request(:post, endpoint).to_return(status: 503, body: error_body("api_error"), headers: { "Content-Type" => "application/json" })
+
+      expect { described_class.new(article).call rescue nil }.to change(ClaudeApiCall, :count).by(1)
+      expect(a_request(:post, endpoint)).to have_been_made.once
     end
 
     it "失敗した呼び出しも台帳には 1 回と数える（呼ぶ前に記録する）" do
