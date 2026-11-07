@@ -6,6 +6,9 @@ class PushSubscription < ApplicationRecord
   validates :endpoint, presence: true, uniqueness: true, format: { with: %r{\Ahttps://\S+\z} }
   validates :p256dh, :auth, presence: true
 
+  # 印が nil の行も拾うために where.not ではなく or（SQL の != は NULL を落とす）
+  scope :not_sent_on, ->(column, day) { where(column => nil).or(where(arel_table[column].lt(day))) }
+
   # 端末からの購読を保存する。同じ endpoint なら鍵と UA を上書きする（ブラウザが鍵を作り直したとき、古い鍵では送れなくなるため）。
   # 保存できたかは返した行の errors で見る
   #

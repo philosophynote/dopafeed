@@ -180,4 +180,21 @@ RSpec.describe HttpGet do
       end.to raise_error(described_class::Error, "応答が大きすぎます")
     end
   end
+
+  describe ".verify_external!" do
+    it "取りに行かずに宛先だけ検査する。外部なら nil、内部ネットワークなら Error、名前が引けなければ TransientError" do
+      expect(described_class.verify_external!("https://push.example.com/sub/1")).to be_nil
+
+      allow(Resolv).to receive(:getaddresses).with("push.example.com").and_return([ "203.0.113.10", "10.0.0.1" ])
+      expect { described_class.verify_external!("https://push.example.com/sub/1") }.to raise_error(described_class::Error, "内部ネットワークの URL です") { |e| expect(e).not_to be_a(described_class::TransientError) }
+      expect { described_class.verify_external!("https://[::1]/sub/1") }.to raise_error(described_class::Error, "内部ネットワークの URL です")
+
+      allow(Resolv).to receive(:getaddresses).with("gone.example.com").and_return([])
+      expect { described_class.verify_external!("https://gone.example.com/") }.to raise_error(described_class::TransientError, "接続エラー (Resolv::ResolvError)")
+
+      expect { described_class.verify_external!("ftp://push.example.com/") }.to raise_error(described_class::Error, "URL が http(s) ではありません")
+      expect { described_class.verify_external!("https://push.example.com/a b") }.to raise_error(described_class::Error, "接続エラー (URI::InvalidURIError)")
+      expect(a_request(:any, /./)).not_to have_been_made
+    end
+  end
 end

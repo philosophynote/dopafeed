@@ -55,12 +55,29 @@ class HttpGet
   # @raise [TransientError] 408・429・5xx、接続エラー（名前が引けない場合を含む）
   # @raise [UnexpectedContentType] content_types に無い Content-Type
   def self.call(url, headers: {}, content_types: nil)
-    new(headers, content_types).get(URI(url))
+    fold_errors { new(headers, content_types).get(URI(url)) }
+  end
+
+  # 取りに行かずに宛先だけ検査する。自前で HTTP を話す相手にも同じ判定を通すため。
+  # 繋ぐのは呼ぶ側なので、検査の後に名前を引き直される DNS rebinding までは防げない。申告の時点で内側を指す URL を弾くのが役目
+  #
+  # @return [nil]
+  # @raise [Error] http(s) でない、壊れた URL、ホスト名の無い URL、内部ネットワークの宛先
+  # @raise [TransientError] 名前が引けない
+  def self.verify_external!(url)
+    fold_errors { new({}).check!(URI(url)) }
+    nil
+  end
+
+  # URI と接続の例外を {Error} / {TransientError} に畳む。呼ぶ側が rescue する型を 2 つに保つ
+  def self.fold_errors
+    yield
   rescue URI::Error => e
     raise Error, "接続エラー (#{e.class.name})"
   rescue *NETWORK_ERRORS => e
     raise TransientError, "接続エラー (#{e.class.name})"
   end
+  private_class_method :fold_errors
 
   def initialize(headers, content_types = nil)
     @headers = { "User-Agent" => USER_AGENT }.merge(headers)
@@ -70,14 +87,10 @@ class HttpGet
   # @param redirects [Integer] ここまでに追った回数
   # @return [Net::HTTPResponse] 2xx か 304
   def get(uri, redirects = 0)
-    raise Error, "URL が http(s) ではありません" unless SCHEMES.include?(uri.scheme)
-    # 名前が引けない（空は DNS に回すと「引けない」になり、待っても通らないのに再試行される）
-    raise Error, "URL にホスト名がありません" if uri.hostname.blank?
-
     # 検査した IP にそのまま繋ぐ（ipaddr:）。Net::HTTP に名前を引き直させると、検査の後で内部アドレスに変わる
     # DNS rebinding が通る。TLS の証明書検証と SNI はホスト名のまま。http_proxy 環境変数があると Net::HTTP は
     # プロキシに名前を引かせるので ipaddr: は効かない（本番に置かない前提）
-    response = Net::HTTP.start(uri.hostname, uri.port, ipaddr: resolve(uri.hostname), use_ssl: uri.scheme == "https", open_timeout: timeout, read_timeout: timeout) do |http|
+    response = Net::HTTP.start(uri.hostname, uri.port, ipaddr: check!(uri), use_ssl: uri.scheme == "https", open_timeout: timeout, read_timeout: timeout) do |http|
       http.request(Net::HTTP::Get.new(uri, @headers)) do |res|
         raise UnexpectedContentType, res.content_type.to_s if res.is_a?(Net::HTTPSuccess) && unexpected_content_type?(res)
         raise Error, too_large if res.content_length.to_i > max_body_bytes
@@ -99,6 +112,17 @@ class HttpGet
     else
       raise Error, "サーバーエラー (HTTP #{response.code})"
     end
+  end
+
+  # scheme・ホスト名・宛先の検査。繋ぐ前に通す
+  #
+  # @return [String] 繋いでよい IP（Net::HTTP の ipaddr: に渡す形）
+  def check!(uri)
+    raise Error, "URL が http(s) ではありません" unless SCHEMES.include?(uri.scheme)
+    # 名前が引けない（空は DNS に回すと「引けない」になり、待っても通らないのに再試行される）
+    raise Error, "URL にホスト名がありません" if uri.hostname.blank?
+
+    resolve(uri.hostname)
   end
 
   private

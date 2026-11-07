@@ -33,21 +33,24 @@
 - Given 未読が 0 When standalone で開く Then clearAppBadge が呼ばれる（同じスタブで検証）
 - Given manifest When /manifest を開く Then name, icons（180 / 512）, display: standalone, start_url: / が返る
 - Given service worker When /service-worker を開く Then 本文に push と notificationclick のイベント登録が含まれる（コントローラテストで文字列検査。実行はしない）
-- Given VAPID 鍵 When サーバーが Push を送る Then web-push gem で送り、410 が返った購読は削除する
+- Given VAPID 鍵 When サーバーが Push を送る Then web-push gem で送り、410（失効）・404（無効）が返った購読と、暗号化に使えない鍵（p256dh が曲線上の点でない、auth が 16 バイトでない）の購読は削除する。endpoint が内部ネットワークを指す購読は送らずに削除する（HttpGet と同じ判定。#68 の Codex 指摘）。401 / 403・5xx・429・413・接続エラー・想定外の例外は行を残して次の回に送り直し、1 つの購読の失敗で他の購読を止めない。サーバーの VAPID 鍵が読めない・subject が mailto: / https: でないときは 1 行も消さずに止める。ダイジェストの本文は固定のバイト数で切り、Web Push の本文上限を超えない
+- Given push.digest_at を過ぎた読書日 When Push::DispatchJob が回る Then 前の回（24 時間前）以降に届いた未読があれば、その本数を題に、新しい順に push.digest_articles 本の見出しを本文にしたダイジェストを印の無い購読に送り、digest_sent_on にその読書日を書く。同じ読書日に二度は送らない。新着が無い回は送らずに印だけ書く（その日は出さない。深夜に鳴らさない）
+- Given push.streak_warning_at を過ぎた読書日 When Push::DispatchJob が回る Then 昨日まで連続が続いていて今日がまだ 0 本なら「N 日連続が切れます。{reset_hour} 時までに 1 本」を送り、streak_warning_sent_on に書く。今日 1 本でも読んでいれば、昨日も 0 本（切れた後）なら、送らずに印だけ書く
+- Given 通知 When タップする Then 開いているアプリがあれば前に出して path へ移動し、無ければ開く。受信のたびに setAppBadge(unread)（0 なら clearAppBadge）で書き直す（service worker は文字列検査のみ。実行はしない）
 
 ## 使う設定の鍵
-dopamine.yml: `push.digest_at` / `push.streak_warning_at`（未決 1 の決定。nao が足すまで無く、無い間は画面に時刻を出さず、送らない）、`daily_goal.reset_hour`（警告の文言）
+dopamine.yml: `push.digest_at` / `push.streak_warning_at`（未決 1 の決定。nao が足すまで無く、無い間は画面に時刻を出さず、送らない）、`push.digest_articles`（ダイジェストの本文に載せる見出しの本数。10c で提案。無い間は題だけ）、`daily_goal.reset_hour`（警告の文言）、`fetch.timeout_seconds`（Push サービスへの接続と読み取りの待ち時間）
 personas.yml: なし
 
 ## 外部 API
-あり。Web Push（web-push gem は Unit 0 で Gemfile に入れた。VAPID 鍵の管理と送信 Job の設計は Unit 10 で ADR を足す）。Job 名: `Push::MorningDigestJob`, `Push::StreakWarningJob`（仮）。
-テストは WebMock で endpoint への POST をスタブ（200 と 410 の 2 通り。カセットは使わない）。
+あり。Web Push（web-push gem。VAPID 鍵の管理と送信の設計は ADR 0013）。Job は `Push::DispatchJob` 1 つ（config/recurring.yml で 10 分おき）で、通知の文面は `Push::Digest` / `Push::StreakWarning`、送信は `Push::Sender`。
+テストは WebMock で endpoint への POST をスタブ（201・410・404・503・429・タイムアウト。暗号化と署名は本物の鍵で通す。カセットは使わない）。
 
 ## 未決
 1. 通知の時刻（7:30）、1 日最大 2 件、ストリーク警告「3 時間前」。dopamine.yml に鍵が無い。提案: `push.digest_at: "07:30"`, `push.streak_warning_hours_before: 3`, `push.daily_max: 2`。通知は最大 3 種（激レア通知は tier が入ったときだけ）なので上限 2 件のときどれを落とすか（案: 激レア通知を優先し、ダイジェストと警告のうち後の方を落とす）
     → **決定（#63、nao 承認、ADR 0013）**: 鍵は `push.digest_at: "07:30"` と `push.streak_warning_at: "21:00"` の 2 つ（引用符付き。裸の 07:30 は YAML で六十進数の 27000 になる）。`streak_warning_hours_before` と `daily_max` は採らない（2 種 × 1 日 1 回で上限 2 は構造で守られる）
 2. バッジは OS が永続化しない（再起動で消える）ので、service worker の push / activate で setAppBadge を再実行する。pwa-ios Skill に従う
-    → **決定（Unit 10a、#63）**: ページを描くたびに Stimulus `badge`（layout の見えない `#app-badge`）が `setAppBadge(未読数)`、0 なら `clearAppBadge` を呼ぶ。未読が変わる Turbo Stream（興味なし・読了）は `#app-badge` も差し替えて追随させる。iOS では通知を許可したホーム画面のアプリでしか反映されないので、実機では 10b の「通知を許可する」の後に初めて出る（システムテストの検証は「呼んだ」ことまで）。service worker 側の再設定は Push の受信（10c）と一緒に入れる
+    → **決定（Unit 10a、#63）**: ページを描くたびに Stimulus `badge`（layout の見えない `#app-badge`）が `setAppBadge(未読数)`、0 なら `clearAppBadge` を呼ぶ。未読が変わる Turbo Stream（興味なし・読了）は `#app-badge` も差し替えて追随させる。iOS では通知を許可したホーム画面のアプリでしか反映されないので、実機では 10b の「通知を許可する」の後に初めて出る（システムテストの検証は「呼んだ」ことまで）。service worker 側の再設定は Push の受信（10c）で入れた: サーバーが payload に `unread`（未読の総数）を載せ、service worker が push のたびに setAppBadge / clearAppBadge を呼ぶ
 3. VAPID 鍵の置き場所（Rails credentials。runbook に追記）
     → **決定（#63、nao 承認、ADR 0013）**: ENV（`VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT`）。ANTHROPIC_API_KEY と同じく config/deploy.yml の env.secret → .kamal/secrets。作り方と交換は docs/runbook.md 2-h。鍵が無いサーバーでは Install が「鍵が無い」を出し、購読は 503 で受けない
 4. 第一の陣では「朝のダイジェスト」の 3 本選定（Claude の Sonnet）が無い。新着 3 本で代替するか、Push 自体を第二の陣に回すか

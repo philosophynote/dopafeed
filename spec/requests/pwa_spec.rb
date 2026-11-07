@@ -42,12 +42,13 @@ RSpec.describe "PWA", type: :request do
 
   describe "GET /service-worker" do
     # ブラウザの register は Accept: */* で取りに来る（html だと .js のテンプレートが見つからない）
-    it "JavaScript を返し、activate の登録を含む" do
+    it "JavaScript を返し、activate・push・notificationclick の登録と、受信時のバッジの書き直しを含む（文字列検査。実行はしない）" do
       get pwa_service_worker_path, headers: { "Accept" => "*/*" }
 
       expect(response).to have_http_status(:ok)
       expect(response.media_type).to eq("text/javascript")
-      expect(response.body).to include('addEventListener("install"', 'addEventListener("activate"')
+      expect(response.body).to include('addEventListener("install"', 'addEventListener("activate"', 'addEventListener("push"', 'addEventListener("notificationclick"',
+                                       "showNotification(", "setAppBadge(", "clearAppBadge(", "openWindow(")
     end
   end
 end
