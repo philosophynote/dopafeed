@@ -215,7 +215,7 @@ SolidQueue::Process.all               # 生きているワーカー。無けれ�
 ```
 
 ## 2-f. パスワードを忘れたとき
-パスワードリセットのメール（PasswordsMailer）は本番の配信設定（SMTP、`default_url_options` の host）が無く、Unit 15（Login）まで動かない。
+メールでのパスワードリセットは無い（本番に SMTP が無いので、Unit 15 で /passwords 一式を消した。ADR 0005 追記）。
 一人用なので console で直す:
 ```sh
 kamal console

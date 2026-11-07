@@ -1,5 +1,12 @@
+# ログイン状態を cookie の session_id と Session 行で保つ。期限の判断はここだけで行い、ログイン画面の出入りは SessionsController が持つ
 module Authentication
   extend ActiveSupport::Concern
+
+  # 最後に使ってからこの間あいた Session は、cookie が残っていても通さない。
+  # Session 行に期限が無いと、盗まれた cookie がいつまでも効くため（ADR 0005）
+  REMEMBER_FOR = 1.year
+  # 使い続けている間は期限を延ばす。毎リクエストの書き込みを避け、この間隔に一度だけ延ばす
+  REMEMBER_REFRESH_INTERVAL = 1.day
 
   included do
     before_action :require_authentication
@@ -22,11 +29,18 @@ module Authentication
     end
 
     def resume_session
-      Current.session ||= find_session_by_cookie
+      Current.session ||= find_session_by_cookie&.tap { |session| extend_session(session) }
     end
 
     def find_session_by_cookie
-      Session.find_by(id: cookies.signed[:session_id]) if cookies.signed[:session_id]
+      Session.where(updated_at: REMEMBER_FOR.ago..).find_by(id: cookies.signed[:session_id]) if cookies.signed[:session_id]
+    end
+
+    def extend_session(session)
+      return if session.updated_at > REMEMBER_REFRESH_INTERVAL.ago
+
+      session.touch
+      write_session_cookie(session)
     end
 
     def request_authentication
@@ -41,8 +55,12 @@ module Authentication
     def start_new_session_for(user)
       user.sessions.create!(user_agent: request.user_agent, ip_address: request.remote_ip).tap do |session|
         Current.session = session
-        cookies.signed.permanent[:session_id] = { value: session.id, httponly: true, same_site: :lax }
+        write_session_cookie(session)
       end
+    end
+
+    def write_session_cookie(session)
+      cookies.signed[:session_id] = { value: session.id, httponly: true, same_site: :lax, expires: REMEMBER_FOR.from_now }
     end
 
     def terminate_session

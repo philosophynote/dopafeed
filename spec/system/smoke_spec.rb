@@ -1,4 +1,4 @@
-# 画面そのものは Unit 5 / 15 で作る。ここは 390×844 の枠とスクショ採取が動くことの疎通だけ
+# 画面そのものの受け入れ条件は login_spec などに。ここは 390×844 の枠とスクショ採取が動くことの疎通だけ
 RSpec.describe "Smoke", type: :system do
   # 例ごとに after で撮る 1 枚は例の中では検証できないので、走った例の分を group の終わりで確かめる。
   # 前回の実行で残った同名ファイルで通ってしまわないよう、例の前に消しておく
@@ -17,7 +17,7 @@ RSpec.describe "Smoke", type: :system do
     visit root_path
 
     expect(page).to have_current_path(new_session_path)
-    expect(page).to have_selector("h1", text: "Sign in")
+    expect(page).to have_selector("h1", text: "DopaFeed")
     expect(viewport_width).to eq(SystemScreen::SCREEN_SIZE[0]), -> { "viewport が 390 にならない: #{viewport_diagnostics}" }
     expect(media_query_sees_screen_width?).to be(true), -> { "メディアクエリが 390 を見ていない: #{viewport_diagnostics}" }
 
@@ -27,14 +27,8 @@ RSpec.describe "Smoke", type: :system do
   end
 
   it "signing in reaches home" do
-    user = create(:user)
+    sign_in
 
-    visit new_session_path
-    fill_in "email_address", with: user.email_address
-    fill_in "password", with: "password"
-    click_on "Sign in"
-
-    expect(page).to have_current_path(root_path)
     expect(page).to have_text("DopaFeed")
   end
 end
