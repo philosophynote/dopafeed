@@ -146,13 +146,17 @@ export default class extends Controller {
     this.enqueue(this.formTarget, null, (success) => { if (!success) this.restore() })
   }
 
-  enqueue(form, submitter, done) {
+  enqueue(form, submitter, done, { stopOnTimeout = false } = {}) {
     submissions = submissions.then(() => new Promise((resolve) => {
       if (!form.isConnected) return resolve()
+
+      let submission
+      const started = (event) => { if (event.target === form) submission = event.detail.formSubmission }
 
       // 列は必ず進める。結果を待たずに外されても（画面を移って行が消えた）ここで解いて、次の行が止まらないようにする
       const finish = () => {
         clearTimeout(timer)
+        document.removeEventListener("turbo:submit-start", started)
         document.removeEventListener("turbo:submit-end", ended)
         this.submitCleanup = null
         resolve()
@@ -163,8 +167,14 @@ export default class extends Controller {
         finish()
         done(event.detail.success)
       }
-      // 応答が来ないまま列を止めない。次の送信に進む（届いていれば後から Turbo が差し替える。送信中の「読む」のボタンは Turbo が押せなくしたまま）
-      const timer = setTimeout(() => { finish(); done(false) }, this.submitTimeoutSecondsValue * 1000)
+      // 応答が来ないまま列を止めない。次の送信に進む（興味なしは届いていれば後から Turbo が差し替える）。
+      // stopOnTimeout なら送信を止める。Turbo は送信中のボタンを押せなくするので、止めないと応答が来るまで押し直せない
+      const timer = setTimeout(() => {
+        finish()
+        if (stopOnTimeout) submission?.stop()
+        done(false)
+      }, this.submitTimeoutSecondsValue * 1000)
+      document.addEventListener("turbo:submit-start", started)
       document.addEventListener("turbo:submit-end", ended)
       this.submitCleanup = finish
       form.requestSubmit(submitter)
@@ -181,7 +191,7 @@ export default class extends Controller {
     if (swiped || this.flying || this.opening) return
 
     this.opening = true
-    this.enqueue(this.readTarget.form, this.readTarget, () => { this.opening = false })
+    this.enqueue(this.readTarget.form, this.readTarget, () => { this.opening = false }, { stopOnTimeout: true })
   }
 
   restore() {

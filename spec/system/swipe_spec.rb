@@ -247,4 +247,29 @@ RSpec.describe "Swipe", type: :system do
     expect(page.evaluate_script("window.__submits")).to eq(1)
     expect(article.reload.reading).to be_present
   end
+
+  it "「読む」の応答が来ないまま待ちの上限を過ぎたら送信を止め、押し直して読める" do
+    short = Dopamine.settings.deep_dup
+    short[:swipe][:submit_timeout_seconds] = 1
+    allow(Dopamine).to receive(:settings).and_return(short)
+    article = create(:article, title: "待つ記事", published_at: now - 1.hour)
+    sign_in
+    read_button = find("article", text: "待つ記事").find_button("読む")
+
+    # POST だけ応答を返さず、中断されたら AbortError で終わる fetch（圏外で返事が来ない状態）
+    page.execute_script(<<~JS)
+      window.__fetch = window.fetch
+      window.fetch = (url, options) => (options?.method || "GET").toUpperCase() === "POST"
+        ? new Promise((_, reject) => options.signal.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError"))))
+        : window.__fetch(url, options)
+    JS
+    read_button.execute_script("this.click()")
+    expect(page).to have_css("button[data-swipe-target='read'][disabled]", visible: :all)
+    expect(page).to have_no_css("button[data-swipe-target='read'][disabled]", visible: :all, wait: 5)
+
+    page.execute_script("window.fetch = window.__fetch")
+    read_button.execute_script("this.click()")
+    expect(page).to have_css("[role='dialog'][aria-label='ルーレット']")
+    expect(article.reload.reading).to be_present
+  end
 end
