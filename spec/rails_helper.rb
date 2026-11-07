@@ -23,6 +23,8 @@ RSpec.configure do |config|
     connection = ActiveRecord::Base.connection
     connection.truncate_tables(*(connection.tables - %w[schema_migrations ar_internal_metadata]))
   end
+  # rate_limit の回数は Rails.cache に数える。前の例の回数を持ち越さない
+  config.before { Rails.cache.clear }
   config.infer_spec_type_from_file_location!
   config.filter_rails_from_backtrace!
 

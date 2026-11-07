@@ -17,7 +17,10 @@ RSpec.describe "Selenium driver", type: :system do
   # chromedriver の合成 mouse click は届かないことがある（spec/support/system_click.rb）。JS の click() で送っていることを保つ。
   # 見たいのは起きるイベントだけなので、click を止めて遷移させず、window を生かしたまま記録を読む
   it "click は要素の click() で送る（pointer イベントは起きない）" do
+    # 正しいパスワードを入れておく。click が止まらず送信されたら Main へ進み、下の current_path で落ちる
+    create(:user)
     visit new_session_path
+    fill_in "パスワード", with: "password"
     page.execute_script(<<~JS)
       window.__events = [];
       for (const type of ["pointerdown", "mousedown", "click"]) {
@@ -25,7 +28,7 @@ RSpec.describe "Selenium driver", type: :system do
       }
     JS
 
-    click_on "Forgot password?"
+    click_on "ログイン"
 
     expect(page.evaluate_script("window.__events")).to eq([ "click" ])
     expect(page).to have_current_path(new_session_path)
@@ -40,7 +43,7 @@ RSpec.describe "Selenium driver", type: :system do
       document.body.appendChild(cover);
     JS
 
-    expect { click_on "Forgot password?" }.to raise_error(Selenium::WebDriver::Error::ElementClickInterceptedError)
+    expect { click_on "ログイン" }.to raise_error(Selenium::WebDriver::Error::ElementClickInterceptedError)
   end
 
   it "restart_browser! は新しい driver と Chrome に切り替える" do
@@ -62,6 +65,6 @@ RSpec.describe "Selenium driver", type: :system do
     expect { restart_browser! }.to output(/quit failed/).to_stderr
 
     expect(page.driver).not_to equal(old_driver)
-    expect(page).to have_no_text("Sign in")
+    expect(page).to have_no_text("DopaFeed")
   end
 end

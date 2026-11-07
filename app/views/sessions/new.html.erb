@@ -1,31 +1,28 @@
-<div class="mx-auto md:w-2/3 w-full">
+<%# Login（docs/screens/login.md）。ユーザーは 1 人なのでパスワードだけ。パスキーのボタンは置かない（ADR 0005） %>
+<div class="flex min-h-[80dvh] flex-col justify-center">
+  <header class="text-center">
+    <h1 class="text-4xl font-black tracking-tight">
+      <span class="text-orange-500">Dopa</span>Feed
+    </h1>
+    <p class="mt-2 text-sm text-gray-500">自分専用。公開 URL なのでログインが要ります</p>
+  </header>
+
   <% if alert = flash[:alert] %>
-    <p class="py-2 px-3 bg-red-50 mb-5 text-red-500 font-medium rounded-lg inline-block" id="alert"><%= alert %></p>
+    <p class="mt-6 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-600" id="alert" role="alert"><%= alert %></p>
   <% end %>
 
-  <% if notice = flash[:notice] %>
-    <p class="py-2 px-3 bg-green-50 mb-5 text-green-500 font-medium rounded-lg inline-block" id="notice"><%= notice %></p>
+  <%= form_with url: session_url, class: "mt-6 rounded-2xl bg-white p-4 shadow-sm" do |form| %>
+    <%# iCloud キーチェーンがパスワードを保存・自動入力するには username 欄が要る。メールを公開ページに出さないよう固定の名前にし、送らない %>
+    <input type="text" value="dopafeed" autocomplete="username" readonly tabindex="-1" aria-hidden="true" class="sr-only">
+
+    <%= form.label :password, "パスワード", class: "block text-sm font-bold text-gray-500" %>
+    <%= form.password_field :password, required: true, autofocus: true, autocomplete: "current-password", autocapitalize: "off", autocorrect: "off", spellcheck: false, maxlength: 72,
+          class: "mt-2 block h-12 w-full rounded-xl border border-gray-300 px-4 text-base focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200" %>
+
+    <%= form.submit "ログイン", class: "mt-4 block h-12 w-full cursor-pointer rounded-xl bg-orange-500 text-base font-bold text-white active:bg-orange-600" %>
   <% end %>
 
-  <h1 class="font-bold text-4xl">Sign in</h1>
-
-  <%= form_with url: session_url, class: "contents" do |form| %>
-    <div class="my-5">
-      <%= form.email_field :email_address, required: true, autofocus: true, autocomplete: "username", placeholder: "Enter your email address", value: params[:email_address], class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full" %>
-    </div>
-
-    <div class="my-5">
-      <%= form.password_field :password, required: true, autocomplete: "current-password", placeholder: "Enter your password", maxlength: 72, class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full" %>
-    </div>
-
-    <div class="col-span-6 sm:flex sm:items-center sm:gap-4">
-      <div class="inline">
-        <%= form.submit "Sign in", class: "w-full sm:w-auto text-center rounded-md px-3.5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white inline-block font-medium cursor-pointer" %>
-      </div>
-
-      <div class="mt-4 text-sm text-gray-500 sm:mt-0">
-        <%= link_to "Forgot password?", new_password_path, class: "text-gray-700 underline hover:no-underline" %>
-      </div>
-    </div>
-  <% end %>
+  <p class="mt-4 text-center text-xs leading-relaxed text-gray-500">
+    ユーザーは 1 人だけ。ログイン状態は最後に開いてから <%= Session::REMEMBER_FOR.in_years.to_i %> 年保つので、普段この画面は出ません
+  </p>
 </div>
