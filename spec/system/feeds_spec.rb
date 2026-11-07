@@ -17,7 +17,7 @@ RSpec.describe "Feeds", type: :system do
     sign_in
     click_on "購読"
     expect(page).to have_css("h1", text: "購読 (2)")
-    expect(page).to have_button("フィードを追加", disabled: true)
+    expect(page).to have_link("フィードを追加", href: new_feed_path)
     expect(page).to have_text("0件・未読 0")
     expect(viewport_width).to eq(390)
     expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true)

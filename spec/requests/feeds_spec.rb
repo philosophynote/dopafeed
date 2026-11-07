@@ -3,6 +3,10 @@ RSpec.describe "Feeds", type: :request do
     feed = create(:feed)
     get feeds_path
     expect(response).to redirect_to(new_session_path)
+    get new_feed_path
+    expect(response).to redirect_to(new_session_path)
+    expect { post feeds_path, params: { feed: { url: "https://example.com/feed" } } }.not_to change(Feed, :count)
+    expect(response).to redirect_to(new_session_path)
     expect { delete feed_path(feed) }.not_to change(Feed, :count)
     expect(response).to redirect_to(new_session_path)
   end
@@ -10,6 +14,12 @@ RSpec.describe "Feeds", type: :request do
   context "ログイン済み" do
     around { |example| travel_to(Time.zone.local(2026, 11, 7, 12)) { example.run } }
     before { sign_in_as(create(:user)) }
+
+    it "シートの戻り先として任意の URL を使わない" do
+      get new_feed_path(from: "https://example.com/")
+      expect(Capybara.string(response.body)).to have_link("閉じる", href: feeds_path)
+      expect(Capybara.string(response.body)).to have_css("turbo-frame#turbo_add_feed", count: 1)
+    end
 
     it "4 行に記事数・未読・取得状態を表示する" do
       feed = create(:feed, title: "Ruby Weekly", last_fetched_at: 3.minutes.ago)

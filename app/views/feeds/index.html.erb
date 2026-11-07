@@ -1,6 +1,6 @@
 <header class="flex items-center justify-between gap-3">
   <h1 class="text-2xl font-bold">購読 (<%= @feeds.size %>)</h1>
-  <button type="button" disabled class="min-h-11 rounded-full bg-gray-200 px-4 text-sm text-gray-500">フィードを追加</button>
+  <%= link_to "フィードを追加", new_feed_path, class: "flex min-h-11 items-center rounded-full bg-white px-4 text-sm text-orange-600", data: { turbo_frame: "turbo_add_feed" } %>
 </header>
 <ul class="mt-4 space-y-3 overflow-hidden" aria-label="購読中のフィード">
   <% @feeds.each do |feed| %>

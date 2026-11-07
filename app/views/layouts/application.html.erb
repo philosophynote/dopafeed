@@ -26,6 +26,7 @@
   <body class="min-h-dvh bg-gray-100 text-gray-900 antialiased">
     <main class="mx-auto w-full max-w-md px-4 pt-4 pb-24">
       <%= yield %>
+      <%= turbo_frame_tag "turbo_add_feed" unless controller_name == "feeds" && %w[new create].include?(action_name) %>
       <%# 「読む」の Turbo Stream がルーレットのモーダルを差し込む先 %>
       <div id="roulette"></div>
       <%# ログイン中だけアイコンのバッジに未読数を書く（ログイン画面には数が無い） %>

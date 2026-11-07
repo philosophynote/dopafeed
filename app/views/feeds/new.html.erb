@@ -1,0 +1,27 @@
+<%= turbo_frame_tag "turbo_add_feed" do %>
+  <dialog class="fixed inset-x-0 top-auto bottom-0 m-0 max-h-dvh w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-5 text-gray-900 backdrop:bg-black/40 sm:mx-auto" data-controller="add-feed" data-action="cancel->add-feed#close turbo:submit-start->add-feed#busy turbo:submit-end->add-feed#idle" aria-labelledby="add-feed-title" data-turbo-temporary>
+    <header class="flex items-center justify-between gap-3">
+      <h1 id="add-feed-title" class="text-xl font-bold">フィードを追加</h1>
+      <%= link_to "閉じる", @back_path, class: "flex min-h-11 min-w-11 items-center justify-center text-orange-600", data: { turbo_frame: "_top", add_feed_target: "close" } %>
+    </header>
+    <% if @result&.feed %>
+      <p class="mt-4 break-all" role="status"><%= @result.message %></p>
+    <% else %>
+      <% if @result %>
+        <p class="mt-4 break-all text-red-600" role="alert"><%= @result.message %></p>
+      <% end %>
+      <%= form_with url: feeds_path(from: params[:from]), scope: :feed, class: "mt-4 space-y-3" do |form| %>
+        <%= form.label :url, "フィードの URL", class: "block text-sm font-semibold" %>
+        <%= form.url_field :url, value: @url, required: true, placeholder: "https://zenn.dev/feed", class: "min-h-11 w-full rounded-xl border border-gray-300 px-3 text-base", autofocus: true %>
+        <%= form.submit "追加", class: "min-h-11 w-full rounded-xl bg-orange-500 px-4 font-bold text-white disabled:opacity-50", data: { turbo_submits_with: "確認中…" } %>
+      <% end %>
+      <h2 class="mt-5 font-bold">おすすめ</h2>
+      <div class="mt-2 grid gap-1">
+        <% [ [ "Zenn トレンド", "https://zenn.dev/feed" ], [ "Qiita 人気記事", "https://qiita.com/popular-items/feed" ], [ "はてブ テクノロジー", "https://b.hatena.ne.jp/hotentry/it.rss" ], [ "Hacker News", "https://hnrss.org/frontpage" ], [ "Publickey", "https://www.publickey1.jp/atom.xml" ], [ "Swift.org Blog", "https://swift.org/atom.xml" ] ].each do |title, url| %>
+          <%= button_to title, feeds_path(from: params[:from]), params: { feed: { url: url } }, class: "min-h-11 w-full rounded-xl bg-gray-100 px-3 text-left text-sm disabled:opacity-50" %>
+        <% end %>
+      </div>
+      <p class="mt-3 text-xs text-gray-500">RSS/Atom の URL を入力してください。サイト URL の自動検出は準備中です。</p>
+    <% end %>
+  </dialog>
+<% end %>

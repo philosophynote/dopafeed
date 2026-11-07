@@ -28,6 +28,7 @@
 - Main → DailyGoal（ステータスカードの「今日のゴール n / 5」の行をタップ。達成前でも開く。5 本目の読了後は Reader の区切りの「宝箱を開く」から。Unit 7 #55）
 - Main → Comments / Similar / ForYou / Learning / AddFeed / Saved / Weekly / Feeds（full page。第一の陣では無い）
 - 第一の陣の導線: 設定ボタンは Learning の最小版（`/learning`。サインアウト + Install への導線だけ。Unit 5 で置いた）へ。フィード追加の「+」は出さない（5 フィードは seed と Unit 3 で入る。AddFeed は第二の陣）
+- 第二の陣（#77）: 「フィードを追加」から AddFeed のシートを開く。閉じると Main に戻る
 - Reader から「閉じる」で Main に戻ると、完読したカードは一覧から消え、ステータスカードが更新される（Reader が判定する。ADR 0010）
 - カードの「興味なし」（左スワイプ）→ Turbo Stream でカードが「元に戻す」の帯に替わり、未読数が減る（swipe.md、ADR 0012）
 
