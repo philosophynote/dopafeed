@@ -1,6 +1,6 @@
 # フィードから取り込んだ記事。
 # summary は Claude の 3 行要約（Job が後から付ける。取り込み直後は nil）。summary_failed_at / summary_error は要約の失敗。
-# 自動では再試行せず、人が summary_failed_at を nil に戻したときだけ拾い直す。content は HTML: まず {FeedFetcher} がフィードの entry 本文をそのまま入れ、
+# 失敗は自動では再試行せず、人が {.retry_failed_summaries} で戻したときだけ拾い直す。content は HTML: まず {FeedFetcher} がフィードの entry 本文をそのまま入れ、
 # {ArticleContentFetcher} が記事ページから readability で抜いた本文（段落・見出し・コード・リンクだけ残る）で置き換える。
 # content_fetched_at は試行時刻、content_error が nil なら成功。
 # guid はフィード内の重複排除の鍵（entry_id、無ければ url。[feed_id, guid] は一意）。
@@ -22,6 +22,9 @@
 # @!method self.awaiting_summary
 #   要約待ちの記事。本文取得を試す前（content_fetched_at が nil）は含めない。フィードの薄い本文を要約すると、その後に本文が入っても二度と直らない
 #   @return [ActiveRecord::Relation<Article>]
+# @!method self.summary_failed
+#   要約に失敗したまま要約の無い記事。失敗の記録より後に要約が付いた記事は含めない
+#   @return [ActiveRecord::Relation<Article>]
 class Article < ApplicationRecord
   belongs_to :feed
   has_one :reading, dependent: :destroy
@@ -35,6 +38,14 @@ class Article < ApplicationRecord
   scope :saved, -> { where.not(liked_at: nil).or(where.not(bookmarked_at: nil)) }
   scope :newest_first, -> { order(published_at: :desc, id: :desc) }
   scope :awaiting_summary, -> { where(summary: nil, summary_failed_at: nil).where.not(content_fetched_at: nil) }
+  scope :summary_failed, -> { where(summary: nil).where.not(summary_failed_at: nil) }
+
+  # 要約の失敗の記録を消して要約待ちに戻す。ここでは API を呼ばない。拾うのは定期の要約ジョブで、その日の予算の範囲に収まる
+  #
+  # @return [Integer] 戻した本数
+  def self.retry_failed_summaries
+    summary_failed.update_all(summary_failed_at: nil, summary_error: nil, updated_at: Time.current)
+  end
 
   # 続けて読む次の未読。newest_first の順で article のすぐ後ろ（古い方）の 1 本。
   # 古い方へしか進まないので、未完で区切った記事が同じ流れに二度出ない。published_at の無い記事は SQLite の降順どおり最後に来る

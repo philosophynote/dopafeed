@@ -1,6 +1,6 @@
 module Claude
   # 要約待ちの記事を、その日の予算の残りぶんだけ {SummarizeArticleJob} に積む。定期実行は config/recurring.yml。
-  # 記事を作った直後ではなく定期に積む理由は {Article.awaiting_summary} の条件にある。
+  # 要約は本文取得を試し終えた直後にも積まれる。こちらはその拾い直しで、予算切れで積まれなかった記事と、失敗から戻された記事を拾う。
   # 1 回の本数の鍵は持たず claude.daily_call_limit だけで頭打ちにする。積み残しは次の回に回る
   class SummarizePendingArticlesJob < ApplicationJob
     queue_as :claude

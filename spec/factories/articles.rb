@@ -1,5 +1,5 @@
 # 記事。既定で 3 行要約つき、未読・未保存。
-# :unsummarized 要約前 / :awaiting_summary 本文取得を試した後の要約待ち / :liked いいね / :bookmarked 保存 / :dismissed 興味なし / :opened 開いただけ / :read 完読
+# :unsummarized 要約前 / :awaiting_summary 本文取得を試した後の要約待ち / :summary_failed 要約に失敗 / :liked いいね / :bookmarked 保存 / :dismissed 興味なし / :opened 開いただけ / :read 完読
 # :opened / :read は after(:create) で Reading を作るので create 専用（build では Reading が付かない）
 FactoryBot.define do
   factory :article do
@@ -17,6 +17,12 @@ FactoryBot.define do
       summary { nil }
       content { "<h1>見出し</h1><p>最初の段落。</p><p>二つ目の<strong>段落</strong>。</p>" }
       content_fetched_at { Time.zone.local(2026, 10, 1, 10) }
+    end
+
+    trait :summary_failed do
+      awaiting_summary
+      summary_failed_at { Time.zone.local(2026, 10, 1, 11) }
+      summary_error { "応答の形式が不正" }
     end
 
     trait :liked do

@@ -100,6 +100,25 @@ RSpec.describe Article, type: :model do
     expect(Article.awaiting_summary).to contain_exactly(waiting, failed_fetch)
   end
 
+  it "summary_failed は要約が無く失敗の記録がある記事だけ" do
+    failed = create(:article, :summary_failed)
+    create(:article, :awaiting_summary)
+    create(:article, :summary_failed, summary: "・a\n・b\n・c")
+
+    expect(Article.summary_failed).to contain_exactly(failed)
+  end
+
+  it "retry_failed_summaries は失敗だけを要約待ちに戻し、戻した件数を返す" do
+    failed = create_list(:article, 2, :summary_failed)
+    waiting = create(:article, :awaiting_summary)
+    summarized = create(:article, :summary_failed, summary: "・a\n・b\n・c")
+
+    expect(Article.retry_failed_summaries).to eq(2)
+    expect(Article.awaiting_summary).to contain_exactly(*failed, waiting)
+    expect(failed.map { |article| article.reload.summary_error }).to all(be_nil)
+    expect(summarized.reload.summary_failed_at).to be_present
+  end
+
   it "saved は liked_at か bookmarked_at のある記事" do
     liked = create(:article, :liked)
     bookmarked = create(:article, :bookmarked)

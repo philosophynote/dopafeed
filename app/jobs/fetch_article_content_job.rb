@@ -13,7 +13,9 @@ class FetchArticleContentJob < ApplicationJob
   end
 
   retry_on HttpGet::TransientError, wait: :polynomially_longer do |job, error|
-    ArticleContentFetcher.new(job.arguments.first).record_failure(error.message)
+    article = job.arguments.first
+    ArticleContentFetcher.new(article).record_failure(error.message)
+    enqueue_summary(article)
   end
 
   limits_concurrency key: ->(article) { FetchArticleContentJob.host_of(article) }
@@ -25,10 +27,19 @@ class FetchArticleContentJob < ApplicationJob
     article.url
   end
 
+  # 本文取得を試し終えた記事は要約できるようになるので、その場で要約の Job を積む。定期の要約ジョブを待つと、その間隔ぶん要約が遅れる。
+  # 予算が尽きていれば積まない（積んでも捨てられるだけで、翌日に定期の要約ジョブが拾う）
+  def self.enqueue_summary(article)
+    return unless Article.awaiting_summary.exists?(article.id)
+    return if Claude::Budget.new.remaining.zero?
+
+    Claude::SummarizeArticleJob.perform_later(article)
+  end
+
   # @return [ArticleContentFetcher::Result, nil] 取得済みなら nil
   def perform(article)
     return if article.content_fetched_at.present?
 
-    ArticleContentFetcher.new(article).call
+    ArticleContentFetcher.new(article).call.tap { self.class.enqueue_summary(article) }
   end
 end
