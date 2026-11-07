@@ -31,8 +31,10 @@ ENV RAILS_ENV="production" \
 FROM base AS build
 
 # Install packages needed to build gems
+# libssl-dev: web-push が求める openssl gem は Gemfile.lock で Ruby 同梱と別の版に固定され、C 拡張をビルドするので OpenSSL のヘッダが要る。
+# 実行段は Ruby 本体が使う libssl3 を ruby:slim が持っているので足さない
 RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y build-essential git libvips libyaml-dev pkg-config && \
+    apt-get install --no-install-recommends -y build-essential git libssl-dev libvips libyaml-dev pkg-config && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
 # Install application gems
