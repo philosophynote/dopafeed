@@ -130,7 +130,8 @@ RSpec.describe "Swipe", type: :system do
       this.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 7, pointerType: "touch", isPrimary: true, clientX: rect.left + 40, clientY: rect.top + 40 }))
     JS
     expect(settled_shift("戻る記事")).to eq(0)
-    read_button.execute_script("this.click()")
+    page.execute_script("window.__submits = 0; document.addEventListener('turbo:submit-start', () => window.__submits++)")
+    read_button.execute_script("this.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }))")
     expect(page).to have_no_css("[role='dialog'][aria-label='ルーレット']")
     expect(Article.find_by(title: "戻る記事").reading).to be_nil
 
@@ -205,5 +206,45 @@ RSpec.describe "Swipe", type: :system do
     drag_card("次の記事", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
     expect(page).to have_text("を削除した")
     expect(Article.find_by(title: "次の記事")).to be_dismissed
+  end
+
+  it "引いて戻した直後の click は送らず、次に触れて離せば 1 本だけ送って読む" do
+    create(:article, title: "迷う記事", published_at: now - 1.hour)
+    sign_in
+    width = card_width("迷う記事")
+    read_button = find("article", text: "迷う記事").find_button("読む")
+
+    drag_card("迷う記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 0.5, 40 ], on: read_button)
+    expect(settled_shift("迷う記事")).to eq(0)
+    page.execute_script("window.__submits = 0; document.addEventListener('turbo:submit-start', () => window.__submits++)")
+    click = "this.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }))"
+    read_button.execute_script(click)
+
+    # 新しい触り（pointerdown）の後の click は読む。先の click が送られていれば送信は 2 本になる
+    read_button.execute_script("this.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 8, isPrimary: true, button: 0, clientX: 200, clientY: 10 }))")
+    read_button.execute_script(click)
+    expect(page).to have_css("[role='dialog'][aria-label='ルーレット']")
+    expect(page.evaluate_script("window.__submits")).to eq(1)
+  end
+
+  it "続けて 2 回押してもルーレットは 1 つ。送れなかったらもう一度押して読める" do
+    article = create(:article, title: "押す記事", published_at: now - 1.hour)
+    sign_in
+    read_button = find("article", text: "押す記事").find_button("読む")
+
+    page.execute_script("window.__fetch = window.fetch; window.fetch = () => Promise.reject(new TypeError('offline'))")
+    read_button.execute_script("this.click()")
+    expect(page).to have_no_css("form[aria-busy='true']", visible: :all)
+    expect(article.reload.reading).to be_nil
+
+    page.execute_script(<<~JS)
+      window.fetch = window.__fetch
+      window.__submits = 0
+      document.addEventListener("turbo:submit-start", () => window.__submits++)
+    JS
+    read_button.execute_script("this.click(); this.click()")
+    expect(page).to have_css("[role='dialog'][aria-label='ルーレット']", count: 1)
+    expect(page.evaluate_script("window.__submits")).to eq(1)
+    expect(article.reload.reading).to be_present
   end
 end

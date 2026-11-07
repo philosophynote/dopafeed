@@ -40,6 +40,10 @@ RSpec.describe "Main", type: :system do
     expect(heights.size).to eq(6)
     expect(heights.max).to be <= 120, "行が高い（一画面に並ぶ本数が減る）: #{heights.inspect}"
     expect(page).to have_no_button("削除")
+    expect(page).to have_no_text("興味なし")
+    # 「読む」はボタンの名前だけで、目に見える文字は出さない
+    expect(page).to have_css("article button[data-swipe-target='read'] > span.sr-only", text: "を読む", visible: :all, count: 6)
+    expect(page.evaluate_script("Array.from(document.querySelectorAll('article button[data-swipe-target=read]')).every(b => b.querySelector('.sr-only').getBoundingClientRect().width <= 1)")).to be(true)
     screenshot!("list")
 
     # 見出しの上も画像の上も、指が触れるのは行を覆う「読む」のボタン

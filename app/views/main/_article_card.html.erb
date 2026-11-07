@@ -1,4 +1,4 @@
-<%# 一覧の 1 行。見出し（最大 3 行）とフィード名・相対時刻、右に OGP 画像の小さなサムネイル（あれば）。要約は出さない（「読む」の後に作るので読む前はほぼ空。Reader で読む）。
+<%# 一覧の 1 行。要約は出さない（「読む」の後に作るので読む前はほぼ空。Reader で読む）。サムネイルを右に小さく置くのは一画面に並ぶ本数を減らさないため。
     行全体を「読む」のボタンが覆い、どこを押してもルーレット → Reader に進む（JS が無くても form の POST で進む）。
     「興味なし」（画面の呼び名は「削除」。記録は残り「元に戻す」で戻せる）は見えるボタンを置かず、左へ引くと Stimulus swipe が隠れた form を送る。
     引いた幅だけ右から丸型の背景とゴミ箱のアイコンが伸び、送る閾値を越えると赤くなる。
@@ -6,7 +6,7 @@
 <% swipe = Dopamine.settings[:swipe] %>
 <li id="<%= dom_id(article) %>" class="relative" data-controller="swipe"
     data-swipe-dismiss-ratio-value="<%= swipe[:dismiss_threshold_ratio] %>" data-swipe-submit-timeout-seconds-value="<%= swipe[:submit_timeout_seconds] %>">
-  <div class="swipe-rail absolute inset-y-1 right-1 flex w-0 items-center justify-center overflow-hidden rounded-full text-white" data-swipe-target="rail" aria-hidden="true">
+  <div class="swipe-rail absolute inset-y-1 right-1 flex w-0 items-center justify-end overflow-hidden rounded-full pr-5 text-white" data-swipe-target="rail" aria-hidden="true">
     <span class="flex shrink-0 flex-col items-center gap-0.5 text-[11px] font-bold">
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="h-6 w-6">
         <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
@@ -27,7 +27,9 @@
       </p>
     </div>
     <%= render "articles/image", article: article, thumbnail: true %>
-    <%= button_to article_reading_path(article), class: "absolute inset-0 w-full active:bg-black/5",
+    <%# form は flex の項目として場所を取らない（contents）。ボタンは article を基準に行全体を覆う %>
+    <%= button_to article_reading_path(article), form: { class: "contents" },
+                  class: "absolute inset-0 w-full [-webkit-tap-highlight-color:transparent] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-orange-500 active:bg-black/5",
                   data: { swipe_target: "read", action: "click->swipe#open" } do %>
       <span class="sr-only">「<%= article.title %>」を読む</span>
     <% end %>

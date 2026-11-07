@@ -146,7 +146,6 @@ export default class extends Controller {
     this.enqueue(this.formTarget, null, (success) => { if (!success) this.restore() })
   }
 
-  // form を列に並べて送り、turbo:submit-end（または時間切れ）で done(成功したか) を呼ぶ
   enqueue(form, submitter, done) {
     submissions = submissions.then(() => new Promise((resolve) => {
       if (!form.isConnected) return resolve()
@@ -164,7 +163,7 @@ export default class extends Controller {
         finish()
         done(event.detail.success)
       }
-      // 応答が来ないまま待ち続けない。送れなかった扱いにする（届いていれば後から Turbo が差し替える）
+      // 応答が来ないまま列を止めない。次の送信に進む（届いていれば後から Turbo が差し替える。送信中の「読む」のボタンは Turbo が押せなくしたまま）
       const timer = setTimeout(() => { finish(); done(false) }, this.submitTimeoutSecondsValue * 1000)
       document.addEventListener("turbo:submit-end", ended)
       this.submitCleanup = finish
@@ -172,11 +171,12 @@ export default class extends Controller {
     }))
   }
 
-  // 「読む」のボタンの click。横へ引いた触りの後に来た click は読まない（引いて戻した行が開いてしまう）。
+  // 「読む」のボタンの click。横へ引いた触りの後に click が来る端末でも読まない（引いて戻した行が開いてしまう）。
+  // キーボードの Enter / Space（detail が 0）は指の動きと関係ないので通す。
   // 送信は興味なしと同じ列に並べる（送信中の興味なしの応答を Turbo に捨てさせない）。二度押しでルーレットを重ねない
   open(event) {
     event.preventDefault()
-    const swiped = this.swiped
+    const swiped = this.swiped && event.detail > 0
     this.swiped = false
     if (swiped || this.flying || this.opening) return
 
