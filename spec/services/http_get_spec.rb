@@ -36,6 +36,54 @@ RSpec.describe HttpGet do
     expect(described_class.call(url).body).to eq("final")
   end
 
+  describe "恒久移転（permanent_url）" do
+    let(:moved) { "https://fixtures.example.com/moved" }
+    let(:final) { "https://fixtures.example.com/final" }
+
+    it "301・308 だけで辿った先を返す（相対の Location も絶対 URL にする）" do
+      stub_request(:get, url).to_return(status: 301, headers: { "Location" => "/moved" })
+      stub_request(:get, moved).to_return(status: 308, headers: { "Location" => final })
+      stub_request(:get, final).to_return(status: 200, body: "final")
+
+      expect(described_class.call(url).permanent_url).to eq(final)
+    end
+
+    it "302・307 が挟まったら、その手前までを移転先にする（一時的な寄り道の先は覚えない）" do
+      stub_request(:get, url).to_return(status: 301, headers: { "Location" => moved })
+      stub_request(:get, moved).to_return(status: 302, headers: { "Location" => final })
+      stub_request(:get, final).to_return(status: 200, body: "final")
+
+      expect(described_class.call(url).permanent_url).to eq(moved)
+    end
+
+    it "最初が 302・307 なら、後に 301 が続いても移転ではない" do
+      stub_request(:get, url).to_return(status: 307, headers: { "Location" => moved })
+      stub_request(:get, moved).to_return(status: 301, headers: { "Location" => final })
+      stub_request(:get, final).to_return(status: 200, body: "final")
+
+      expect(described_class.call(url).permanent_url).to be_nil
+    end
+
+    it "ホストを小文字にしてフラグメントを落とす" do
+      stub_request(:get, url).to_return(status: 301, headers: { "Location" => "HTTPS://Fixtures.Example.com/moved#top" })
+      stub_request(:get, moved).to_return(status: 200, body: "ok")
+
+      expect(described_class.call(url).permanent_url).to eq(moved)
+    end
+
+    it "移転先の 304 でも返す" do
+      stub_request(:get, url).to_return(status: 301, headers: { "Location" => moved })
+      stub_request(:get, moved).to_return(status: 304, body: "")
+
+      expect(described_class.call(url).permanent_url).to eq(moved)
+    end
+
+    it "リダイレクトが無ければ nil" do
+      stub_request(:get, url).to_return(status: 200, body: "ok")
+      expect(described_class.call(url).permanent_url).to be_nil
+    end
+  end
+
   it "リダイレクトが上限を超えたら Error" do
     stub_request(:get, url).to_return(status: 301, headers: { "Location" => url })
     expect { described_class.call(url) }.to raise_error(described_class::Error, "リダイレクトが多すぎます")

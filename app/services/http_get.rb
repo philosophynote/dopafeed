@@ -32,6 +32,14 @@ class HttpGet
     end
   end
 
+  # 返す応答に足す、恒久移転の行き先
+  module Moved
+    # @return [String, nil] 最初の URL から 301 / 308 だけで辿った最後の URL。302 / 307 が挟まればその手前まで（一時的な寄り道の先は覚えない）。
+    #   ホストを小文字にしてフラグメントを落とす（保存済みの URL と突き合わせるため）。移転が無ければ nil
+    attr_accessor :permanent_url
+  end
+
+  PERMANENT_REDIRECTS = [ Net::HTTPMovedPermanently, Net::HTTPPermanentRedirect ].freeze
   # 追うリダイレクトの上限。インフラの定数で報酬の数字ではないので dopamine.yml には置かない
   MAX_REDIRECTS = 3
   # 接続エラー（TransientError）に畳む例外（DNS・接続・切断・TLS・壊れた gzip）。これ以外は上げる
@@ -50,7 +58,7 @@ class HttpGet
 
   # @param headers [Hash{String => String}] 足すヘッダ（Accept、条件付き GET の If-None-Match など）
   # @param content_types [Array<String>, nil] 受け入れる Content-Type（小文字、パラメータ抜き）。nil なら何でも読む
-  # @return [Net::HTTPResponse] 2xx か 304。本文は読み込み済み
+  # @return [Net::HTTPResponse, Moved] 2xx か 304。本文は読み込み済み
   # @raise [Error] http(s) でない、壊れた URL、ホスト名の無い URL、内部ネットワークの宛先、4xx、リダイレクト超過、本文が上限超
   # @raise [TransientError] 408・429・5xx、接続エラー（名前が引けない場合を含む）
   # @raise [UnexpectedContentType] content_types に無い Content-Type
@@ -82,6 +90,8 @@ class HttpGet
   def initialize(headers, content_types = nil)
     @headers = { "User-Agent" => USER_AGENT }.merge(headers)
     @content_types = content_types
+    @permanent_url = nil
+    @permanent_chain = true
   end
 
   # @param redirects [Integer] ここまでに追った回数
@@ -101,12 +111,14 @@ class HttpGet
 
     case response
     when Net::HTTPSuccess, Net::HTTPNotModified
-      response
+      response.extend(Moved).tap { |res| res.permanent_url = @permanent_url }
     when Net::HTTPRedirection
       raise Error, "リダイレクトが多すぎます" if redirects >= MAX_REDIRECTS
       raise Error, "サーバーエラー (HTTP #{response.code})" if response["Location"].blank?
 
-      get(URI.join(uri, response["Location"]), redirects + 1)
+      location = URI.join(uri, response["Location"])
+      remember_move(response, location)
+      get(location, redirects + 1)
     when Net::HTTPServerError, Net::HTTPTooManyRequests, Net::HTTPRequestTimeout
       raise TransientError, "サーバーエラー (HTTP #{response.code})"
     else
@@ -126,6 +138,11 @@ class HttpGet
   end
 
   private
+
+  def remember_move(response, location)
+    @permanent_chain &&= PERMANENT_REDIRECTS.any? { |klass| response.is_a?(klass) }
+    @permanent_url = location.dup.tap { |uri| uri.fragment = nil }.normalize.to_s if @permanent_chain
+  end
 
   # ホスト名を解き、解けた全アドレスが内部ネットワークでないことを確かめる。一つでも内側なら取りに行かない。
   # 繋ぐのは先頭の 1 つ（残りへのフォールバックは Net::HTTP に戻さない。戻すと名前を引き直す）

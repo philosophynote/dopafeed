@@ -12,6 +12,15 @@ RSpec.describe FetchFeedJob, type: :job do
     expect { perform_enqueued_jobs }.not_to raise_error
   end
 
+  it "同じフィードの Job が待ち・実行中なら後から積んだ方を捨てる設定（捨てる動きは Solid Queue に任せる）" do
+    other = create(:feed)
+
+    expect(described_class.concurrency_on_conflict).to eq(:discard)
+    expect(described_class.concurrency_limit).to eq(1)
+    expect(described_class.new(Feed.find(feed.id)).concurrency_key).to eq(described_class.new(feed).concurrency_key)
+    expect(described_class.new(other).concurrency_key).not_to eq(described_class.new(feed).concurrency_key)
+  end
+
   it "FeedFetcher にフィードを渡す" do
     fetcher = instance_double(FeedFetcher, call: nil)
     allow(FeedFetcher).to receive(:new).with(feed).and_return(fetcher)
