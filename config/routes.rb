@@ -12,7 +12,7 @@ Rails.application.routes.draw do
 
   # ログイン後の着地点（after_authentication_url が root_url を使う）
   root "main#show"
-  resources :feeds, only: %i[index destroy]
+  resources :feeds, only: %i[index new create destroy]
   resource :learning, only: :show, controller: :learning
   # ホーム画面に追加する手順と、通知・バッジの入口
   resource :install, only: :show, controller: :install

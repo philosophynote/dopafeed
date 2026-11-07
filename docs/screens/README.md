@@ -18,7 +18,7 @@
 | 2 | Weekly | weekly.md | Weekly.dc.html | 未定（案: 13） | 浅 |
 | 2 | Install | install.md | Install.dc.html | 10 | 深 |
 | 2 | Similar | similar.md | Similar.dc.html | 未定（案: 14） | 浅 |
-| 3 管理 | AddFeed | add_feed.md | AddFeed.dc.html | 16b（#77、詳細計画は未承認） | 浅 |
+| 3 管理 | AddFeed | add_feed.md | AddFeed.dc.html | 16b（#77、直接登録）、16c（#81、自動検出） | 深 |
 | 3 | Saved | saved.md | Saved.dc.html | 未定（案: 17） | 浅 |
 | 3 | Feeds | feeds.md | Feeds.dc.html | 16a（#72）、追加は 16b（#77） | 深 |
 | 3 | Login | login.md | Login.dc.html | 15 | 深 |

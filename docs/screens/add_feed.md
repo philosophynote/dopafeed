@@ -1,27 +1,30 @@
-# AddFeed（Unit 未定・第二の陣。案: 16、Feeds と同 Unit）
+# AddFeed（Unit 16b、#77。サイト URL の自動検出は 16c、#81）
 
 ## 目的
-購読の入口。URL を貼るだけで RSS/Atom を見つけて追加する。おすすめ 6 件を置いて最初の一歩を短くする。
+購読の入口。RSS/Atom の URL またはおすすめから追加する。サイト URL の自動検出は #81。登録の流れは ADR 0015。
 
 ## 要素
-1. シート（下から出る）: 「閉じる」（→ Main）、「フィードを追加」、ボタン「追加」
-2. 「フィードまたはサイトの URL」入力（type=url、value 例 https://zenn.dev/feed）、ボタン「クリップボードから貼り付け」（未決 1）
+1. シート（下から出る）: 「閉じる」（→ 開いた側の Main / Feeds）、「フィードを追加」、ボタン「追加」。Escape でも閉じられる
+2. 「フィードの URL」入力（type=url、例 https://zenn.dev/feed）。標準の貼り付けを使う
 3. 「おすすめ」6 件（固定）: Zenn トレンド zenn.dev/feed / Qiita 人気記事 qiita.com/popular-items/feed / はてブ テクノロジー b.hatena.ne.jp/hotentry/it.rss / Hacker News hnrss.org/frontpage / Publickey publickey1.jp/atom.xml / Swift.org Blog swift.org/atom.xml
-4. 結果「『Zennのトレンド』を追加（20件）」（取得したタイトルと件数）
-5. 注記「サイトの URL を入れても OK。ページ内の RSS/Atom リンクや /feed などの定番パスを自動で探します」（固定）
+4. 結果「『タイトル』を追加しました。記事を取得しています」。予約失敗なら「記事の取得は後ほど再試行します」。取り込み前の件数は表示しない
+5. 注記「RSS/Atom の URL を入力してください。サイト URL の自動検出は準備中です」
 
 ## 遷移
 - Main の「+」/ Feeds の「+」→ AddFeed（Turbo Frame のシート）
-- 「追加」→ Feed を作り、取得 Job を即時に積む → Feeds か Main に戻る（Turbo Stream で結果を差し込む）
+- 「追加」→ 取得・解析・タイトル検証 → Feed を保存 → 取得 Job を積む → シートに結果。閉じると開いた側を再読み込み
 
 ## 受け入れ条件（Given-When-Then）
 - Given RSS の URL When 追加 Then Feed が作られ、タイトルは RSS の title、取得 Job が積まれる
-- Given サイトの URL（HTML）When 追加 Then `<link rel="alternate" type="application/rss+xml">` か定番パス（/feed, /rss, /atom.xml, /index.xml）から RSS を見つける。見つからなければ「フィードが見つかりません」
+- Given サイトの URL（HTML）When 追加 Then 「RSS/Atom の URL を入力してください」。自動検出は #81 でリンクと定番パスを探索する
 - Given 登録済みの URL When 追加 Then 重複せず「登録済み」と出る（feeds.url の unique）
 - Given 取得に失敗する URL When 追加 Then Feed は作らず、エラーを表示（タイムアウトは未決 2）
+- Given 初回取得の予約が失敗 When 登録 Then Feed は残り、再試行を案内
+- Given エラー When 再表示 Then 入力が残る。送信中は入力とおすすめからの追加を重ねて送れない
+- Given Main / Feeds When 開閉 Then 開いた側に戻り、追加結果が反映される。390×844 で横スクロールなし、操作領域は 44px 以上
 
 ## 使う設定の鍵
-dopamine.yml: なし
+dopamine.yml: `fetch.timeout_seconds`、`fetch.max_body_megabytes`（既存値を利用）
 personas.yml: なし
 
 ## 外部 API

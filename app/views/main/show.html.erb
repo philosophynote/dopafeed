@@ -3,6 +3,7 @@
   <h1 class="text-2xl font-black tracking-tight">
     <span class="text-orange-500">Dopa</span>Feed
   </h1>
+  <%= link_to "フィードを追加", new_feed_path(from: "main"), class: "flex min-h-11 items-center px-3 text-sm text-orange-600", data: { turbo_frame: "turbo_add_feed" } %>
   <%= link_to learning_path, class: "flex h-11 w-11 items-center justify-center rounded-full text-gray-600 hover:bg-white", "aria-label": "設定", title: "設定" do %>
     <%= render "shared/icon_gear" %>
     <span class="sr-only">設定</span>
