@@ -90,12 +90,13 @@ RSpec.describe Article, type: :model do
     end
   end
 
-  it "awaiting_summary は要約も失敗も無く、本文取得を試した記事だけ（取得に失敗した記事は含む）" do
-    waiting = create(:article, :awaiting_summary)
-    failed_fetch = create(:article, :awaiting_summary, content_error: "本文を抽出できません")
-    create(:article, :awaiting_summary, summary: "・a\n・b\n・c")
-    create(:article, :awaiting_summary, summary_failed_at: Time.current, summary_error: "本文が空")
-    create(:article, :unsummarized)
+  it "awaiting_summary は「読む」で行（Reading）ができ、要約も失敗も無く、本文取得を試した記事だけ（取得に失敗した記事は含む）" do
+    waiting = create(:article, :awaiting_summary, :opened)
+    failed_fetch = create(:article, :awaiting_summary, :opened, content_error: "本文を抽出できません")
+    create(:article, :awaiting_summary)
+    create(:article, :awaiting_summary, :opened, summary: "・a\n・b\n・c")
+    create(:article, :awaiting_summary, :opened, summary_failed_at: Time.current, summary_error: "本文が空")
+    create(:article, :unsummarized, :opened)
 
     expect(Article.awaiting_summary).to contain_exactly(waiting, failed_fetch)
   end

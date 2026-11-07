@@ -15,11 +15,6 @@ production:
     class: FetchAllFeedsJob
     queue: feeds
     schedule: every 30 minutes
-  # 要約待ちの記事を予算の残りぶんだけ積む。取得より細かく回し、本文取得が済んだ記事を長く待たせない
-  summarize_pending_articles:
-    class: Claude::SummarizePendingArticlesJob
-    queue: claude
-    schedule: every 10 minutes
   # Push の送信。時刻（dopamine.yml の push.digest_at / push.streak_warning_at）はここに書かず、Job が過ぎたかを見る（ADR 0013）
   push_dispatch:
     class: Push::DispatchJob

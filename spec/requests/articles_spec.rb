@@ -67,16 +67,6 @@ RSpec.describe "Articles", type: :request do
       expect(page).to have_text("・要約")
     end
 
-    it "要約がまだ無ければ「要約を準備中」" do
-      article = create(:article, :unsummarized)
-      create(:reading, article: article, opened_at: noon)
-
-      get read_article_path(article)
-
-      expect(page).to have_text("要約を準備中")
-      expect(page).to have_link("記事を開く", href: article.url)
-    end
-
     it "判定が済んだ記事は form の代わりに結果を出す（再読込で二度送らない）" do
       reading = create(:reading, :completed, opened_at: noon)
 
@@ -94,6 +84,61 @@ RSpec.describe "Articles", type: :request do
     it "無い記事なら 404" do
       get read_article_path(0)
       expect(response).to have_http_status(:not_found)
+    end
+
+    describe "Reader の要約欄" do
+      let(:article) { create(:article, :awaiting_summary, :opened) }
+
+      it "要約が無い間は「要約を作成中」を出し、できたら差し替わるよう購読する" do
+        get read_article_path(article)
+
+        expect(page).to have_css("turbo-frame#summary_article_#{article.id}", text: "要約を作成中")
+        expect(page).to have_css("turbo-cable-stream-source[data-controller='summary-refresh']" \
+                                 "[data-summary-refresh-url-value='#{summary_article_path(article)}']")
+      end
+
+      it "要約があれば出し、購読しない" do
+        article.update!(summary: "・一\n・二\n・三")
+
+        get read_article_path(article)
+
+        expect(page).to have_css("turbo-frame#summary_article_#{article.id}", text: "・一")
+        expect(page).to have_no_css("turbo-cable-stream-source")
+      end
+
+      it "失敗した記事は「要約できませんでした」。記事を開くのはそのまま" do
+        article.update!(summary_failed_at: Time.current, summary_error: "本文が空")
+
+        get read_article_path(article)
+
+        expect(page).to have_css("turbo-frame#summary_article_#{article.id}", text: "要約できませんでした")
+        expect(page).to have_link("記事を開く", href: article.url)
+        expect(page).to have_no_css("turbo-cable-stream-source")
+      end
+
+      it "今日の上限に達していれば「今日の要約の上限に達しました」" do
+        allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true))
+
+        get read_article_path(article)
+
+        expect(page).to have_css("turbo-frame#summary_article_#{article.id}", text: "今日の要約の上限に達しました")
+      end
+
+      it "GET /articles/:id/summary は要約欄の frame だけを描く（購読がつながる前に書き終えた分の取り直し）" do
+        article.update!(summary: "・一\n・二\n・三")
+
+        get summary_article_path(article)
+
+        expect(response).to have_http_status(:ok)
+        expect(page).to have_css("turbo-frame#summary_article_#{article.id}", text: "・一")
+        expect(page).to have_no_css("h1")
+      end
+
+      it "summary は書き込まない（Job も積まない）" do
+        get summary_article_path(article)
+
+        expect(Claude::SummarizeArticleJob).not_to have_been_enqueued
+      end
     end
   end
 end

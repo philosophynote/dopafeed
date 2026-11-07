@@ -5,4 +5,9 @@ class ArticlesController < ApplicationController
     @reading = @article.reading
     redirect_to root_path if @reading.nil?
   end
+
+  # 描くだけ。作成中のままなら Job が書き終えたときに Turbo Stream で差し替わる
+  def summary
+    render partial: "articles/summary", locals: { article: Article.find(params[:id]) }
+  end
 end
