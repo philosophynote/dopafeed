@@ -12,7 +12,7 @@ RSpec.describe "Main", type: :system do
       sign_in
 
       expect(page).to have_css("article", count: 3)
-      expect(page).to have_text("今日のゴール 3 / #{goal_articles}")
+      expect(page).to have_css("section[aria-label='今日の進み']", text: "3 / #{goal_articles}")
       expect(page).to have_text("1日連続")
 
       # CSS が当たっていないと以下の寸法検査が全部落ちて原因が読めないので、先に 1 つのユーティリティで確かめる
@@ -58,6 +58,32 @@ RSpec.describe "Main", type: :system do
     row.find_button("読む").click
     expect(page).to have_css("[role='dialog'][aria-label='ルーレット']")
     expect(Article.where("title LIKE ?", "%その 3 本目%").sole.reading).to be_present
+  end
+
+  it "ステータスは 1 行に収まり、大きな数でも横にはみ出さない。画像つきの行が 6 本目まで画面に入る" do
+    feed = create(:feed, title: "Zenn")
+    6.times do |i|
+      create(:article, feed: feed, title: "見出しが三行に折り返されるくらいに長い記事の題名をここに書いておく、その #{i + 1} 本目の記事",
+                       image_url: "/icon.png", published_at: 1.hour.ago - i.minutes)
+    end
+    travel_to noon do
+      goal_articles.times { |i| create(:reading, :completed, opened_at: noon - (i + 1).minutes, xp: 2469) }
+      create(:reading, :completed, opened_at: noon - 1.day, xp: 10)
+      sign_in
+
+      status = find("section[aria-label='今日の進み']")
+      expect(status).to have_text("累計 12,355 XP", normalize_ws: true)
+      expect(status).to have_text("コンボ ×", normalize_ws: true)
+      expect(status.evaluate_script("this.getBoundingClientRect().height")).to be <= 56
+      expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "横スクロールが出ている"
+      overflow = status.evaluate_script("Array.from(this.querySelectorAll('*')).some(el => el.getBoundingClientRect().right > this.getBoundingClientRect().right + 0.5)")
+      expect(overflow).to be(false), "ステータスの中身が右にはみ出している"
+
+      tab_top = page.evaluate_script("document.querySelector(\"nav[aria-label='タブバー']\").getBoundingClientRect().top")
+      sixth = page.evaluate_script("document.querySelectorAll('article')[5].querySelector('h2').getBoundingClientRect().bottom")
+      expect(sixth).to be < tab_top, "6 本目の見出しがタブバーの下に隠れている"
+      screenshot!
+    end
   end
 
   it "OGP 画像のある記事は行の右に横長のサムネイルで出し、無い記事・読めない画像は枠ごと出さない" do
