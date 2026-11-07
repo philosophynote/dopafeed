@@ -53,6 +53,15 @@ RSpec.describe Push::Digest do
       expect(described_class.new(day).payload).to be_nil
     end
 
+    it "見出しの本文は Web Push の本文上限に収まるよう固定のバイト数で切る" do
+      travel_to Time.zone.local(2026, 11, 7, 7, 40)
+      2.times { |i| create(:article, title: "長い見出し #{i} " + "あ" * 1500, created_at: Time.zone.local(2026, 11, 7, 7)) }
+
+      body = described_class.new(day).payload[:body]
+      expect(body.bytesize).to be <= described_class::BODY_BYTES
+      expect(body).to start_with("長い見出し 1 ")
+    end
+
     it "push.digest_articles が無ければ見出しは付けず題だけ" do
       with_push(digest_at: "07:30")
       travel_to Time.zone.local(2026, 11, 7, 7, 40)

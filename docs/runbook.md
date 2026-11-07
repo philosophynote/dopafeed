@@ -316,7 +316,7 @@ VAPID_SUBJECT=$(bin/rails credentials:fetch vapid.subject)
 確認は 0-3 と同じ `kamal secrets print | sed ...` で 3 行が `(set)`。手元で試すなら、サーバーを起動するシェルで `export VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=...`（Rails は `.env` を読まない）。無いままでも動き、Install が「鍵が無い」を出すだけ。
 
 ### 通知が来ないとき
-送るのは `Push::DispatchJob`（recurring.yml、10 分おき）。`kamal logs` で `[push]` を探す: `discarded` は購読を消した（410 / 404 / 401 / 403 / 内部アドレス / 壊れた鍵。iPhone の Install で許可し直す）、`failed` は残して次の回に送り直す（5xx・429・413・接続エラー）。`VAPID 鍵が読めません` は ENV の鍵の打ち間違いか公開鍵と秘密鍵が別のペアで、購読は消していない（2-h の作り方で入れ直す）。印は `bin/rails runner 'puts PushSubscription.pluck(:id, :digest_sent_on, :streak_warning_sent_on).inspect'`。ダイジェストは 24 時間以内に届いた未読が無い朝は出ず、警告は今日 1 本でも読んでいれば出ない（仕様）。
+送るのは `Push::DispatchJob`（recurring.yml、10 分おき）。`kamal logs` で `[push]` を探す: `discarded` は購読を消した（410 / 404 / 内部アドレス / 壊れた鍵。iPhone の Install で許可し直す）、`failed` は残して次の回に送り直す（401 / 403・5xx・429・413・接続エラー）。`WebPush::Unauthorized` が続くなら鍵の交換後に行を消していないか、`VAPID_SUBJECT` が Push サービスに蹴られている。`VAPID 鍵が読めません` / `subject が mailto: か https: ではありません` は ENV の不備で、購読は消していない（2-h の作り方で入れ直す）。印は `bin/rails runner 'puts PushSubscription.pluck(:id, :digest_sent_on, :streak_warning_sent_on).inspect'`。ダイジェストは 24 時間以内に届いた未読が無い朝は出ず、警告は今日 1 本でも読んでいれば出ない（仕様）。
 
 ### 交換する（漏えいしたとき）
 鍵を変えると既存の購読は全部送れなくなる。credentials の `vapid:` を作り直して deploy したあと `bin/rails runner 'PushSubscription.delete_all'` で行を消し、iPhone の Install を開いて「通知を許可する」を押し直す（Install は古い鍵の購読を見つけると解除してボタンを有効に戻す。iOS 側の許可は残っているのでダイアログは出ず、購読だけ作り直される）。

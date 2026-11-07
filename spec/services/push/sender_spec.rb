@@ -46,10 +46,12 @@ RSpec.describe Push::Sender do
     expect(PushSubscription.exists?(other.id)).to be(false)
   end
 
-  it "401 / 403（鍵が合わない。VAPID 鍵の交換後の古い購読）も消す" do
-    stub_request(:post, endpoint).to_return(status: 403)
-    expect(deliver).to be(false)
-    expect(PushSubscription.exists?(subscription.id)).to be(false)
+  it "401 / 403 は消さない（サーバー側の subject や時計の不備でも出るので、全購読を失わない）" do
+    [ 401, 403 ].each do |status|
+      stub_request(:post, endpoint).to_return(status: status)
+      expect(deliver).to be(false)
+    end
+    expect(subscription.reload).to be_persisted
   end
 
   it "5xx・429・413・接続エラーは偽を返すが購読は残し、ログには id と例外の型だけ残す（次の回に送り直す）" do
@@ -87,11 +89,15 @@ RSpec.describe Push::Sender do
     expect(subscription.reload).to be_persisted
   end
 
-  it "サーバーの VAPID 鍵が読めなければ ConfigurationError で止まり、購読は消さない（打ち間違い、別のペア）" do
+  it "サーバーの VAPID 鍵が読めなければ ConfigurationError で止まり、購読は消さない（打ち間違い、別のペア、subject が mailto: / https: でない）" do
     other_key = WebPush.generate_key
     [ vapid.merge("VAPID_PRIVATE_KEY" => "broken"), vapid.merge("VAPID_PUBLIC_KEY" => other_key.public_key) ].each do |env|
       expect { with_env(env) { described_class.new } }.to raise_error(described_class::ConfigurationError, /VAPID 鍵が読めません/)
     end
+    [ "nao@example.com", "http://example.com", "mailto:" ].each do |subject|
+      expect { with_env(vapid.merge("VAPID_SUBJECT" => subject)) { described_class.new } }.to raise_error(described_class::ConfigurationError, /subject/)
+    end
+    with_env(vapid.merge("VAPID_SUBJECT" => "https://dopafeed.example.com/")) { described_class.new }
     expect(subscription.reload).to be_persisted
   end
 
@@ -113,9 +119,10 @@ RSpec.describe Push::Sender do
     expect(subscription.reload).to be_persisted
   end
 
-  it "鍵が壊れていて暗号化できない購読は消す（base64 でない、曲線上の点でない、auth が base64 でない）" do
+  it "鍵が壊れていて暗号化できない購読は消す（base64 でない、曲線上の点でない、auth が base64 でない・16 バイトでない）" do
     not_a_point = Base64.urlsafe_encode64("\x04" + "\x01" * 64, padding: false)
-    [ { p256dh: "BFakeP256dhKey" }, { p256dh: not_a_point }, { auth: "!!!" } ].each do |broken|
+    short_auth = Base64.urlsafe_encode64(SecureRandom.random_bytes(8), padding: false)
+    [ { p256dh: "BFakeP256dhKey" }, { p256dh: not_a_point }, { auth: "!!!" }, { auth: short_auth } ].each do |broken|
       broken_subscription = create(:push_subscription, endpoint: "https://push.example.com/sub/#{broken.keys.first}", p256dh: p256dh, auth: auth)
       broken_subscription.update_columns(broken)
 

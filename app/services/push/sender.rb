@@ -1,22 +1,29 @@
 module Push
   # 1 つの購読に 1 通を送る。web-push gem で本文を暗号化し（RFC 8291）、VAPID で署名する（RFC 8292）。
   # endpoint は端末が申告した URL で信用しないので、送る直前に {HttpGet} と同じ内部ネットワークの判定を通す。
-  # 消すのは購読そのものが使えないと分かったときだけ: 失効・無効（410 / 404）、鍵が合わない（401 / 403。VAPID 鍵の交換後の古い購読）、
-  # 内部アドレス、暗号化に使えない p256dh / auth。端末が許可し直せば行は作り直される。
-  # それ以外の失敗（5xx・429・413・接続エラー・DNS の不調・想定外の例外）はログに残して行は残し、次の回に送り直す。
-  # サーバー側の VAPID 鍵が鍵として読めないときは購読のせいではないので、1 行も消さずに最初から止める。
+  # 消すのは購読そのものが使えないと分かったときだけ: 失効・無効（410 / 404）、内部アドレス、暗号化に使えない p256dh / auth。
+  # 端末が許可し直せば行は作り直される。401 / 403 は消さない: VAPID 鍵の交換後の古い購読でも出るが、subject の不備や時計のずれなど
+  # サーバー側の原因でも出て、そのとき消すと全購読を失う（交換のときは runbook の手順で行を消す）。
+  # それ以外の失敗（5xx・429・413・接続エラー・DNS の不調・想定外の例外）もログに残して行は残し、次の回に送り直す。
+  # サーバー側の VAPID 鍵が鍵として読めない・subject が mailto: / https: でないときは購読のせいではないので、1 行も消さずに最初から止める。
   # 何をいつ送るかは {DispatchJob} と {Notice} の責務
   class Sender
     # 購読の p256dh / auth が base64 でない、または楕円曲線の点でない。端末が作り直すまで送れない
     class BrokenKey < StandardError; end
-    # ENV の VAPID 鍵が鍵として読めない（打ち間違い、公開鍵と秘密鍵が別のペア）
+    # ENV の VAPID 鍵が鍵として読めない（打ち間違い、公開鍵と秘密鍵が別のペア）、subject が mailto: / https: でない
     class ConfigurationError < StandardError; end
 
     CURVE = "prime256v1".freeze
+    # Push サービスが VAPID の subject として受け付ける形（RFC 8292 2.1）。外れると 401 / 403 が全購読に返る
+    SUBJECT = %r{\A(mailto:[^@\s]+@[^@\s]+|https://\S+)\z}
+    # auth の生バイト数（RFC 8291 3.2）。web-push は長さを見ずに HKDF へ通すので、違う長さでも送れてしまい端末で復号できない
+    AUTH_BYTES = 16
 
     # @raise [ConfigurationError]
     def initialize
       @vapid = { subject: Vapid.subject, public_key: Vapid.public_key, private_key: Vapid.private_key }
+      raise ConfigurationError, "VAPID の subject が mailto: か https: ではありません" unless SUBJECT.match?(@vapid[:subject].to_s)
+
       # from_keys は base64 しか見ない。公開鍵と秘密鍵が別のペアなのは check_key で分かる
       WebPush::VapidKey.from_keys(@vapid[:public_key], @vapid[:private_key]).curve.check_key
     rescue ArgumentError, OpenSSL::OpenSSLError => e
@@ -33,7 +40,7 @@ module Push
       true
     rescue HttpGet::TransientError => e
       keep(subscription, e)
-    rescue WebPush::ExpiredSubscription, WebPush::InvalidSubscription, WebPush::Unauthorized, BrokenKey, HttpGet::Error => e
+    rescue WebPush::ExpiredSubscription, WebPush::InvalidSubscription, BrokenKey, HttpGet::Error => e
       discard(subscription, e)
     rescue WebPush::Error, *HttpGet::NETWORK_ERRORS => e
       keep(subscription, e)
@@ -49,7 +56,7 @@ module Push
     # VAPID 鍵の不備や大きすぎる本文の ArgumentError と見分けが付かず、購読のせいでない失敗で行を消してしまう
     def check_keys!(subscription)
       OpenSSL::PKey::EC::Point.new(OpenSSL::PKey::EC::Group.new(CURVE), OpenSSL::BN.new(WebPush.decode64(subscription.p256dh), 2))
-      WebPush.decode64(subscription.auth)
+      raise BrokenKey, "auth の長さが違います" unless WebPush.decode64(subscription.auth).bytesize == AUTH_BYTES
     rescue ArgumentError, OpenSSL::OpenSSLError => e
       raise BrokenKey, e.class.name
     end

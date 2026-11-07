@@ -33,7 +33,7 @@
 - Given 未読が 0 When standalone で開く Then clearAppBadge が呼ばれる（同じスタブで検証）
 - Given manifest When /manifest を開く Then name, icons（180 / 512）, display: standalone, start_url: / が返る
 - Given service worker When /service-worker を開く Then 本文に push と notificationclick のイベント登録が含まれる（コントローラテストで文字列検査。実行はしない）
-- Given VAPID 鍵 When サーバーが Push を送る Then web-push gem で送り、410（失効）・404（無効）・401 / 403（鍵が合わない）が返った購読と、暗号化に使えない鍵の購読は削除する。endpoint が内部ネットワークを指す購読は送らずに削除する（HttpGet と同じ判定。#68 の Codex 指摘）。5xx・429・413・接続エラー・想定外の例外は行を残して次の回に送り直し、1 つの購読の失敗で他の購読を止めない。サーバーの VAPID 鍵が読めないときは 1 行も消さずに止める
+- Given VAPID 鍵 When サーバーが Push を送る Then web-push gem で送り、410（失効）・404（無効）が返った購読と、暗号化に使えない鍵（p256dh が曲線上の点でない、auth が 16 バイトでない）の購読は削除する。endpoint が内部ネットワークを指す購読は送らずに削除する（HttpGet と同じ判定。#68 の Codex 指摘）。401 / 403・5xx・429・413・接続エラー・想定外の例外は行を残して次の回に送り直し、1 つの購読の失敗で他の購読を止めない。サーバーの VAPID 鍵が読めない・subject が mailto: / https: でないときは 1 行も消さずに止める。ダイジェストの本文は固定のバイト数で切り、Web Push の本文上限を超えない
 - Given push.digest_at を過ぎた読書日 When Push::DispatchJob が回る Then 前の回（24 時間前）以降に届いた未読があれば、その本数を題に、新しい順に push.digest_articles 本の見出しを本文にしたダイジェストを印の無い購読に送り、digest_sent_on にその読書日を書く。同じ読書日に二度は送らない。新着が無い回は送らずに印だけ書く（その日は出さない。深夜に鳴らさない）
 - Given push.streak_warning_at を過ぎた読書日 When Push::DispatchJob が回る Then 昨日まで連続が続いていて今日がまだ 0 本なら「N 日連続が切れます。{reset_hour} 時までに 1 本」を送り、streak_warning_sent_on に書く。今日 1 本でも読んでいれば、昨日も 0 本（切れた後）なら、送らずに印だけ書く
 - Given 通知 When タップする Then 開いているアプリがあれば前に出して path へ移動し、無ければ開く。受信のたびに setAppBadge(unread)（0 なら clearAppBadge）で書き直す（service worker は文字列検査のみ。実行はしない）

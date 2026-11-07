@@ -3,6 +3,10 @@ module Push
   # Claude による選定が入るまでの代替（ADR 0013）。新着が無い朝は出さない（空の通知で呼ばない）。
   # 本文に載せる本数は dopamine.yml の push.digest_articles。無ければ題だけ
   class Digest < Notice
+    # 本文の上限バイト数。Web Push の本文は暗号化後 4096 バイトまで（RFC 8291、web-push が ArgumentError で止める）で、
+    # 超えると送れない文面をその日中 10 分おきに作り直す。見出しの長さは外から来るので、プロトコルの制約に余裕をみた固定値で切る
+    BODY_BYTES = 1024
+
     def self.time_key
       :digest_at
     end
@@ -24,7 +28,7 @@ module Push
 
     def headlines(articles)
       limit = Dopamine.settings.dig(:push, :digest_articles)
-      articles.limit(limit).pluck(:title).join("\n") if limit
+      articles.limit(limit).pluck(:title).join("\n").truncate_bytes(BODY_BYTES) if limit
     end
   end
 end
