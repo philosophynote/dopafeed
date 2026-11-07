@@ -183,6 +183,8 @@
    3. **静的 IP を付け替える前に**、新しい方のファイアウォールを 4-a-3 のとおりにする（22 番が全開で上がることがある）
    4. 静的 IP（`dopafeed-ip`）を古い方から外して新しい方に付け、**古いインスタンスはすぐ Lightsail で停止する**（削除は 7 で）。
       静的 IP が同じなので A レコードも `servers.web`（`dopafeed.dev`）も書き換えない
+      ただし AAAA を置いているなら、IPv6 は新しいインスタンスで変わる。5 で名前から繋ぐ前に新しい IPv6 へ書き換えるか消す
+      （古いままだと ssh と Kamal が止めた古い方の IPv6 へ繋ぎに行き、IPv6 の利用者も古い方へ届く）
    5. Mac で `ssh-keygen -R dopafeed.dev` と `ssh-keygen -R <静的IP>` の両方を打ってから `ssh ubuntu@dopafeed.dev` で入る
       （作り直しでホスト鍵が変わり、そのままだと ssh も kamal も止まる。known_hosts には名前と IP の両方で載っている）
    6. `config/deploy.yml` はそのまま `kamal deploy`（async・YJIT 無しのまま上げる。2026-11-07 はこれで available 400 MB）。
