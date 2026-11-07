@@ -9,16 +9,12 @@ import { Controller } from "@hotwired/stimulus"
 const EDGE_PX = 24
 // 横か縦かを決めるまでの遊び。これより小さい動きはタップの揺れとして無視する
 const LOCK_PX = 10
-// カード幅に対して、ここまで引いて離すと送る。手前で離すと戻る
-const DISMISS_RATIO = 0.4
 // 送るときに流す先。カード幅より大きくして画面の外まで出す
 const FLY_OUT_RATIO = 1.2
 // 引いている間に傾ける最大の角度。流れ出す感じを出すだけの演出
 const MAX_TILT_DEG = 6
 // transitionend を待つ上限に足す余裕。合図が来なくても止まった頃に次へ進むため
 const SETTLE_MARGIN_MS = 100
-// 1 回の送信を待つ上限。turbo:submit-end が来ないまま列が止まらないため。過ぎたら送れなかった扱いにする
-const SUBMIT_TIMEOUT_MS = 10000
 
 // Turbo は form の送信中に別の form が送られると先の送信を止めて応答を捨てる（先のカードが画面に残る）。
 // 送信は全カードで 1 本の列に並べ、前の turbo:submit-end を待ってから次を送る
@@ -26,6 +22,8 @@ let submissions = Promise.resolve()
 
 export default class extends Controller {
   static targets = ["card", "rail", "form"]
+  // 送る閾値（カード幅に対する比）と、送信の応答を待つ上限（秒）。dopamine.yml の値を view が渡す
+  static values = { dismissRatio: Number, submitTimeoutSeconds: Number }
 
   disconnect() {
     this.settleCleanup?.()
@@ -97,7 +95,7 @@ export default class extends Controller {
   }
 
   threshold() {
-    return this.cardTarget.offsetWidth * DISMISS_RATIO
+    return this.cardTarget.offsetWidth * this.dismissRatioValue
   }
 
   render(dx) {
@@ -158,7 +156,7 @@ export default class extends Controller {
         if (!event.detail.success) this.restore()
       }
       // 応答が来ないまま待ち続けない。送れなかった扱いでカードを戻す（届いていれば後から Turbo が差し替える）
-      const timer = setTimeout(() => { finish(); this.restore() }, SUBMIT_TIMEOUT_MS)
+      const timer = setTimeout(() => { finish(); this.restore() }, this.submitTimeoutSecondsValue * 1000)
       document.addEventListener("turbo:submit-end", ended)
       this.submitCleanup = finish
       form.requestSubmit()

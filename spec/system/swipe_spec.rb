@@ -3,8 +3,8 @@
 # 本物の指との違いは座標の出どころだけで、横か縦かの判定・閾値・form の送信は同じ道を通る
 RSpec.describe "Swipe", type: :system do
   let(:now) { Time.current }
-  # swipe_controller.js の DISMISS_RATIO と同じ。ここを超えて離すと送る
-  let(:dismiss_ratio) { 0.4 }
+  # カード幅に対する送る閾値。view が yml から Stimulus の value で渡すので、spec も同じ所から読む
+  let(:dismiss_ratio) { Dopamine.settings.dig(:swipe, :dismiss_threshold_ratio) }
 
   # カードの上で pointer を押し、動かし、離す。x / y はカードの左上からの CSS px、steps は途中の pointermove の数。
   # on を渡すと、その要素の上で始めた触りになる（イベントはカードまで bubbling する）

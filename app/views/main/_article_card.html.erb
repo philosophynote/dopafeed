@@ -1,7 +1,9 @@
 <%# 通常カード。フィード名・相対時刻・見出し・要約 2 行・「興味なし」・「読む」。要約が無ければ欄ごと出さない（見出しだけ）。
     li に id を持つのは、「興味なし」の Turbo Stream がこのカードを帯と差し替えるため。
     カードの下に灰色のレールを敷き、左へ引くと見える（Stimulus swipe）。引き切って離すと「興味なし」の form を送る %>
-<li id="<%= dom_id(article) %>" class="relative" data-controller="swipe">
+<% swipe = Dopamine.settings[:swipe] %>
+<li id="<%= dom_id(article) %>" class="relative" data-controller="swipe"
+    data-swipe-dismiss-ratio-value="<%= swipe[:dismiss_threshold_ratio] %>" data-swipe-submit-timeout-seconds-value="<%= swipe[:submit_timeout_seconds] %>">
   <div class="swipe-rail absolute inset-0 flex items-center justify-end rounded-2xl bg-gray-200 pr-6 text-sm font-bold text-gray-500" data-swipe-target="rail" aria-hidden="true">興味なし</div>
   <article class="swipe-card relative rounded-2xl bg-white p-4 shadow-sm" data-swipe-target="card"
            data-action="pointerdown->swipe#start pointermove->swipe#move pointerup->swipe#end pointercancel->swipe#cancel">
