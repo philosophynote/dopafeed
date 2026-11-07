@@ -38,18 +38,31 @@ class OgImage
   end
   private_class_method :usable
 
-  # 名前は引かない（引くのは端末で、ここで引いても端末の答えとは限らない）。名前だけで内側と分かるものを見る。
-  # ブラウザ（WHATWG URL）は最後のラベルが数字のホストを IPv4 として読み、2130706433・0x7f000001・127.1・0177.0.0.1
-  # のような書き方も 127.0.0.1 に直す。IPAddr はそれらを読めないので、正規の四つ組で読めない数字のホストは丸ごと捨てる
+  # ホスト名として許す形。ASCII の英数字とハイフンのラベルを点で繋いだものだけ（IDN は punycode で来る）
+  DNS_NAME = /\A[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*\z/
+  # ブラウザ（WHATWG URL）が IPv4 として読む最後のラベル（10 進・0x の 16 進）
+  NUMERIC_LABEL = /\A(?:0x\h*|\d+)\z/
+
+  # 名前は引かない（引くのは端末で、ここで引いても端末の答えとは限らない）。名前だけで内側と分かるものを捨てる。
+  # 弾く書き方を数え上げず、許す形を絞る: ブラウザは 2130706433・0x7f000001・127.1・127%2e0%2e0%2e1 なども
+  # 解いて 127.0.0.1 に直すので、IPAddr が読める正規の IP か、普通のホスト名の形のどちらかだけ通す
   def self.internal_host?(host)
     host = host.downcase.delete_suffix(".")
     return true if host == "localhost" || host.end_with?(".localhost")
 
-    address = IPAddr.new(host)
-    address = address.native if address.ipv4_mapped?
-    HttpGet::INTERNAL_RANGES.any? { |range| range.include?(address) }
-  rescue IPAddr::InvalidAddressError
-    host.split(".").last.to_s.match?(/\A(0x\h*|\d+)\z/i)
+    address = ip_address(host)
+    return HttpGet::INTERNAL_RANGES.any? { |range| range.include?(address) } if address
+
+    !host.match?(DNS_NAME) || host.split(".").last.match?(NUMERIC_LABEL)
   end
   private_class_method :internal_host?
+
+  # @return [IPAddr, nil] 正規の IP の書き方なら IPAddr（IPv4-mapped IPv6 は中の IPv4）。でなければ nil
+  def self.ip_address(host)
+    address = IPAddr.new(host)
+    address.ipv4_mapped? ? address.native : address
+  rescue IPAddr::InvalidAddressError
+    nil
+  end
+  private_class_method :ip_address
 end

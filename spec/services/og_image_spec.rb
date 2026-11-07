@@ -34,10 +34,11 @@ RSpec.describe OgImage do
     expect(described_class.from(html(meta), base)).to eq("https://cdn.example.com/b.png")
   end
 
-  it "内部ネットワークを直に指す URL（IP・localhost）と userinfo 付きの URL は捨てる" do
+  it "内部ネットワークを直に指す URL（IP・localhost）、ホスト名の形でないもの（% で隠した点・数字の IPv4）、userinfo 付きは捨てる" do
     %w[
       https://127.0.0.1/og.png https://127.0.0.1./og.png https://[::1]/og.png https://192.168.1.10/og.png https://[::ffff:10.0.0.1]/og.png
       https://2130706433/og.png https://0x7f000001/og.png https://127.1/og.png https://0177.0.0.1/og.png https://10.0x1/og.png
+      https://127%2e0%2e0%2e1/og.png https://%31%32%37.0.0.1/og.png https://cdn_1.example.com/og.png
       https://localhost/og.png https://app.localhost/og.png https://u:p@cdn.example.com/og.png
     ].each do |url|
       expect(described_class.from(html(%(<meta property="og:image" content="#{url}">)), base)).to be_nil, url
@@ -49,8 +50,8 @@ RSpec.describe OgImage do
     expect(described_class.from(page, base)).to be_nil
   end
 
-  it "数字で終わらない名前と、外の IP の四つ組はそのまま通す" do
-    %w[https://cdn1.example.com/og.png https://8.8.8.8/og.png https://example.com./og.png].each do |url|
+  it "普通のホスト名（punycode を含む）と外の IP はそのまま通す" do
+    %w[https://cdn1.example.com/og.png https://8.8.8.8/og.png https://[2001:4860:4860::8888]/og.png https://example.com./og.png https://xn--r8jz45g.jp/og.png].each do |url|
       expect(described_class.from(html(%(<meta property="og:image" content="#{url}">)), base)).to eq(url), url
     end
   end
