@@ -48,6 +48,11 @@ env:
     # Litestream（ADR 0004）の S3 鍵。.kamal/secrets に nao が足す（エージェントは触らない）
     - LITESTREAM_ACCESS_KEY_ID
     - LITESTREAM_SECRET_ACCESS_KEY
+    # Web Push の VAPID 鍵（docs/decisions/0013）。credentials に入れ、.kamal/secrets で credentials:fetch する（docs/runbook.md 2-h）。
+    # .kamal/secrets に 3 行が無いと kamal deploy が "Secret not found" で止まる。コンテナに届かなくても起動はし、通知の購読を受け付けないだけ
+    - VAPID_PUBLIC_KEY
+    - VAPID_PRIVATE_KEY
+    - VAPID_SUBJECT
   clear:
     # Litestream の複製先。バケットは nao が作って名前と region を埋める。未設定だと server は起動しない（bin/docker-entrypoint）
     LITESTREAM_BUCKET: dopafeed-litestream

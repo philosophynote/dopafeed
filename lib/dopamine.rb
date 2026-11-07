@@ -19,6 +19,19 @@ module Dopamine
     settings.dig(:xp, :tiers).find { |tier| tier[:name] == name }
   end
 
+  # 通知の時刻（push.digest_at / push.streak_warning_at）を "HH:MM" で。鍵が無ければ nil。
+  # 引用符を忘れた 07:30 は YAML が六十進数（27000 秒）に読むので、その形も同じ表記に戻す（27000 のまま見せない）
+  #
+  # @param key [Symbol] :digest_at か :streak_warning_at
+  # @return [String, nil]
+  def self.clock_time(key)
+    value = settings.dig(:push, key)
+    case value
+    when Integer then format("%02d:%02d", value / 3600, value % 3600 / 60)
+    when String then value
+    end
+  end
+
   # 抽選の頂点の出目。名前ではなく倍率が最も高い tier で決める。
   # 名前で引くと yml の綴りに縛られ、上に段を足したときに頂点がずれるため
   #

@@ -11,11 +11,11 @@
    1. Safari の共有ボタンをタップ
    2. 「ホーム画面に追加」を選ぶ
    3. 追加したアイコンから開き直し（ホーム画面のアプリは Safari と Cookie を共有しないのでログインをもう一度）、下のボタンで通知を許可
-4. ボタン「通知を許可する」（standalone で開いたときだけ有効。Push の購読を作り、サーバーに保存。Unit 10a では無効のまま置き、10b で動かす）
+4. ボタン「通知を許可する」（standalone で開いたときだけ有効。Push の購読を作り、サーバーに保存。Unit 10a では無効のまま置き、10b で動かした）
 5. 注記「Safari のタブのままでは通知もバッジも使えません。ホーム画面から開いた時だけ有効になるのが iOS の仕様です」（固定）
 6. 「届く通知（1 日最大 2 件）」の例 3 枚（固定文。時刻は未決 1）
-   - 7:30「今日の掘り出し物 3 本が届きました」→ タップで「あなた向け」（第一の陣は「今日の新着 3 本」→ Main。未決 4）
-   - reset_hour の H 時間前（H = 提案鍵 `push.streak_warning_hours_before`。reset_hour 4 で H = 3 なら 01:00）「3 日連続が H 時間後に消えます」→ あと 1 本読めば継続（ストリークは `daily_goal.reset_hour` で切り替わるので、警告時刻はそこから導く。モックの 21:00 は reset_hour 4 と矛盾する。未決 7。ストリークの定義は daily_goal.md の未決 6）
+   - `push.digest_at`（提案 07:30）「今日の掘り出し物 3 本が届きました」→ タップで「あなた向け」（第一の陣は「今日の新着 3 本」→ Main。未決 4）
+   - `push.streak_warning_at`（提案 21:00）「N 日連続が切れます。{reset_hour} 時までに 1 本」→ あと 1 本読めば継続（未決 7 で決定。モックの「H 時間後に消えます」は出さない。ストリークの定義は daily_goal.md の未決 6）
    - たまに「激レアが出現しました（+N XP）」（N = その tier の `xp.base` × multiplier。激レアの tier が yml に無い間はこの通知自体を出さず、画面の例も 2 枚。jackpot.md の未決 4）
 
 ## 遷移
@@ -27,8 +27,8 @@
 - Given Safari のタブで開いている（display-mode: browser）When Install を開く Then 手順 3 段が出て「通知を許可する」は無効で、注記が出る（判定は Stimulus が `matchMedia('(display-mode: standalone)')` と `navigator.standalone` を見る。システムテストでは CDP で両方をスタブ。未決 6）
 - Given ホーム画面から開いている（display-mode: standalone）When Install を開く Then 「通知を許可する」が有効
 - Given standalone で「通知を許可する」When 許可した Then PushSubscription（endpoint, p256dh, auth）がサーバーに保存され、ボタンが「通知は有効」に変わる
-- Given 許可済み When Install を再度開く Then 「通知は有効」のまま、再購読しない（冪等）
-- Given 拒否した When Install を開く Then 「iOS の設定から通知を許可してください」が出る
+- Given 許可済み When Install を再度開く Then 「通知は有効」のまま、再購読しない（冪等。端末の購読をサーバーに保存し直すだけ。同じ endpoint なので行は増えない。サーバーの鍵と違う鍵の購読は解除してボタンを有効に戻す）
+- Given 拒否した When Install を開く Then 「iPhone の設定から通知を許可してください」が出て、ボタンは無効（Notification.permission が denied。許可のダイアログは一度拒否すると二度と出ないので、設定へ誘導するしかない）
 - Given 未読が 48 When standalone で開く Then navigator.setAppBadge(48) が呼ばれる（システムテストでは CDP で setAppBadge を呼び出し記録用のスタブに置き換えて検証。service worker 側でも再設定。未決 2）
 - Given 未読が 0 When standalone で開く Then clearAppBadge が呼ばれる（同じスタブで検証）
 - Given manifest When /manifest を開く Then name, icons（180 / 512）, display: standalone, start_url: / が返る
@@ -36,7 +36,7 @@
 - Given VAPID 鍵 When サーバーが Push を送る Then web-push gem で送り、410 が返った購読は削除する
 
 ## 使う設定の鍵
-dopamine.yml: 通知の時刻・上限は鍵が無い（未決 1）
+dopamine.yml: `push.digest_at` / `push.streak_warning_at`（未決 1 の決定。nao が足すまで無く、無い間は画面に時刻を出さず、送らない）、`daily_goal.reset_hour`（警告の文言）
 personas.yml: なし
 
 ## 外部 API
@@ -45,9 +45,11 @@ personas.yml: なし
 
 ## 未決
 1. 通知の時刻（7:30）、1 日最大 2 件、ストリーク警告「3 時間前」。dopamine.yml に鍵が無い。提案: `push.digest_at: "07:30"`, `push.streak_warning_hours_before: 3`, `push.daily_max: 2`。通知は最大 3 種（激レア通知は tier が入ったときだけ）なので上限 2 件のときどれを落とすか（案: 激レア通知を優先し、ダイジェストと警告のうち後の方を落とす）
+    → **決定（#63、nao 承認、ADR 0013）**: 鍵は `push.digest_at: "07:30"` と `push.streak_warning_at: "21:00"` の 2 つ（引用符付き。裸の 07:30 は YAML で六十進数の 27000 になる）。`streak_warning_hours_before` と `daily_max` は採らない（2 種 × 1 日 1 回で上限 2 は構造で守られる）
 2. バッジは OS が永続化しない（再起動で消える）ので、service worker の push / activate で setAppBadge を再実行する。pwa-ios Skill に従う
     → **決定（Unit 10a、#63）**: ページを描くたびに Stimulus `badge`（layout の見えない `#app-badge`）が `setAppBadge(未読数)`、0 なら `clearAppBadge` を呼ぶ。未読が変わる Turbo Stream（興味なし・読了）は `#app-badge` も差し替えて追随させる。iOS では通知を許可したホーム画面のアプリでしか反映されないので、実機では 10b の「通知を許可する」の後に初めて出る（システムテストの検証は「呼んだ」ことまで）。service worker 側の再設定は Push の受信（10c）と一緒に入れる
 3. VAPID 鍵の置き場所（Rails credentials。runbook に追記）
+    → **決定（#63、nao 承認、ADR 0013）**: ENV（`VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT`）。ANTHROPIC_API_KEY と同じく config/deploy.yml の env.secret → .kamal/secrets。作り方と交換は docs/runbook.md 2-h。鍵が無いサーバーでは Install が「鍵が無い」を出し、購読は 503 で受けない
 4. 第一の陣では「朝のダイジェスト」の 3 本選定（Claude の Sonnet）が無い。新着 3 本で代替するか、Push 自体を第二の陣に回すか
     → **決定（#63、nao 承認）**: 新着の未読 3 本の見出しで代替し、タップ先は Main。Claude の選定は ForYou の Unit で差し替える
 5. アプリアイコンの画像（180×180 / 512×512）を誰が作るか

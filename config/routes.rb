@@ -16,6 +16,8 @@ Rails.application.routes.draw do
   resource :learning, only: :show, controller: :learning
   # ホーム画面に追加する手順と、通知・バッジの入口
   resource :install, only: :show, controller: :install
+  # 端末の Push 購読を預かる / 消す（JSON）
+  resource :push_subscription, only: [ :create, :destroy ]
   # 今日のゴール（宝箱）。描くだけで書き込まない
   resource :daily_goal, only: :show
   resources :articles, only: [] do
