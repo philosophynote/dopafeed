@@ -28,6 +28,26 @@ RSpec.describe "Main", type: :system do
     end
   end
 
+  it "OGP 画像のある記事はカードの上端に横長で出し、無い記事・読めない画像は枠ごと出さない" do
+    create(:article, title: "画像のある記事", image_url: "/icon.png", published_at: 1.hour.ago)
+    create(:article, title: "画像の無い記事", published_at: 2.hours.ago)
+    create(:article, title: "画像が消えた記事", image_url: "/missing-og.png", published_at: 3.hours.ago)
+    sign_in
+
+    within("article", text: "画像のある記事") do
+      image = find("figure img", visible: :all)
+      expect(image[:referrerpolicy]).to eq("no-referrer")
+      expect(image[:loading]).to eq("lazy")
+      expect(image[:draggable]).to eq("false")
+      # 左スワイプの Pointer Events をカードに届かせる（画像のドラッグや長押しで切らせない）
+      expect(image.evaluate_script("getComputedStyle(this).pointerEvents")).to eq("none")
+      expect(page).to have_css("figure img[src='/icon.png']")
+    end
+    within("article", text: "画像の無い記事") { expect(page).to have_no_css("figure") }
+    within("article", text: "画像が消えた記事") { expect(page).to have_no_css("figure") }
+    expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "横スクロールが出ている"
+  end
+
   it "未読 0 本なら空状態が出る" do
     create(:article, :read)
     sign_in

@@ -78,6 +78,16 @@ RSpec.describe "Reader", type: :system do
     expect(page).to have_text("次の記事")
   end
 
+  it "OGP 画像のある記事は、Reader のカードの上端にも出す" do
+    article = create(:article, title: "画像のある記事", url: source_url("image"), image_url: "/icon.png", published_at: now - 1.hour)
+    sign_in
+
+    within("article", text: "画像のある記事") { click_on "読む" }
+    expect(page).to have_current_path(read_article_path(article))
+    expect(page).to have_css("##{ActionView::RecordIdentifier.dom_id(article, :reader)} figure img[src='/icon.png'][referrerpolicy='no-referrer']")
+    expect(no_horizontal_scroll?).to be(true), "カードが横にはみ出している"
+  end
+
   it "戻りの合図を拾えなかったときは、開いた後に出る「読み終えた」で判定する" do
     article = create(:article, title: "合図の無い記事", url: source_url("silent"), summary: "・一")
     sign_in

@@ -5,6 +5,8 @@
 # {HttpGet::TransientError} は握らずそのまま上げる（やり直すかどうかは Job が決める）。
 # content_fetched_at は失敗でも入れる（Job の冪等の鍵。やり直すなら nil に戻す）。
 # 文字コードは GuessHtmlEncoding で自前で推定して UTF-8 に直す（ruby-readability の推定は RUBY_VERSION 1.9〜3 でしか動かず、本番の Ruby 4 では素通りする）。
+# 同じ HTML から {OgImage} で画像の URL を拾い image_url に残す。本文が抜けなくても（kept・抽出失敗）残し、
+# HTML まで届かなかった失敗では前の値に触らない。
 # 想定外の例外（バグ）はそのまま上げ、Solid Queue の失敗に残す
 class ArticleContentFetcher
   # 取得の結果
@@ -25,15 +27,19 @@ class ArticleContentFetcher
 
   def initialize(article)
     @article = article
+    @image = {}
   end
 
   # 取得して content を置き換え、articles の取得状態を更新する
   def call
     response = HttpGet.call(article.url, headers: { "Accept" => "text/html, application/xhtml+xml" }, content_types: HTML_TYPES)
-    content = extract(utf8(response.body.to_s, response["Content-Type"]))
+    html = utf8(response.body.to_s, response["Content-Type"])
+    # リダイレクトを追った後の URL で相対の画像 URL を解く
+    @image = { image_url: OgImage.from(html, response.uri || article.url) }
+    content = extract(html)
     return kept if text_of(content).length < text_of(article.content.to_s).length
 
-    article.update!(content: content, content_fetched_at: Time.current, content_error: nil)
+    article.update!(content: content, content_fetched_at: Time.current, content_error: nil, **image)
     Result.new(status: :fetched, error: nil)
   rescue HttpGet::TransientError
     raise
@@ -47,13 +53,16 @@ class ArticleContentFetcher
   #
   # @return [Result] :failed
   def record_failure(message)
-    article.update!(content_fetched_at: Time.current, content_error: message)
+    article.update!(content_fetched_at: Time.current, content_error: message, **image)
     Result.new(status: :failed, error: message)
   end
 
   private
 
   attr_reader :article
+
+  # @return [Hash] HTML を読めたときだけ { image_url: } 。読めなかったら空（image_url に触らない）
+  attr_reader :image
 
   # @param body [String] 応答本文（バイト列）
   # @param content_type [String, nil] Content-Type ヘッダ（charset の手がかり）
@@ -88,7 +97,7 @@ class ArticleContentFetcher
 
   # @return [Result] :kept。試行時刻だけ記録し content は残す
   def kept
-    article.update!(content_fetched_at: Time.current, content_error: nil)
+    article.update!(content_fetched_at: Time.current, content_error: nil, **image)
     Result.new(status: :kept, error: nil)
   end
 end

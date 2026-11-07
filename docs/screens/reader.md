@@ -10,6 +10,7 @@
 
 1. ヘッダ（上に貼り付く）: 「閉じる」（→ Main）、「DopaFeed」ロゴ（固定）
 2. 記事のカード（1 本ずつ白いカード）
+   - OGP 画像（DB: image_url。あればカードの上端に 1.91:1 で全幅、無い・読めなければ出さない。#87、ADR 0016）
    - フィード名・相対時刻・見出し（DB）
    - 出目の帯「出目 掘り出し物 ×3 ・ 完読で +30 XP」（DB: readings.tier。倍率は `xp.tiers`、XP は `xp.base` × multiplier）
    - 「Claude の 3 行要約」（DB: summary。無ければ「要約を準備中」）。本文は描かない
@@ -36,6 +37,7 @@
 - Given 判定が済んだ記事 When Reader を再読込する Then ボタンの代わりに区切りが出て、二度判定しない
 - Given 判定が済んだ記事 When もう一度「記事を開く」を押す Then 滞在は書き換わらない
 - Given 「読む」を押していない記事 When `/articles/:id/read` を開く Then Main へ戻る
+- Given 記事に OGP 画像がある When Reader のカードを見る Then カードの上端に横長の画像が出る
 
 ## 使う設定の鍵
 dopamine.yml: `read.complete_after_seconds`, `xp.base`, `xp.tiers`, `xp.combo_multiplier_step`, `xp.combo_max_multiplier`, `daily_goal.articles`

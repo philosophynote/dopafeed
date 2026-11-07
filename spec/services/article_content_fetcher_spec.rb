@@ -79,6 +79,48 @@ RSpec.describe ArticleContentFetcher do
     end
   end
 
+  describe "OGP 画像（og:image）" do
+    let(:image_page) { page.sub("<head>", '<head><meta property="og:image" content="/images/og.png">') }
+
+    it "本文が抜けたら、og:image をページの URL で絶対にして image_url に残す" do
+      stub_page(body: image_page)
+
+      described_class.new(article).call
+      expect(article.reload.image_url).to eq("https://fixtures.example.com/images/og.png")
+    end
+
+    it "リダイレクトされたら、移った先の URL で相対の og:image を解く" do
+      stub_request(:get, article.url).to_return(status: 301, headers: { "Location" => "https://moved.example.com/posts/1" })
+      stub_request(:get, "https://moved.example.com/posts/1").to_return(status: 200, body: image_page, headers: { "Content-Type" => "text/html" })
+
+      described_class.new(article).call
+      expect(article.reload.image_url).to eq("https://moved.example.com/images/og.png")
+    end
+
+    it "フィードの本文の方が長くて置き換えなくても残す" do
+      article.update!(content: "<p>#{"フィードの長い抜粋。" * 100}</p>")
+      stub_page(body: image_page)
+
+      expect(described_class.new(article).call.status).to eq(:kept)
+      expect(article.reload.image_url).to eq("https://fixtures.example.com/images/og.png")
+    end
+
+    it "本文を抽出できない（JS 描画の）ページでも残す" do
+      stub_page(body: '<html><head><meta property="og:image" content="https://cdn.example.com/og.png"></head><body><div id="app">読み込み中…</div></body></html>')
+
+      described_class.new(article).call
+      expect(article.reload).to have_attributes(content_error: "本文を抽出できません", image_url: "https://cdn.example.com/og.png")
+    end
+
+    it "HTML まで届かなかった失敗では、前に拾った画像を消さない" do
+      article.update!(image_url: "https://cdn.example.com/old.png")
+      stub_page(status: 404, body: "")
+
+      described_class.new(article).call
+      expect(article.reload.image_url).to eq("https://cdn.example.com/old.png")
+    end
+  end
+
   describe "失敗" do
     it "HTML でなければ取らず、Content-Type を残す" do
       stub_page(body: "%PDF-1.7", content_type: "application/pdf")
