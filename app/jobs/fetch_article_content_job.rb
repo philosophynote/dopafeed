@@ -1,4 +1,5 @@
 # 記事ページの本文を取る Job。記事 1 本につき 1 本。
+# 取得を試し終えたら、もう「読む」で行ができていた記事の要約を積む（要約は本文取得を待つので、読む時点では積めなかった分）。
 # 取得済み（content_fetched_at あり）なら何もしない。4xx・HTML 以外・本文なしは {ArticleContentFetcher} が content_error に残す。
 # 待てば通るかもしれない失敗（{HttpGet::TransientError}）は ActiveJob の既定の回数・間隔で
 # やり直し、尽きたら失敗として記録する。同じホストへは 1 本ずつ（新しいフィードの初回に 20〜30 本を同時に叩いて 429 にならないため。
@@ -13,7 +14,9 @@ class FetchArticleContentJob < ApplicationJob
   end
 
   retry_on HttpGet::TransientError, wait: :polynomially_longer do |job, error|
-    ArticleContentFetcher.new(job.arguments.first).record_failure(error.message)
+    article = job.arguments.first
+    ArticleContentFetcher.new(article).record_failure(error.message)
+    Claude::SummarizeArticleJob.enqueue_if_awaiting(article)
   end
 
   limits_concurrency key: ->(article) { FetchArticleContentJob.host_of(article) }
@@ -29,6 +32,6 @@ class FetchArticleContentJob < ApplicationJob
   def perform(article)
     return if article.content_fetched_at.present?
 
-    ArticleContentFetcher.new(article).call
+    ArticleContentFetcher.new(article).call.tap { Claude::SummarizeArticleJob.enqueue_if_awaiting(article) }
   end
 end
