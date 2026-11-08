@@ -1,4 +1,4 @@
-# 読む → Roulette → Reader のカード → 「記事を開く」で元サイトを別窓に開く → 戻ると判定と次の記事が継ぎ足される、を 390×844 で通す。
+# 読む → Roulette → Reader のカード（Main の行は下に広がるので、入口は Saved の行。ADR 0019） → 「記事を開く」で元サイトを別窓に開く → 戻ると判定と次の記事が継ぎ足される、を 390×844 で通す。
 # iPhone のホーム画面アプリではシートで開くが、headless Chrome では別窓（タブ）になる。出た合図は visibilitychange の hidden、戻りは visible か focus。
 # 滞在は travel_to ではなく opened_at を書き換えて作る（ブラウザの時計とずれないように）
 RSpec.describe "Reader", type: :system do
@@ -47,8 +47,7 @@ RSpec.describe "Reader", type: :system do
     second = create(:article, title: "次の記事", url: source_url("second"), published_at: now - 2.hours, summary: "・次の要約")
     sign_in
 
-    within("article", text: "最初の記事") { click_on "読む" }
-    expect(page).to have_current_path(read_article_path(first))
+    read_from_saved(first)
     expect(page).to have_text("・最初の要約")
     expect(page).to have_link("記事を開く", href: first.url)
     expect(page).to have_no_button("読み終えた")
@@ -80,18 +79,16 @@ RSpec.describe "Reader", type: :system do
 
   it "OGP 画像のある記事は Reader のカードの上端に出し、無い記事には枠を出さない" do
     article = create(:article, title: "画像のある記事", url: source_url("image"), image_url: "/icon.png", published_at: now - 1.hour)
-    create(:article, title: "画像の無い記事", url: source_url("plain"), published_at: now - 2.hours)
+    plain = create(:article, title: "画像の無い記事", url: source_url("plain"), published_at: now - 2.hours)
     sign_in
 
-    within("article", text: "画像のある記事") { click_on "読む" }
-    expect(page).to have_current_path(read_article_path(article))
+    read_from_saved(article)
     card = find("##{ActionView::RecordIdentifier.dom_id(article, :reader)}")
     expect(card).to have_css("figure:first-child img[src='/icon.png'][referrerpolicy='no-referrer']", visible: :all)
     expect(no_horizontal_scroll?).to be(true), "カードが横にはみ出している"
     screenshot!
 
-    visit root_path
-    within("article", text: "画像の無い記事") { click_on "読む" }
+    read_from_saved(plain)
     expect(page).to have_css("h1", text: "画像の無い記事")
     expect(page).to have_no_css("figure")
   end
@@ -100,8 +97,7 @@ RSpec.describe "Reader", type: :system do
     article = create(:article, title: "合図の無い記事", url: source_url("silent"), summary: "・一")
     sign_in
 
-    click_on "読む"
-    expect(page).to have_current_path(read_article_path(article))
+    read_from_saved(article)
     expect(page).to have_no_button("読み終えた")
 
     # 合図を拾えなかった体にする（iPhone のシートで focus も visibilitychange も来ない場合）。
@@ -131,8 +127,7 @@ RSpec.describe "Reader", type: :system do
     article = create(:article, title: "シートの記事", url: source_url("sheet"), summary: "・一")
     sign_in
 
-    click_on "読む"
-    expect(page).to have_current_path(read_article_path(article))
+    read_from_saved(article)
     page.execute_script(<<~JS)
       document.addEventListener("click", (event) => { if (event.target.closest("a[target=_blank]")) event.preventDefault() }, true)
       window.__visibility = "visible"
@@ -169,8 +164,7 @@ RSpec.describe "Reader", type: :system do
       article = create(:article, :awaiting_summary, title: "要約待ちの記事", url: source_url("pending"))
       sign_in
 
-      click_on "読む"
-      expect(page).to have_current_path(read_article_path(article))
+      read_from_saved(article)
       expect(page).to have_text("要約を作成中")
       expect(page).to have_link("記事を開く", href: article.url)
       stream_connected

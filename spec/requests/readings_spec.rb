@@ -209,6 +209,97 @@ RSpec.describe "Readings", type: :request do
       end
     end
 
+    describe "行を広げる（Main の行からの Turbo の POST、expand）" do
+      include ActionView::RecordIdentifier
+
+      let(:jackpot) { Dopamine.jackpot_tier }
+      let(:rare) { settings.dig(:xp, :tiers).find { |tier| tier[:multiplier] > 1 && tier != jackpot } }
+
+      def post_expand(article)
+        post article_reading_path(article), params: { expand: 1 }, headers: { "Accept" => "text/vnd.turbo-stream.html, text/html" }
+      end
+
+      # turbo-stream の中身は <template> に包まれ、HTML4 の parser は template の子を捨てるので外して読む
+      def page
+        Capybara.string(response.body.gsub(%r{</?template>}, ""))
+      end
+
+      def detail(article)
+        page.find("turbo-stream[action='replace'][target='#{dom_id(article, :detail)}']")
+      end
+
+      it "抽選して行の下を出目の帯・3 行要約・「記事に遷移」で埋める。ルーレットのモーダルは出さない" do
+        article = create(:article, url: "https://example.com/a", summary: "・一\n・二\n・三")
+        allow(XpRoulette).to receive(:draw).and_return(common)
+
+        travel_to(noon) { post_expand(article) }
+
+        expect(response).to have_http_status(:ok)
+        expect(response.media_type).to eq("text/vnd.turbo-stream.html")
+        expect(page).to have_no_css("turbo-stream[target='roulette']")
+        expect(page).to have_no_css("[data-controller='roulette']")
+        box = detail(article)
+        expect(box).to have_css("##{dom_id(article, :detail)}[data-swipe-target='detail']")
+        expect(box).to have_css("[data-tier='#{common}']", text: "出目 通常 ×1 ・ 完読で +#{base} XP")
+        expect(box).to have_css("section[aria-label='要約'][data-state='ready']", text: "・一")
+        link = box.find_link("記事に遷移", href: article.url)
+        expect(link[:target]).to eq("_blank")
+        expect(link[:rel]).to include("noopener")
+        expect(article.reload.reading.tier).to eq(common)
+        expect(article.reading.opened_at).to eq(noon)
+      end
+
+      it "要約待ちの記事なら要約の Job を積み、「作成中」と出来上がりの購読を出す（広げた記事だけ要約する。ADR 0015・0019）" do
+        article = create(:article, :awaiting_summary)
+
+        expect { post_expand(article) }.to have_enqueued_job(Claude::SummarizeArticleJob).with(article)
+
+        expect(detail(article)).to have_text("要約を作成中")
+        expect(detail(article)).to have_css("turbo-cable-stream-source", visible: :all)
+      end
+
+      it "要約済みの記事を広げ直しても Job は積まず、行は 1 つのまま出目を使い回す" do
+        article = create(:article, summary: "・済み")
+        create(:reading, article: article, tier: rare[:name], opened_at: noon - 1.hour, returned_at: noon - 1.hour + 5.seconds)
+        expect(XpRoulette).not_to receive(:draw)
+
+        expect { post_expand(article) }.not_to have_enqueued_job(Claude::SummarizeArticleJob)
+
+        expect(detail(article)).to have_css("[data-tier='#{rare[:name]}']", text: "出目 掘り出し物 ×#{rare[:multiplier]} ・ 完読で +#{base * rare[:multiplier]} XP")
+        expect(Reading.count).to eq(1)
+      end
+
+      it "要約に失敗した記事・その日の上限なら、その旨を出して「記事に遷移」はそのまま置く" do
+        failed = create(:article, :summary_failed)
+        post_expand(failed)
+        expect(detail(failed)).to have_text("要約できませんでした")
+        expect(detail(failed)).to have_link("記事に遷移", href: failed.url)
+
+        exhausted = create(:article, :awaiting_summary)
+        allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true))
+        post_expand(exhausted)
+        expect(detail(exhausted)).to have_text("今日の要約の上限に達しました")
+      end
+
+      it "jackpot でも全画面へは出ず、帯に出目を出すだけ" do
+        allow(XpRoulette).to receive(:draw).and_return(jackpot[:name])
+        article = create(:article)
+
+        post_expand(article)
+
+        expect(detail(article)).to have_css("[data-tier='#{jackpot[:name]}']", text: "×#{jackpot[:multiplier]} ・ 完読で +#{base * jackpot[:multiplier]} XP")
+        expect(page).to have_no_link("ジャックポットへ")
+      end
+
+      it "JS が無ければ expand が付いていてもリーダーへ redirect" do
+        article = create(:article)
+
+        post article_reading_path(article), params: { expand: 1 }
+
+        expect(response).to redirect_to(read_article_path(article))
+      end
+    end
+
     describe "Jackpot（GET /readings/:id/jackpot）" do
       let(:jackpot) { Dopamine.jackpot_tier }
 

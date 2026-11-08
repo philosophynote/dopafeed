@@ -42,6 +42,20 @@ RSpec.describe "Main", type: :request do
       expect(card.find("form[action='#{article_reading_path(article)}']")).to have_button("「記事 A」を読む")
     end
 
+    it "行の「読む」は行の下を広げる POST（expand）で、広げる先の欄は空で隠してある" do
+      article = create(:article, title: "広げる記事")
+
+      get root_path
+
+      form = page.find("article form[action='#{article_reading_path(article)}']")
+      expect(form).to have_css("input[type='hidden'][name='expand'][value='1']", visible: :all)
+      button = form.find_button("「広げる記事」を読む")
+      expect(button["aria-expanded"]).to eq("false")
+      expect(button["aria-controls"]).to eq(ActionView::RecordIdentifier.dom_id(article, :detail))
+      box = page.find("li##{ActionView::RecordIdentifier.dom_id(article)} > ##{ActionView::RecordIdentifier.dom_id(article, :detail)}[hidden]", visible: :all)
+      expect(box).to have_no_css("*", visible: :all)
+    end
+
     it "興味なしにした記事は行にも未読数にも出ない。「興味なし」は見えるボタンにせず、スワイプが送る form だけ置く" do
       article = create(:article, title: "残る記事")
       create(:article, :dismissed, title: "興味なしの記事")

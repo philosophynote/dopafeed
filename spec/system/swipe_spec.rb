@@ -84,7 +84,7 @@ RSpec.describe "Swipe", type: :system do
     expect(settled_shift("戻る記事")).to eq(0)
     page.execute_script("window.__submits = 0; document.addEventListener('turbo:submit-start', () => window.__submits++)")
     read_button.execute_script("this.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }))")
-    expect(page).to have_no_css("[role='dialog'][aria-label='ルーレット']")
+    expect(page).to have_no_link("記事に遷移")
     expect(Article.find_by(title: "戻る記事").reading).to be_nil
 
     # 縦に動いた触りはスクロールに任せ、横へ少し流れてもカードは動かない
@@ -160,7 +160,7 @@ RSpec.describe "Swipe", type: :system do
     expect(Article.find_by(title: "次の記事")).to be_dismissed
   end
 
-  it "引いて戻した直後の click は送らず、次に触れて離せば 1 本だけ送って読む" do
+  it "引いて戻した直後の click は送らず、次に触れて離せば 1 本だけ送って行を広げる" do
     create(:article, title: "迷う記事", published_at: now - 1.hour)
     sign_in
     width = card_width("迷う記事")
@@ -175,11 +175,11 @@ RSpec.describe "Swipe", type: :system do
     # 新しい触り（pointerdown）の後の click は読む。先の click が送られていれば送信は 2 本になる
     read_button.execute_script("this.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 8, isPrimary: true, button: 0, clientX: 200, clientY: 10 }))")
     read_button.execute_script(click)
-    expect(page).to have_css("[role='dialog'][aria-label='ルーレット']")
+    expect(page).to have_link("記事に遷移")
     expect(page.evaluate_script("window.__submits")).to eq(1)
   end
 
-  it "続けて 2 回押してもルーレットは 1 つ。送れなかったらもう一度押して読める" do
+  it "続けて 2 回押しても送信は 1 本。送れなかったらもう一度押して広げられる" do
     article = create(:article, title: "押す記事", published_at: now - 1.hour)
     sign_in
     read_button = find("article", text: "押す記事").find_button("読む")
@@ -195,7 +195,7 @@ RSpec.describe "Swipe", type: :system do
       document.addEventListener("turbo:submit-start", () => window.__submits++)
     JS
     read_button.execute_script("this.click(); this.click()")
-    expect(page).to have_css("[role='dialog'][aria-label='ルーレット']", count: 1)
+    expect(page).to have_link("記事に遷移", count: 1)
     expect(page.evaluate_script("window.__submits")).to eq(1)
     expect(article.reload.reading).to be_present
   end
@@ -221,7 +221,32 @@ RSpec.describe "Swipe", type: :system do
 
     page.execute_script("window.fetch = window.__fetch")
     read_button.execute_script("this.click()")
-    expect(page).to have_css("[role='dialog'][aria-label='ルーレット']")
+    expect(page).to have_link("記事に遷移")
     expect(article.reload.reading).to be_present
+  end
+
+  it "広がった行も見出しの上から左へ引けて、動くのは行だけ。広げた欄は動かず、離すと行ごと帯に替わる" do
+    create(:article, title: "広げた記事", summary: "・広げた要約", published_at: now - 1.hour)
+    sign_in
+    find("article", text: "広げた記事").find_button("読む").execute_script("this.click()")
+    expect(page).to have_link("記事に遷移")
+    width = card_width("広げた記事")
+    detail_left = page.evaluate_script("document.querySelector('[data-swipe-target=detail]').getBoundingClientRect().left")
+    rail_height = find("article", text: "広げた記事").evaluate_script("this.parentElement.querySelector('[data-swipe-target=rail]').getBoundingClientRect().height")
+
+    drag_card("広げた記事", from: [ width / 2, 30 ], to: [ width / 2 - width * dismiss_ratio * 0.6, 30 ], release: false)
+    expect(card_shift("広げた記事")).to be < 0
+    expect(page.evaluate_script("document.querySelector('[data-swipe-target=detail]').getBoundingClientRect().left")).to eq(detail_left)
+    expect(rail_height).to be <= find("article", text: "広げた記事").evaluate_script("this.getBoundingClientRect().height")
+    page.execute_script(<<~JS)
+      const card = document.querySelector("article")
+      const rect = card.getBoundingClientRect()
+      card.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 7, pointerType: "touch", isPrimary: true, clientX: rect.left + 10, clientY: rect.top + 30 }))
+    JS
+    expect(settled_shift("広げた記事")).to eq(0)
+
+    drag_card("広げた記事", from: [ width / 2, 30 ], to: [ width / 2 - width * dismiss_ratio * 1.5, 30 ])
+    expect(page).to have_text("を削除した")
+    expect(page).to have_no_link("記事に遷移")
   end
 end
