@@ -1,7 +1,7 @@
-<%# 名前の入力欄。一覧では行の Frame の中に収まり、JS が無ければこのページ単独で開く %>
+<%# 行の Frame に収まる前提で見出しを持たない。JS が無ければこのページ単独で開き、保存で一覧へ戻る %>
 <% content_for :title, "名前を変更" %>
 <%= turbo_frame_tag dom_id(@feed, :title) do %>
-  <%= form_with model: @feed, class: "mb-2 space-y-2" do |form| %>
+  <%= form_with model: @feed, class: "mb-2 space-y-2", data: { no_swipe: true } do |form| %>
     <%= form.label :title, "名前", class: "block text-sm font-semibold" %>
     <%= form.text_field :title, required: true, autofocus: true, class: "min-h-11 w-full rounded-xl border border-gray-300 px-3 text-base", aria: { invalid: @feed.errors.include?(:title) } %>
     <% if @feed.errors.include?(:title) %>

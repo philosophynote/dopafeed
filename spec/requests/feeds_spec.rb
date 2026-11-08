@@ -92,7 +92,7 @@ RSpec.describe "Feeds", type: :request do
       it "入力欄は今の名前入りで、同じ Frame に描く" do
         get edit_feed_path(feed)
         frame = page.find("turbo-frame##{dom_id(feed, :title)}")
-        expect(frame).to have_field("名前", with: "元の名前")
+        expect(frame).to have_field("名前", with: "元の名前") { |field| field[:required] }
         expect(frame).to have_button("保存")
         expect(frame).to have_link("やめる", href: feeds_path)
       end
@@ -101,6 +101,18 @@ RSpec.describe "Feeds", type: :request do
         patch feed_path(feed), params: { feed: { title: "  新しい名前 " } }
         expect(response).to redirect_to(feeds_path)
         expect(feed.reload.title).to eq("新しい名前")
+      end
+
+      it "IME の全角空白も前後なら落とし、間の空白は残す" do
+        patch feed_path(feed), params: { feed: { title: "\u3000Zenn　トレンド\u3000 " } }
+        expect(feed.reload.title).to eq("Zenn　トレンド")
+      end
+
+      it "JS が無くても空白だけなら 422 で入力欄に赤字を出す" do
+        patch feed_path(feed), params: { feed: { title: "\u3000" } }
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(page).to have_css(".text-red-600", text: "名前を入力してください")
+        expect(feed.reload.title).to eq("元の名前")
       end
 
       it "Turbo の要求には行を差し替える Turbo Stream を返し、件数と削除の確認文も新しい名前で描く" do

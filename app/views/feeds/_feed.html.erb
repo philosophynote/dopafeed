@@ -1,4 +1,4 @@
-<%# Feeds の 1 行。名前の変更（feeds#update）の Turbo Stream もこの行ごと差し替える（削除の確認文が名前を含むため） %>
+<%# Feeds の 1 行 %>
 <li id="<%= dom_id(feed) %>" class="touch-pan-y rounded-2xl bg-white p-4 shadow-sm" data-feed data-controller="feed-swipe"
     data-feed-swipe-ratio-value="<%= Dopamine.settings.dig(:swipe, :dismiss_threshold_ratio) %>"
     data-action="pointerdown->feed-swipe#start pointermove->feed-swipe#move pointerup->feed-swipe#end pointercancel->feed-swipe#cancel lostpointercapture->feed-swipe#cancel">

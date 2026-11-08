@@ -95,13 +95,15 @@ RSpec.describe "Feeds", type: :system do
     expect(find("article", text: "記事 A")).to have_no_text("トレンド")
   end
 
-  it "入力欄の上で横に指を動かしても削除が始まらない" do
+  it "入力中は入力欄の上でもラベルの上でも、横に指を動かして削除が始まらない" do
     feed = create(:feed, title: "残す購読")
     sign_in
     click_on "購読"
     click_on "名前を変更"
 
+    # 削除の確認が出れば次の操作で Selenium が UnexpectedAlertOpen を上げる
     swipe(-180, on: find_field("名前"))
+    swipe(-180, on: find("label", text: "名前"))
 
     expect(page).to have_field("名前", with: "残す購読")
     expect(Feed.exists?(feed.id)).to be(true)

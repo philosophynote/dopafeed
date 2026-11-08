@@ -29,8 +29,9 @@ class FeedsController < ApplicationController
 
     respond_to do |format|
       format.turbo_stream do
+        article_counts, unread_counts = Feed.article_counts(@feed.articles)
         render turbo_stream: turbo_stream.replace(@feed, partial: "feeds/feed",
-          locals: { feed: @feed, article_count: @feed.articles.count, unread_count: @feed.articles.unread.count })
+          locals: { feed: @feed, article_count: article_counts.fetch(@feed.id, 0), unread_count: unread_counts.fetch(@feed.id, 0) })
       end
       format.html { redirect_to feeds_path, status: :see_other }
     end
