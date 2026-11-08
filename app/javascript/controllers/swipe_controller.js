@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
+import { Turbo } from "@hotwired/turbo-rails"
 import { EDGE_PX, LOCK_PX } from "controllers/swipe_thresholds"
 
 // 一覧の 1 行。左へ引いて離すと form（Main では「興味なし」、保存の一覧では「保存を外す」）を、右へ引いて離すと saveForm（「保存」）を送り、
@@ -196,17 +197,19 @@ export default class extends Controller {
   // 「読む」のボタンの click。横へ引いた触りの後に click が来る端末でも読まない（引いて戻した行が開いてしまう）。
   // キーボードの Enter / Space（detail が 0）は指の動きと関係ないので通す。
   // 送信は興味なしと同じ列に並べる（送信中の興味なしの応答を Turbo に捨てさせない）。二度押しでルーレットを重ねない
-  // 読み終えた行の「読む」はリンク（Reader を開くだけで送るものが無い）。引いた後と流している間の click だけ止め、他は Turbo の遷移に任せる
+  // 読み終えた行の「読む」はリンク（Reader を開くだけで送るものが無い）。それでも遷移は同じ列の後ろで始める。
+  // 遷移は送信中の form を止めるので、直前に引いた行の「保存を外す」が届く前に止まってしまう
   open(event) {
     const swiped = this.swiped && event.detail > 0
     this.swiped = false
-    if (this.readTarget.tagName === "A") {
-      if (swiped || this.flying) event.preventDefault()
-      return
-    }
-
     event.preventDefault()
     if (swiped || this.flying || this.opening) return
+
+    if (this.readTarget.tagName === "A") {
+      const href = this.readTarget.href
+      submissions = submissions.then(() => Turbo.visit(href))
+      return
+    }
 
     this.opening = true
     this.enqueue(this.readTarget.form, this.readTarget, () => { this.opening = false }, { stopOnTimeout: true })

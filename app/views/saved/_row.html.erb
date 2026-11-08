@@ -12,7 +12,8 @@
       <%= render "articles/row_body", article: article, read_mark: read %>
       <% cover = "absolute inset-0 w-full [-webkit-tap-highlight-color:transparent] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-orange-500 active:bg-black/5" %>
       <% if read %>
-        <%= link_to read_article_path(article), class: cover, data: { swipe_target: "read", action: "click->swipe#open" } do %>
+        <%# draggable="false": リンクのドラッグ＆ドロップが始まると pointercancel が来て、マウスで引けない %>
+        <%= link_to read_article_path(article), class: cover, draggable: "false", data: { swipe_target: "read", action: "click->swipe#open" } do %>
           <span class="sr-only">「<%= article.title %>」を開く</span>
         <% end %>
       <% else %>

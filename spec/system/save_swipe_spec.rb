@@ -69,8 +69,11 @@ RSpec.describe "Save swipe", type: :system do
     width = card_width("取り置いた記事")
     expect(page).to have_no_css("[data-unread-badge]")
 
-    # 右へ引いても動かない（保存の一覧に右の動作は無い）
-    drag_card("取り置いた記事", from: [ width / 2, 40 ], to: [ width / 2 + width * ratio * 1.5, 40 ])
+    # 右へ引いても動かない（保存の一覧に右の動作は無い）。引いている最中から 0 のまま
+    drag_card("取り置いた記事", from: [ width / 2, 40 ], to: [ width / 2 + width * ratio * 1.5, 40 ], release: false)
+    expect(card_shift("取り置いた記事")).to eq(0)
+    expect(rail_opacity("取り置いた記事")).to eq(0)
+    drag_card("取り置いた記事", from: [ width / 2, 40 ], to: [ width / 2, 40 ], steps: 1, down: false)
     expect(settled_shift("取り置いた記事")).to eq(0)
     expect(Article.find_by(title: "取り置いた記事")).to be_bookmarked
 
@@ -117,6 +120,7 @@ RSpec.describe "Save swipe", type: :system do
     expect(page.evaluate_script("window.__visits")).to eq(0)
     expect(page).to have_current_path(saved_path)
 
+    expect(link["draggable"]).to eq("false")
     link.click
     expect(page).to have_current_path(read_article_path(article))
   end
