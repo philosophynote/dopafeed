@@ -56,8 +56,214 @@ RSpec.describe "Main", type: :system do
     JS
     expect(receivers).to eq(%w[read read read])
     row.find_button("読む").click
-    expect(page).to have_css("[role='dialog'][aria-label='ルーレット']")
+    expect(page).to have_link("記事に遷移")
+    expect(page).to have_no_css("[role='dialog'][aria-label='ルーレット']")
     expect(Article.where("title LIKE ?", "%その 3 本目%").sole.reading).to be_present
+  end
+
+  describe "行をタップすると下に広がる（ADR 0019）" do
+    let(:base) { Dopamine.settings.dig(:xp, :base) }
+    let(:common) { Dopamine.tier_names.first }
+    let(:rare) { Dopamine.settings.dig(:xp, :tiers).find { |tier| tier[:multiplier] > 1 && tier != Dopamine.jackpot_tier } }
+
+    def expand(title)
+      find("article", text: title).find_button("読む").click
+    end
+
+    def expanded?(title)
+      find("article", text: title).find_button("読む")["aria-expanded"] == "true"
+    end
+
+    it "画面を移らずに出目の帯・3 行要約・「記事に遷移」が出て、もう一度タップで畳む。別の行を広げると前の行は畳む" do
+      allow(XpRoulette).to receive(:draw).and_return(common)
+      first = create(:article, title: "最初の記事", url: "https://example.com/first", summary: "・一行目\n・二行目\n・三行目", image_url: "/icon.png", published_at: 1.hour.ago)
+      create(:article, title: "次の記事", summary: "・次の要約", published_at: 2.hours.ago)
+      create(:article, title: "三本目の記事", published_at: 3.hours.ago)
+      sign_in
+
+      expand("最初の記事")
+      detail = find("##{ActionView::RecordIdentifier.dom_id(first, :detail)}")
+      expect(detail).to have_text("出目 通常 ×1 ・ 完読で +#{base} XP")
+      expect(detail).to have_css("section[aria-label='要約']", text: "・一行目")
+      link = detail.find_link("記事に遷移", href: first.url)
+      expect(link[:target]).to eq("_blank")
+      expect(page).to have_current_path(root_path)
+      expect(expanded?("最初の記事")).to be(true)
+      # 広げた欄は行の真下に出て、次の行はその下へ押し下がる
+      row_bottom, box_top, box_bottom, next_top = page.evaluate_script(<<~JS)
+        [document.querySelectorAll("article")[0].getBoundingClientRect().bottom,
+         document.getElementById("#{detail[:id]}").getBoundingClientRect().top,
+         document.getElementById("#{detail[:id]}").getBoundingClientRect().bottom,
+         document.querySelectorAll("article")[1].getBoundingClientRect().top]
+      JS
+      expect(box_top).to be >= row_bottom - 1
+      expect(next_top).to be >= box_bottom - 1
+      expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "横スクロールが出ている"
+      expect(link.evaluate_script("this.getBoundingClientRect().height")).to be >= 44
+      screenshot!("expanded")
+
+      # 2 度目のタップは送らずに畳む。もう一度で開く
+      page.execute_script("window.__submits = 0; document.addEventListener('turbo:submit-start', () => window.__submits++)")
+      expand("最初の記事")
+      expect(page).to have_no_link("記事に遷移")
+      expect(expanded?("最初の記事")).to be(false)
+      expand("最初の記事")
+      expect(page).to have_link("記事に遷移", count: 1)
+      expect(page.evaluate_script("window.__submits")).to eq(0)
+
+      # 別の行を広げると前の行は畳む
+      expand("次の記事")
+      expect(page).to have_text("・次の要約")
+      expect(page).to have_link("記事に遷移", count: 1)
+      expect(page).to have_no_text("・一行目")
+      expect(expanded?("最初の記事")).to be(false)
+      expect(Reading.count).to eq(2)
+
+      # 読み込み済みの行を送らずに開き直しても、開いていた行は畳む
+      page.execute_script("window.__submits = 0")
+      expand("最初の記事")
+      expect(page).to have_text("・一行目")
+      expect(page).to have_no_text("・次の要約")
+      expect(expanded?("次の記事")).to be(false)
+      expect(page.evaluate_script("window.__submits")).to eq(0)
+    end
+
+    it "応答を待つ間に別の行を押したら、最後に押した行だけが開く（送信は順に届く）" do
+      create(:article, title: "最初の記事", summary: "・一行目", published_at: 1.hour.ago)
+      create(:article, title: "次の記事", summary: "・次の要約", published_at: 2.hours.ago)
+      create(:article, title: "三本目の記事", summary: "・三本目の要約", published_at: 3.hours.ago)
+      sign_in
+      expand("三本目の記事")
+      expect(page).to have_text("・三本目の要約")
+
+      # POST の応答を手で放すまで止める（圏外で応答が遅い状態）
+      page.execute_script(<<~JS)
+        window.__held = []
+        window.__fetch = window.fetch
+        window.fetch = (url, options) => (options?.method || "GET").toUpperCase() === "POST"
+          ? new Promise((resolve) => window.__held.push(() => window.__fetch(url, options).then(resolve)))
+          : window.__fetch(url, options)
+        window.__release = () => { const next = window.__held.shift(); if (next) next() }
+      JS
+      expand("最初の記事")
+      expand("次の記事")
+      # 応答を待つ間に、読み込み済みの行を送らずに開き、最後に押した行にする
+      expand("三本目の記事")
+      expand("三本目の記事")
+      expect(expanded?("三本目の記事")).to be(true)
+      Timeout.timeout(Capybara.default_max_wait_time) { sleep 0.05 until page.evaluate_script("window.__held.length") == 1 }
+      page.execute_script("window.__release()")
+      expect(page).to have_css("##{ActionView::RecordIdentifier.dom_id(Article.find_by!(title: "最初の記事"), :detail)}", visible: :all)
+      Timeout.timeout(Capybara.default_max_wait_time) { sleep 0.05 until page.evaluate_script("window.__held.length") == 1 }
+      page.execute_script("window.__release()")
+      expect(page).to have_css("##{ActionView::RecordIdentifier.dom_id(Article.find_by!(title: "次の記事"), :detail)} section", visible: :all)
+
+      expect(page).to have_text("・三本目の要約")
+      expect(page).to have_no_text("・一行目")
+      expect(page).to have_no_text("・次の要約")
+      expect(expanded?("三本目の記事")).to be(true)
+    end
+
+    it "応答を待つ間に別の未読の行も押したら、後に押した行が開く" do
+      create(:article, title: "最初の記事", summary: "・一行目", published_at: 1.hour.ago)
+      create(:article, title: "次の記事", summary: "・次の要約", published_at: 2.hours.ago)
+      sign_in
+      page.execute_script(<<~JS)
+        window.__held = []
+        window.__fetch = window.fetch
+        window.fetch = (url, options) => (options?.method || "GET").toUpperCase() === "POST"
+          ? new Promise((resolve) => window.__held.push(() => window.__fetch(url, options).then(resolve)))
+          : window.__fetch(url, options)
+        window.__release = () => { const next = window.__held.shift(); if (next) next() }
+      JS
+      expand("最初の記事")
+      expand("次の記事")
+      2.times do
+        Timeout.timeout(Capybara.default_max_wait_time) { sleep 0.05 until page.evaluate_script("window.__held.length") >= 1 }
+        page.execute_script("window.__release()")
+      end
+
+      expect(page).to have_text("・次の要約")
+      expect(page).to have_no_text("・一行目")
+      expect(expanded?("次の記事")).to be(true)
+      expect(expanded?("最初の記事")).to be(false)
+    end
+
+    it "別の画面から戻る（Turbo のキャッシュ）と、離れたときの開閉のまま。畳んで離れた行は開き直さない" do
+      create(:article, title: "最初の記事", summary: "・一行目", published_at: 1.hour.ago)
+      create(:article, title: "次の記事", summary: "・次の要約", published_at: 2.hours.ago)
+      sign_in
+
+      expand("最初の記事")
+      expect(page).to have_text("・一行目")
+      expand("次の記事")
+      expect(page).to have_text("・次の要約")
+      expand("次の記事")
+      expect(page).to have_no_link("記事に遷移")
+
+      find("section[aria-label='今日の進み']").click_link
+      expect(page).to have_current_path(daily_goal_path)
+      page.go_back
+      expect(page).to have_current_path(root_path)
+      expect(page).to have_css("article", count: 2)
+      expect(page).to have_no_link("記事に遷移")
+      expect(expanded?("最初の記事")).to be(false)
+      expect(expanded?("次の記事")).to be(false)
+
+      # 開いたまま離れると、戻っても開いたまま 1 行だけ
+      expand("最初の記事")
+      expect(page).to have_text("・一行目")
+      find("section[aria-label='今日の進み']").click_link
+      expect(page).to have_current_path(daily_goal_path)
+      page.go_back
+      expect(page).to have_link("記事に遷移", count: 1)
+      expect(expanded?("最初の記事")).to be(true)
+    end
+
+    it "要約がまだなら「作成中」、Job が書き終えると広げた欄の要約だけ差し替わる" do
+      summarizer = instance_double(Claude::Summarizer, call: "・できた要約\n・二\n・三")
+      allow(Claude::Summarizer).to receive(:new).and_return(summarizer)
+      article = create(:article, :awaiting_summary, title: "要約待ちの記事")
+      sign_in
+
+      expand("要約待ちの記事")
+      expect(page).to have_text("要約を作成中")
+      expect(page).to have_link("記事に遷移")
+      find("turbo-cable-stream-source[connected]", visible: :all)
+      screenshot!("pending")
+
+      Claude::SummarizeArticleJob.perform_now(article)
+
+      expect(page).to have_css("section[aria-label='要約']", text: "・できた要約")
+      expect(page).to have_no_text("要約を作成中")
+      expect(page).to have_current_path(root_path)
+    end
+
+    it "掘り出し物の出目は帯が橙で光り、モーダルは出ない" do
+      allow(XpRoulette).to receive(:draw).and_return(rare[:name])
+      create(:article, title: "当たりの記事", summary: "・当たり")
+      sign_in
+
+      expand("当たりの記事")
+      band = find("[data-tier='#{rare[:name]}']", text: "×#{rare[:multiplier]} ・ 完読で +#{base * rare[:multiplier]} XP")
+      expect(band[:class]).to include("tier-glow", "bg-orange-500")
+      expect(page).to have_no_css("[role='dialog']")
+      screenshot!("rare")
+    end
+
+    it "頂点の出目でも全画面へは進まず、帯が金で光る" do
+      jackpot = Dopamine.jackpot_tier
+      allow(XpRoulette).to receive(:draw).and_return(jackpot[:name])
+      create(:article, title: "大当たりの記事", summary: "・大当たり")
+      sign_in
+
+      expand("大当たりの記事")
+      band = find("[data-tier='#{jackpot[:name]}']", text: "×#{jackpot[:multiplier]} ・ 完読で +#{base * jackpot[:multiplier]} XP")
+      expect(band[:class]).to include("tier-glow", "bg-amber-400")
+      expect(page).to have_current_path(root_path)
+      expect(page).to have_no_text("JACKPOT")
+      screenshot!("jackpot")
+    end
   end
 
   it "ステータスは 1 行に収まり、大きな数でも横にはみ出さない。画像つきの行が 6 本目まで画面に入る" do

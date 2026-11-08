@@ -1,4 +1,4 @@
-# Reader（Unit 5c #43、5d #50、要約 #85）
+# Reader（Unit 5c #43、5d #50、要約 #85。#97 で Main からは来なくなった）
 
 ## 目的
 「無限供給」と「報酬距離」を担う。記事のカードを 1 枚ずつ並べ、「記事を開く」で元サイトを見た目のままアプリ内ブラウザ（シート）に開く。閉じて戻るとその場で判定と XP の区切りを挟み、下に次の未読のカードを継ぎ足す。
@@ -20,7 +20,8 @@
 5. 次の記事のカード（2. と同じ形）。未読が尽きたら「全部読んだ。」と「閉じる」
 
 ## 遷移
-- Main の「読む」→ Roulette（Turbo Stream のモーダル）→ 止まると Reader（`GET /articles/:id/read`、full page）
+- Saved の未読の行 → Roulette（Turbo Stream のモーダル）→ 止まると Reader（`GET /articles/:id/read`、full page）。Main の行は下に広がり Reader へは来ない（#97、ADR 0019）
+- Saved の読んだ行 → Reader（抽選なし）
 - Roulette → Jackpot → 「受け取って読む」→ Reader
 - JS が無いとき: 「読む」の POST が直接 Reader へ redirect
 - Reader の中: 「記事を開く」→ 元サイトが別窓（シート）で開き、Stimulus `sheet` が `POST /readings/:id/start` で開いた時刻を記録 → シートを閉じて戻る（`visibilitychange` で隠れた後に、見えるか `focus` が戻る。押した瞬間の blur → focus では送らない）か「読み終えた」を押す → `POST /readings/:id/advance` → Turbo Stream で「読み終えた」を区切りに replace、次のカードを `#reader` に append。JS が無ければ次の記事の Reader へ redirect

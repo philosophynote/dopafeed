@@ -3,10 +3,12 @@
 # 行を作った記事（= 読むと決めた記事）の要約はここで積む。読まない記事に払わないため（ADR 0015）
 class ReadingsController < ApplicationController
   # Turbo の POST には抽選結果を埋めたルーレットのモーダルを返す（演出はクライアント、結果はサーバー）。
+  # expand が付いた POST には、画面を移らずに行の下へ広げる欄（出目・要約・元記事へのリンク）を返す。待ち時間を削るためモーダルは回さない（ADR 0019）。
   # JS が無い通常の POST は演出なしでリーダーへ redirect する
   def create
     @article = Article.find(params[:article_id])
     @reading = Reading.open!(@article)
+    @expand = params[:expand] == "1"
     Claude::SummarizeArticleJob.enqueue_if_awaiting(@article)
     respond_to do |format|
       format.turbo_stream
@@ -43,7 +45,7 @@ class ReadingsController < ApplicationController
     end
   end
 
-  # 全画面演出。完読済みでも開ける（戻るで Main に帰っても結果は保持され、同じ記事を再び読めば同じ画面に来る）
+  # 全画面演出。完読済みでも開ける（戻るで一覧に帰っても結果は保持され、同じ記事を再び読めば同じ画面に来る）
   def jackpot
     @reading = Reading.includes(article: :feed).find(params[:id])
     return redirect_to root_path unless @reading.jackpot?

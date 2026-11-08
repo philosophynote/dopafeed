@@ -33,8 +33,7 @@ RSpec.describe "DailyGoal", type: :system do
     sign_in
     expect(page).to have_text("今日のゴール #{goal_articles - 1} / #{goal_articles}", normalize_ws: true)
 
-    click_on "読む"
-    expect(page).to have_current_path(read_article_path(article))
+    read_from_saved(article)
     # 別窓は開かせず、リンクの遷移だけ止める（sheet#open は走り、「読み終えた」が出る）
     page.execute_script(<<~JS)
       document.addEventListener("click", (event) => { if (event.target.closest("a[target=_blank]")) event.preventDefault() }, true)

@@ -25,7 +25,7 @@
 - Given Roulette で jackpot が出た When 画面が切り替わる Then 全画面で「JACKPOT」と xp.base × multiplier の XP が出る
 - Given Jackpot 画面 When 背景をタップ Then 閉じない
 - Given Jackpot 画面 When 「受け取って読む」Then Reader に記事のカードが出て、記事を開いて戻ると区切りの XP に jackpot 倍率が掛かる
-- Given Jackpot 画面 When ブラウザの戻る Then Main に戻るが、抽選結果は保持され同じ記事を再度読むと Jackpot 画面が再表示される（未決 3）
+- Given Jackpot 画面 When ブラウザの戻る Then 元の一覧（#97 以後は Saved）に戻るが、抽選結果は保持され同じ記事を再度読むと Jackpot 画面が再表示される（未決 3）
 - Given jackpot を引いた When 24 時間以内に次の抽選 Then レア確率が 2 倍になる（未決 2。鍵が無ければこの条件は落とす）
 - Given 390 幅 When Jackpot を開く Then 紙吹雪が横スクロールを生まない
 
@@ -42,7 +42,7 @@ personas.yml: なし
 2. 「24 時間レア確率 2 倍」のバフ。dopamine.yml に鍵が無い。第一の陣では出さない案。入れるなら `xp.jackpot_buff: { hours: 24, rare_multiplier: 2 }` を PR で提案
    → **決定（Unit 6、#42）**: 出さない。鍵の提案もしない（欲しくなったら nao が言う）。受け入れ条件の「24 時間以内に次の抽選 Then レア確率が 2 倍」は落とす
 3. 演出中に離脱したときの扱い（Roulette の未決 2 と同じ）
-   → **決定（Unit 6、#42）**: Jackpot は full page（`GET /readings/:id/jackpot`）。戻るで Main に帰っても行は残り、同じ記事を再び「読む」とルーレットが同じ出目で止まって Jackpot に来る。完読済みの行でも開ける。tier が jackpot でない行は Main へ
+   → **決定（Unit 6、#42）**: Jackpot は full page（`GET /readings/:id/jackpot`）。戻るで一覧（#97 以後は Saved）に帰っても行は残り、同じ記事を再び「読む」とルーレットが同じ出目で止まって Jackpot に来る。完読済みの行でも開ける。tier が jackpot でない行は Main へ
 4. 激レア（紫）を別 tier として持つか。yml は 3 段で紫は無い（Roulette の未決 4）
    → **決定（Unit 6、#42）**: 持たない
 5. モックの数字（0.3%、+250、通常 25）は yml（5%、×10、base 10）と違う。画面は常に yml から導いて表示し、モックの値は採らない。確率を 0.3% に寄せたいなら PR で tiers の提案を出す

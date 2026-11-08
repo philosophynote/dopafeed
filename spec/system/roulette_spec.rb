@@ -1,4 +1,5 @@
-# 読む → Roulette → リーダーと、jackpot → Jackpot → 受け取って読む → リーダーを 390×844 で通す
+# 読む → Roulette → リーダーと、jackpot → Jackpot → 受け取って読む → リーダーを 390×844 で通す。
+# Main の行はモーダルを回さず下に広がる（ADR 0019）ので、ルーレットが残る入口の Saved の行から読む
 RSpec.describe "Roulette", type: :system do
   let(:settings) { Dopamine.settings }
   let(:threshold) { settings.dig(:read, :complete_after_seconds) }
@@ -7,13 +8,18 @@ RSpec.describe "Roulette", type: :system do
   let(:jackpot) { Dopamine.jackpot_tier }
 
   def create_article(title = "読む記事")
-    create(:article, title: title, url: "#{Capybara.current_session.server.base_url}/up?#{title}")
+    create(:article, :bookmarked, title: title, url: "#{Capybara.current_session.server.base_url}/up?#{title}")
+  end
+
+  def sign_in_to_saved
+    sign_in
+    visit saved_path
   end
 
   it "読むと止まった出目の帯つきでリーダーが開き、モーダルは残らない" do
     allow(XpRoulette).to receive(:draw).and_return(common)
     article = create_article
-    sign_in
+    sign_in_to_saved
 
     click_on "読む"
     expect(page).to have_current_path(read_article_path(article))
@@ -28,14 +34,14 @@ RSpec.describe "Roulette", type: :system do
     allow(Dopamine).to receive(:settings).and_return(long)
     allow(XpRoulette).to receive(:draw).and_return(common)
     article = create_article("背景に残るカード")
-    sign_in
+    sign_in_to_saved
 
     click_on "読む"
 
     expect(page).to have_css("[role='dialog'][aria-label='ルーレット']")
     expect(page).to have_text("「読む」を押した 10.0 秒間")
     expect(page).to have_css("article", text: "背景に残るカード")
-    expect(page).to have_current_path(root_path)
+    expect(page).to have_current_path(saved_path)
     expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "横スクロールが出ている"
     expect(article.reload.reading.tier).to eq(common)
   end
@@ -43,7 +49,7 @@ RSpec.describe "Roulette", type: :system do
   it "jackpot なら全画面に進み、受け取って読むでリーダーが開き、記事を開いて戻ると jackpot の倍率で XP が付く" do
     allow(XpRoulette).to receive(:draw).and_return(jackpot[:name])
     article = create_article
-    sign_in
+    sign_in_to_saved
 
     click_on "読む"
     expect(page).to have_text("JACKPOT")
@@ -53,9 +59,9 @@ RSpec.describe "Roulette", type: :system do
     expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "紙吹雪が横スクロールを生んでいる"
     screenshot!("jackpot")
 
-    # 戻るで Main に帰っても、モーダルは蘇らず、読了も勝手に送られない。結果は保持され、再び読めば同じ Jackpot
+    # 戻るで一覧に帰っても、モーダルは蘇らず、読了も勝手に送られない。結果は保持され、再び読めば同じ Jackpot
     page.go_back
-    expect(page).to have_current_path(root_path)
+    expect(page).to have_current_path(saved_path)
     expect(page).to have_css("article", text: "読む記事")
     expect(page).to have_no_css("[data-controller='roulette']")
     expect(page).to have_no_text("読了！")

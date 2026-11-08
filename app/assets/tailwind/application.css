@@ -84,7 +84,18 @@
   transition: width 200ms ease-out, opacity 200ms ease-out;
 }
 
+/* 一覧の行の下に広げた欄の出目の帯。モーダルで回さない代わりに、倍率の上がった出目だけ現れた瞬間に光らせる */
+.tier-glow {
+  animation: tier-glow 900ms ease-out 2;
+}
+@keyframes tier-glow {
+  0% { box-shadow: 0 0 0 0 rgb(251 191 36 / 0.9); transform: scale(0.92); }
+  40% { transform: scale(1.06); }
+  100% { box-shadow: 0 0 0 0.75rem rgb(251 191 36 / 0); transform: scale(1); }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .tier-glow { animation: none; }
   .roulette-strip { animation-duration: 1ms; }
   .roulette-result { animation-delay: 0ms; }
   .confetti { display: none; }

@@ -1,3 +1,9 @@
-<%= turbo_stream.update "roulette" do %>
-  <%= render "roulette", reading: @reading, article: @article %>
+<% if @expand %>
+  <%= turbo_stream.replace dom_id(@article, :detail) do %>
+    <%= render "main/article_detail", reading: @reading %>
+  <% end %>
+<% else %>
+  <%= turbo_stream.update "roulette" do %>
+    <%= render "roulette", reading: @reading, article: @article %>
+  <% end %>
 <% end %>

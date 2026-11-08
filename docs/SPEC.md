@@ -26,7 +26,7 @@
 - Web Push とバッジは「ホーム画面に追加」した後だけ有効（iOS 16.4+）→ Install 画面で手順 3 段を出し、standalone で開いたときだけ「通知を許可する」を有効にする。Safari のタブのままでは出さない
 - バッジは OS が永続化しない（再起動で消える）→ service worker の push / activate で setAppBadge を再実行する
 - 記事は元サイトの見た目のまま、アプリ内ブラウザ（standalone でアプリの外の URL を開くと出るシート）で開く。本文はアプリ内に描かない（Reader、ADR 0010・0011）→ 読了判定は「記事を開く」を押した時刻とアプリに戻った時刻の差（`read.complete_after_seconds`）。戻りの合図（visibilitychange / focus）が来ない端末のために「読み終えた」の手押しを残す。戻ると次の未読が下に継ぎ足される
-- バックグラウンド取得は iOS の制約を受けない → Solid Queue の定期ジョブがサーバーで RSS を取る。Claude の要約は「読む」を押した記事だけ、その場で Job が作る（読まない記事に払わない。ADR 0015）
+- バックグラウンド取得は iOS の制約を受けない → Solid Queue の定期ジョブがサーバーで RSS を取る。Claude の要約は「読む」を押した記事（Main では行を広げた記事。ADR 0019）だけ、その場で Job が作る（読まない記事に払わない。ADR 0015）
 - Claude の API キーは Rails credentials に置き、画面には出さない。呼び出しは必ず Job 経由（AGENTS.md）
 
 ## 分担

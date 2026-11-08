@@ -4,6 +4,7 @@ import { EDGE_PX, LOCK_PX } from "controllers/swipe_thresholds"
 
 // 一覧の 1 行。左へ引いて離すと form（Main では「興味なし」、保存の一覧では「保存を外す」）を、右へ引いて離すと saveForm（「保存」）を送り、
 // 触れて離すと「読む」の form を送る（読み終えた行ではリンクを開く）。記録と差し替えはサーバー（Turbo Stream）の仕事で、ここは指の動きを form の送信に変えるだけ。
+// 行の下に広げる欄（detail）がある行では、欄は最初の「読む」の応答が埋め、それからは送らずに開閉だけする（抽選も要約の Job も 1 回で足りる）。
 // 行全体が「読む」のボタンなので、引く操作とタップを同じコントローラで見分ける（引いた後の click を読みにしない）。
 // Pointer Events を使うのは、iPhone の指も Mac のマウスも同じ道で扱い、touch 固有の API を持たないため。
 // 縦の動きはブラウザのスクロールに任せ（CSS の touch-action: pan-y）、横と決めてからカードを指に追従させる。
@@ -17,9 +18,11 @@ const SETTLE_MARGIN_MS = 100
 // Turbo は form の送信中に別の form が送られると先の送信を止めて応答を捨てる（先のカードが画面に残る）。
 // 送信は全カードで 1 本の列に並べ、前の turbo:submit-end を待ってから次を送る
 let submissions = Promise.resolve()
+// 最後に「読む」を押した印。応答は送った順に届くので、待つ間に押し直した行を後の応答で負かさないよう、開くのはこの印を持つ行だけにする
+let latestTap = 0
 
 export default class extends Controller {
-  static targets = ["card", "rail", "saveRail", "form", "saveForm", "read"]
+  static targets = ["card", "rail", "saveRail", "form", "saveForm", "read", "detail"]
   // 送る閾値（カード幅に対する比）と、送信の応答を待つ上限（秒）。dopamine.yml の値を view が渡す
   static values = { dismissRatio: Number, submitTimeoutSeconds: Number }
 
@@ -196,23 +199,56 @@ export default class extends Controller {
 
   // 「読む」のボタンの click。横へ引いた触りの後に click が来る端末でも読まない（引いて戻した行が開いてしまう）。
   // キーボードの Enter / Space（detail が 0）は指の動きと関係ないので通す。
-  // 送信は興味なしと同じ列に並べる（送信中の興味なしの応答を Turbo に捨てさせない）。二度押しでルーレットを重ねない
+  // 送信は興味なしと同じ列に並べる（送信中の興味なしの応答を Turbo に捨てさせない）。二度押しで送信を重ねない。
+  // 応答を待つ印（awaiting）は欄が差し替わるまで持つ。Turbo は submit-end の後のフレームで差し替えるので、opening だけではその隙に 2 本目を送ってしまう
   // 読み終えた行の「読む」はリンク（Reader を開くだけで送るものが無い）。それでも遷移は同じ列の後ろで始める。
   // 遷移は送信中の form を止めるので、直前に引いた行の「保存を外す」が届く前に止まってしまう
   open(event) {
     const swiped = this.swiped && event.detail > 0
     this.swiped = false
     event.preventDefault()
-    if (swiped || this.flying || this.opening) return
+    if (swiped || this.flying || this.opening || this.awaiting) return
 
     if (this.readTarget.tagName === "A") {
       const href = this.readTarget.href
       submissions = submissions.then(() => Turbo.visit(href))
       return
     }
+    this.tap = ++latestTap
+    if (this.loaded()) return this.expand(this.detailTarget.hidden)
 
     this.opening = true
-    this.enqueue(this.readTarget.form, this.readTarget, () => { this.opening = false }, { stopOnTimeout: true })
+    this.awaiting = this.hasDetailTarget
+    this.enqueue(this.readTarget.form, this.readTarget, (success) => {
+      this.opening = false
+      if (!success) this.awaiting = false
+    }, { stopOnTimeout: true })
+  }
+
+  // 中身の入った欄が繋がるのは、応答の差し替えか、Turbo のキャッシュから戻ったとき。
+  // 開くのは自分が待っていた応答で、待つ間に他の行が押されていないときと、ボタンが開いた印を持っているとき（キャッシュの状態を保つ）だけ。
+  // 最後に押した行を勝たせる（遅れて届いた応答が、後から開いた行を畳まない）
+  detailTargetConnected() {
+    if (!this.loaded()) return
+
+    const open = (this.awaiting && this.tap === latestTap) || this.readTarget.getAttribute("aria-expanded") === "true"
+    this.awaiting = false
+    this.expand(open)
+  }
+
+  collapse() {
+    if (this.hasDetailTarget) this.expand(false)
+  }
+
+  loaded() {
+    return this.hasDetailTarget && this.detailTarget.childElementCount > 0
+  }
+
+  // 開いたら知らせる。一度に開く行を 1 つにするのは受け取る側の仕事
+  expand(open) {
+    this.detailTarget.hidden = !open
+    this.readTarget.setAttribute("aria-expanded", String(open))
+    if (open) this.dispatch("expanded")
   }
 
   restore() {
