@@ -42,10 +42,14 @@ RSpec.describe "Bookmarks", type: :request do
         expect(page).to have_css("turbo-stream[action='replace'][target='app-badge'] #app-badge[data-badge-count-value='1']", visible: :all)
       end
 
-      it "Reading を作らず、XP も今日のゴールも変えない" do
+      it "Reading を作らず、読了・XP・今日のゴール・コンボ・ストリークを変えない" do
+        create(:reading, :completed, opened_at: noon - 1.hour)
+        before = travel_to(noon) { [ Reading.completed.count, Reading.completed.sum(:xp), Reading.on(ReadingDay.of).count, Combo.new.multiplier, ReadingStreak.days ] }
+
         travel_to(noon) do
           expect { post article_bookmark_path(article), headers: turbo }.not_to change(Reading, :count)
-          expect(Reading.completed.sum(:xp)).to eq(0)
+          expect(article.reload.reading).to be_nil
+          expect([ Reading.completed.count, Reading.completed.sum(:xp), Reading.on(ReadingDay.of).count, Combo.new.multiplier, ReadingStreak.days ]).to eq(before)
         end
       end
 
@@ -86,6 +90,15 @@ RSpec.describe "Bookmarks", type: :request do
         expect(read.reload).not_to be_bookmarked
         expect(page).to have_css("turbo-stream[action='remove'][target='#{dom_id(read)}']")
         expect(page).to have_no_css("turbo-stream[action='replace'][target='#{dom_id(read)}']")
+      end
+
+      it "興味なしでもある記事は未読に戻らないので、行を戻さず帯だけ消す" do
+        both = create(:article, :bookmarked, :dismissed)
+
+        delete article_bookmark_path(both), headers: turbo
+
+        expect(page).to have_css("turbo-stream[action='remove'][target='#{dom_id(both)}']")
+        expect(page).to have_no_css("turbo-stream[action='replace'][target='#{dom_id(both)}']")
       end
 
       it "JS が無ければ Main へ戻る" do

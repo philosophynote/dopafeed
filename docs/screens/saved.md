@@ -15,7 +15,7 @@
 - タブバー「保存」→ Saved（full page、`GET /saved`）
 - Main の行を右へ引いて離す → 行の中の隠れた「保存」の form を送る → `POST /articles/:id/bookmark` → Turbo Stream で行を「「見出し」を保存した ・ 元に戻す」の帯に替え、未読数を合わせる（スワイプは 20b）
 - 「元に戻す」→ `DELETE /articles/:id/bookmark` → 帯が行に戻る（保存した後に読み終えていたら帯だけ消える）。帯は Main を開き直すと出ない
-- Saved の未読の行 → 「読む」（Roulette → Reader。Main と同じ POST、XP も普段どおり）
+- Saved の未読の行 → 「読む」（Roulette → Reader。Main と同じ POST、XP も普段どおり）。読み終えても保存は残り、Reader の「次の 1 本」は Main の未読（その記事より古い方）から継ぎ足す
 - Saved の読んだ行 → Reader（抽選し直さず XP も付かない）
 
 ## 受け入れ条件（Given-When-Then）

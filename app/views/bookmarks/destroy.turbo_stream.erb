@@ -1,9 +1,9 @@
-<%# 帯を行に戻し、未読数を合わせる。保存した後に読み終えていた記事は未読ではないので、行を描かず帯だけ消す %>
-<% if @article.reading&.completed? %>
-  <%= turbo_stream.remove dom_id(@article) %>
-<% else %>
+<%# 帯を行に戻し、未読数を合わせる。保存した後に読み終えていた記事など、未読に戻らない記事は行を描かず帯だけ消す（判定は Article.unread に任せる） %>
+<% if Article.unread.exists?(@article.id) %>
   <%= turbo_stream.replace dom_id(@article) do %>
     <%= render "main/article_card", article: @article %>
   <% end %>
+<% else %>
+  <%= turbo_stream.remove dom_id(@article) %>
 <% end %>
 <%= render "shared/unread_count_streams", unread_count: @unread_count %>
