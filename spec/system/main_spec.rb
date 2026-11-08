@@ -306,6 +306,29 @@ RSpec.describe "Main", type: :system do
       expect(reading.reload).to be_completed
     end
 
+    it "開いた知らせが戻りより遅れて届いても、判定は知らせの後に送り、開き直しで判定が消えない" do
+      create(:article, title: "遅れる記事", summary: "・要約")
+      sign_in
+      fake_sheet!
+      # iOS で凍って開いた知らせ（start）が戻りの後に出ていく様子を、知らせを手で止めて作る
+      page.execute_script(<<~JS)
+        const original = window.fetch
+        let release
+        const held = new Promise((resolve) => { release = resolve })
+        window.__releaseStart = () => release()
+        window.fetch = (url, options) => String(url).includes("/start") ? held.then(() => original(url, options)) : original(url, options)
+      JS
+
+      expand("遅れる記事")
+      find("li", text: "遅れる記事").find_link("記事に遷移").click
+      leave_and_return
+      expect(page).to have_no_css("section[aria-label='判定']")
+
+      page.execute_script("window.__releaseStart()")
+      expect(page).to have_css("section[aria-label='判定']", text: "未完")
+      expect(Article.find_by!(title: "遅れる記事").reading.reload.returned_at).to be_present
+    end
+
     it "畳んだ行は戻りの合図で判定しない（開いたまま合図が来なかった行が、別の行の戻りで判定されない）" do
       threshold = Dopamine.settings.dig(:read, :complete_after_seconds)
       create(:article, title: "最初の記事", summary: "・一行目", published_at: 1.hour.ago)

@@ -40,7 +40,7 @@ export default class extends Controller {
   // keepalive: 開いた直後にページが凍っても（iOS）送り切らせる。
   // 届かなくても読むのは止めない（滞在が行を作った時刻から数えられ、長めに出るだけ）
   open() {
-    fetch(this.startUrlValue, {
+    this.starting = fetch(this.startUrlValue, {
       method: "POST",
       keepalive: true,
       headers: { "X-CSRF-Token": document.querySelector("meta[name=csrf-token]")?.content }
@@ -51,13 +51,15 @@ export default class extends Controller {
   }
 
   // 畳まれて見えない欄では送らない。開いたまま合図が来なかった欄が、別の欄の戻りの合図で判定されてしまうため（読んでいない記事に XP が付く）。
-  // 送信は finish の出来事で周りに預ける。一覧では行の送信の列（swipe）が受け取り、他の送信と応答を捨て合わないよう 1 本ずつ送る。受け取り手が無ければ自分で送る
-  returned() {
+  // 送信は finish の出来事で周りに預ける。一覧では行の送信の列（swipe）が受け取り、他の送信と応答を捨て合わないよう 1 本ずつ送る。受け取り手が無ければ自分で送る。
+  // 開いた知らせの応答を待ってから送る。iOS で凍って知らせが戻りの後に届くと、一覧では開き直しが判定を消してしまうため
+  async returned() {
     if (!this.opened || !this.away || !this.hasFinishTarget) return
 
     this.opened = false
     this.away = false
-    if (this.element.closest("[hidden]")) return
+    await this.starting
+    if (!this.element.isConnected || this.element.closest("[hidden]") || !this.hasFinishTarget) return
 
     // ボタンを submitter にすると、Turbo が応答まで無効にする（自動送信の直後の手押しで二重に送らない）
     const form = this.finishTarget
