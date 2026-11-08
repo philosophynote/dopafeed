@@ -247,6 +247,12 @@ RSpec.describe "Readings", type: :request do
         expect(link[:rel]).to include("noopener")
         expect(article.reload.reading.tier).to eq(common)
         expect(article.reading.opened_at).to eq(noon)
+        # 戻りの判定は Reader と同じ部品。「記事に遷移」で開いた時刻を送り、戻ったら一覧向けの「読み終えた」を送る
+        expect(box).to have_css("[data-controller='sheet'][data-sheet-start-url-value='#{start_reading_path(article.reading, from: "main")}']")
+        expect(link["data-action"]).to eq("sheet#open")
+        form = box.find("form##{dom_id(article.reading, :end)}[data-sheet-target='finish']")
+        expect(form[:action]).to eq(advance_reading_path(article.reading, from: "main"))
+        expect(form).to have_button("読み終えた")
       end
 
       it "要約待ちの記事なら要約の Job を積み、「作成中」と出来上がりの購読を出す（広げた記事だけ要約する。ADR 0015・0019）" do
@@ -279,6 +285,24 @@ RSpec.describe "Readings", type: :request do
         allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true))
         post_expand(exhausted)
         expect(detail(exhausted)).to have_text("今日の要約の上限に達しました")
+      end
+
+      it "開いた時刻は一覧向け（from=main）の start に送る" do
+        article = create(:article)
+
+        post_expand(article)
+
+        expect(detail(article)).to have_css("[data-sheet-start-url-value='#{start_reading_path(article.reload.reading, from: "main")}']")
+      end
+
+      it "完読済みの記事を（古い一覧から）広げたら、「読み終えた」ではなく区切りを出す" do
+        article = create(:article)
+        create(:reading, :completed, article: article, opened_at: noon - 1.hour)
+
+        post_expand(article)
+
+        expect(detail(article)).to have_css("section[aria-label='判定']", text: "を手に入れた！")
+        expect(detail(article)).to have_no_button("読み終えた")
       end
 
       it "jackpot でも全画面へは出ず、帯に出目を出すだけ" do
@@ -557,6 +581,95 @@ RSpec.describe "Readings", type: :request do
       end
     end
 
+    describe "一覧の広げた欄から読み終えた（POST /readings/:id/advance?from=main）" do
+      include ActionView::RecordIdentifier
+
+      def post_main(reading)
+        post advance_reading_path(reading, from: "main"), headers: { "Accept" => "text/vnd.turbo-stream.html, text/html" }
+      end
+
+      def page
+        Capybara.string(response.body.gsub(%r{</?template>}, ""))
+      end
+
+      let(:current) { create(:article, title: "今の記事", published_at: noon) }
+      let!(:reading) { create(:reading, article: current, tier: common, opened_at: noon) }
+
+      it "判定して「読み終えた」を区切りに替え、ステータス行と未読数を書き直す。次の記事は開かず、その要約も積まない（ADR 0019）" do
+        following = create(:article, :awaiting_summary, title: "次の記事", published_at: noon - 1.hour)
+
+        expect do
+          travel_to(noon + threshold) { post_main(reading) }
+        end.not_to have_enqueued_job(Claude::SummarizeArticleJob)
+
+        expect(response).to have_http_status(:ok)
+        expect(reading.reload).to be_completed
+        expect(following.reload.reading).to be_nil
+        expect(page.find("turbo-stream[action='replace'][target='#{dom_id(reading, :end)}']")).to have_css("section[aria-label='判定']", text: "通常カードを手に入れた！")
+        status = page.find("turbo-stream[action='replace'][target='status-card']")
+        expect(status).to have_css("section#status-card[aria-label='今日の進み']")
+        expect(status).to have_text("今日のゴール 1 / #{goal_articles}", normalize_ws: true)
+        expect(status).to have_text("図鑑 1 枚", normalize_ws: true)
+        expect(status).to have_no_text("XP")
+        expect(page.find("turbo-stream[action='replace'][target='unread-badge']")).to have_css("[data-unread-badge]", text: "1")
+        expect(page).to have_css("turbo-stream[action='replace'][target='app-badge']")
+        expect(page).to have_no_css("turbo-stream[target='reader']")
+        expect(page).to have_no_text("次の記事")
+      end
+
+      it "すぐ戻ったら未完でカードにならない。ステータスの本数は変わらない" do
+        travel_to(noon + 5.seconds) { post_main(reading) }
+
+        expect(page).to have_css("section[aria-label='判定']", text: "カードにならなかった")
+        expect(page.find("turbo-stream[target='status-card']")).to have_text("今日のゴール 0 / #{goal_articles}", normalize_ws: true)
+        expect(reading.reload).not_to be_completed
+      end
+
+      it "goal 本目なら区切りに「宝箱を開く」" do
+        (goal_articles - 1).times { |i| create(:reading, :completed, opened_at: noon - (i + 1).hours) }
+
+        travel_to(noon + threshold) { post_main(reading) }
+
+        expect(page).to have_link("宝箱を開く", href: daily_goal_path)
+      end
+
+      it "二度目は判定し直さず同じ区切りを返す（1 回目の応答が捨てられても区切りが出る）" do
+        travel_to(noon + threshold) { post_main(reading) }
+        first = reading.reload.attributes
+
+        travel_to(noon + threshold * 3) { post_main(reading) }
+
+        expect(reading.reload.attributes).to eq(first)
+        expect(page).to have_css("section[aria-label='判定']", text: "通常カードを手に入れた！")
+        expect(Reading.count).to eq(1)
+      end
+
+      it "未完なら区切りの後ろに「読み終えた」を置き直し、前の区切りは消す（同じ欄で読み直せるように）" do
+        travel_to(noon + 5.seconds) { post_main(reading) }
+
+        expect(page).to have_css("turbo-stream[action='remove'][target='#{dom_id(reading, :result)}']")
+        replaced = page.find("turbo-stream[action='replace'][target='#{dom_id(reading, :end)}']")
+        expect(replaced).to have_css("section[aria-label='判定']", text: "カードにならなかった")
+        form = replaced.find("form##{dom_id(reading, :end)}[data-sheet-target='finish']")
+        expect(form[:action]).to eq(advance_reading_path(reading, from: "main"))
+      end
+
+      it "完読なら「読み終えた」は置き直さない" do
+        travel_to(noon + threshold) { post_main(reading) }
+
+        expect(page.find("turbo-stream[action='replace'][target='#{dom_id(reading, :end)}']")).to have_no_css("form", visible: :all)
+      end
+
+      it "JS 無しの POST は Main へ戻る" do
+        create(:article, published_at: noon - 1.hour)
+
+        travel_to(noon + threshold) { post advance_reading_path(reading, from: "main") }
+
+        expect(response).to redirect_to(root_path)
+        expect(Reading.count).to eq(1)
+      end
+    end
+
     describe "記事を開いた（POST /readings/:id/start）" do
       it "判定前なら opened_at を今にして 204" do
         reading = create(:reading, opened_at: noon)
@@ -565,6 +678,22 @@ RSpec.describe "Readings", type: :request do
 
         expect(response).to have_http_status(:no_content)
         expect(reading.reload.opened_at).to eq(noon + 5.minutes)
+      end
+
+      it "一覧の広げた欄から（from=main）なら、未完で判定済みの行も開き直して測り直す（同じ欄で読み直せる）。完読済みは変えない" do
+        incomplete = create(:reading, opened_at: noon, returned_at: noon + 5.seconds)
+        completed = create(:reading, :completed, opened_at: noon)
+        before = completed.returned_at
+
+        travel_to(noon + 5.minutes) do
+          post start_reading_path(incomplete, from: "main")
+          post start_reading_path(completed, from: "main")
+        end
+
+        expect(response).to have_http_status(:no_content)
+        expect(incomplete.reload.opened_at).to eq(noon + 5.minutes)
+        expect(incomplete.returned_at).to be_nil
+        expect(completed.reload.returned_at).to eq(before)
       end
 
       it "判定済みの行は変えない" do

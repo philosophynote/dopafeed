@@ -1,10 +1,19 @@
 <%# 行の下に広げる欄（docs/screens/main.md）。画面を移らずに要約で読むかを決め、そのまま元記事を別窓（iPhone のホーム画面アプリではシート）で開くため（ADR 0019）。
     出目はモーダルで回さず（待ち時間を削る）帯の色で見せる（readings/_rarity_band）。
-    欄の id と data-swipe-target は空の欄と同じにする（Turbo Stream の replace が同じ場所に収め、swipe が差し替わりを拾う） %>
+    欄の id と data-swipe-target は空の欄と同じにする（Turbo Stream の replace が同じ場所に収め、swipe が差し替わりを拾う）。
+    戻ったときの判定は Reader と同じ部品（Stimulus sheet と「読み終えた」）を使い、判定の式を一つに保つ %>
 <% article = reading.article %>
-<div id="<%= dom_id(article, :detail) %>" class="bg-white px-4 pb-4" data-swipe-target="detail">
+<div id="<%= dom_id(article, :detail) %>" class="bg-white px-4 pb-4" data-swipe-target="detail"
+     data-controller="sheet" data-sheet-start-url-value="<%= start_reading_path(reading, from: "main") %>">
   <%= render "readings/rarity_band", reading: reading %>
   <%= render "articles/summary", article: article %>
-  <%= link_to "記事に遷移", article.url, target: "_blank", rel: "noopener noreferrer",
+  <%= link_to "記事に遷移", article.url, target: "_blank", rel: "noopener noreferrer", data: { action: "sheet#open" },
               class: "mt-3 flex h-12 w-full items-center justify-center rounded-full bg-orange-500 text-base font-bold text-white active:bg-orange-600" %>
+  <div class="detail-end mt-3">
+    <% if reading.completed? %>
+      <%= render "readings/divider", reading: reading %>
+    <% else %>
+      <%= render "readings/advance_form", reading: reading, from: "main" %>
+    <% end %>
+  </div>
 </div>

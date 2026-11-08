@@ -5,7 +5,7 @@
     左へ引くと削除、右へ引くと保存の隠れた form を Stimulus swipe が送る。引いた幅だけ丸型の背景とアイコンが伸び、送る閾値を越えると削除は赤、保存は橙になる。
     li に id を持つのは、「興味なし」と「保存」の Turbo Stream がこの行を帯と差し替えるため %>
 <% swipe = Dopamine.settings[:swipe] %>
-<li id="<%= dom_id(article) %>" class="relative" data-controller="swipe"
+<li id="<%= dom_id(article) %>" class="relative" data-controller="swipe" data-action="sheet:finish->swipe#finish"
     data-swipe-dismiss-ratio-value="<%= swipe[:dismiss_threshold_ratio] %>" data-swipe-submit-timeout-seconds-value="<%= swipe[:submit_timeout_seconds] %>">
   <%# 背景と行を包む。li の高さが変わっても（行の下に何か足しても）背景は行の高さに留まる %>
   <div class="relative">

@@ -1,5 +1,5 @@
 <%# 記事の「読み終えた」。元サイトから戻ったら sheet が 1 回だけ送る。戻りの合図が来ない端末ではこのボタンを押す。
-    sheet は「記事を開く」を押すまで隠す。JS が無いときは最初から見える %>
-<%= form_with url: advance_reading_path(reading), id: dom_id(reading, :end), data: { sheet_target: "finish" } do |form| %>
+    sheet は「記事を開く」を押すまで隠す。JS が無いときは最初から見える。from は ReadingsController#advance の応答の出し分け %>
+<%= form_with url: advance_reading_path(reading, from: local_assigns[:from]), id: dom_id(reading, :end), data: { sheet_target: "finish", action: "sheet#submit turbo:submit-end->sheet#sent" } do |form| %>
   <%= form.button "読み終えた", type: :submit, class: "flex h-12 w-full items-center justify-center rounded-full bg-gray-900 text-base font-bold text-white active:bg-gray-700" %>
 <% end %>
