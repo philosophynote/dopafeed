@@ -1,0 +1,7 @@
+<%# 保存した行の跡。行は Saved に移ったと知らせ、誤って引いたときのために「元に戻す」を同じ場所に残す。Main を開き直すと出ない %>
+<li id="<%= dom_id(article) %>">
+  <div class="flex items-center justify-between gap-3 bg-orange-50 px-4 py-2 text-sm text-gray-600">
+    <p class="flex min-w-0"><span class="shrink-0">「</span><span class="truncate"><%= article.title %></span><span class="shrink-0">」を保存した</span></p>
+    <%= button_to "元に戻す", article_bookmark_path(article), method: :delete, class: "inline-flex h-11 shrink-0 items-center justify-center whitespace-nowrap rounded-full px-3 font-semibold text-gray-800 active:bg-orange-100" %>
+  </div>
+</li>

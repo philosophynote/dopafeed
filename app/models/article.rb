@@ -7,15 +7,19 @@
 # guid はフィード内の重複排除の鍵（entry_id、無ければ url。[feed_id, guid] は一意）。
 # いいね・保存は一人用なので記事に直接残す（liked_at / bookmarked_at）。読了は {Reading}（1 記事 1 行）。ADR 0006
 # 興味なし（dismissed_at）も記事に残す。読んでいないので {Reading} は作らず、XP も読了の数も動かない（ADR 0012）
+# 保存（bookmarked_at）は「あとで読む」の取り置き。未読の流れから退かせ、読み終えても保存は残す（ADR 0018）
 #
 # @!method self.unread
-#   完読していない記事。開いたが未完（Reading はあるが completed_at が nil）は未読のまま。興味なしは除く
+#   完読していない記事。開いたが未完（Reading はあるが completed_at が nil）は未読のまま。興味なしと保存は除く
 #   @return [ActiveRecord::Relation<Article>]
 # @!method self.read
 #   完読した記事
 #   @return [ActiveRecord::Relation<Article>]
 # @!method self.saved
 #   いいねか保存が付いた記事
+#   @return [ActiveRecord::Relation<Article>]
+# @!method self.bookmarked
+#   保存した記事を保存した新しい順に。いいねだけの記事は入らない（取り置いたのは保存の方）
 #   @return [ActiveRecord::Relation<Article>]
 # @!method self.newest_first
 #   published_at の新しい順（同時刻は id の大きい順）
@@ -32,9 +36,10 @@ class Article < ApplicationRecord
   # http(s) 以外を弾くのは、url がリンクの href にそのまま入るため（javascript: などを通さない）
   validates :url, presence: true, uniqueness: true, format: { with: %r{\Ahttps?://\S+\z}i }
 
-  scope :unread, -> { where(dismissed_at: nil).where.not(id: Reading.completed.select(:article_id)) }
+  scope :unread, -> { where(dismissed_at: nil, bookmarked_at: nil).where.not(id: Reading.completed.select(:article_id)) }
   scope :read, -> { where(id: Reading.completed.select(:article_id)) }
   scope :saved, -> { where.not(liked_at: nil).or(where.not(bookmarked_at: nil)) }
+  scope :bookmarked, -> { where.not(bookmarked_at: nil).order(bookmarked_at: :desc, id: :desc) }
   scope :newest_first, -> { order(published_at: :desc, id: :desc) }
   scope :awaiting_summary, -> { where(summary: nil, summary_failed_at: nil).where.not(content_fetched_at: nil).where(id: Reading.select(:article_id)) }
 
@@ -74,6 +79,21 @@ class Article < ApplicationRecord
 
   def undismiss!
     update!(dismissed_at: nil)
+    self
+  end
+
+  def bookmarked?
+    bookmarked_at.present?
+  end
+
+  # 二度目は最初の時刻を保つ。{.bookmarked} は保存した時刻の順なので、二重送信で順番を動かさない
+  def bookmark!(at: Time.current)
+    with_lock { update!(bookmarked_at: at) unless bookmarked? }
+    self
+  end
+
+  def unbookmark!
+    update!(bookmarked_at: nil)
     self
   end
 end

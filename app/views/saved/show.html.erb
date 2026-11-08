@@ -1,0 +1,22 @@
+<%# Saved（docs/screens/saved.md）。上から: 見出し / 取り置いた記事の一覧（保存した新しい順） / タブバー %>
+<% content_for :title, "保存" %>
+<header class="flex min-h-11 items-center">
+  <h1 class="text-2xl font-black tracking-tight">保存 (<%= @articles.size %>)</h1>
+</header>
+
+<section class="mt-4" aria-label="保存した記事">
+  <% if @articles.empty? %>
+    <div class="rounded-2xl bg-white px-4 py-10 text-center shadow-sm">
+      <p class="text-lg font-bold">まだ保存した記事はありません。</p>
+      <p class="mt-1 text-sm text-gray-500">フィードで記事を右へ引くと、ここに取り置けます。</p>
+    </div>
+  <% else %>
+    <ul class="divide-y divide-gray-100 overflow-hidden rounded-2xl bg-white shadow-sm">
+      <% @articles.each do |article| %>
+        <%= render "saved/row", article: article %>
+      <% end %>
+    </ul>
+  <% end %>
+</section>
+
+<%= render "main/tab_bar" %>

@@ -55,6 +55,19 @@ RSpec.describe "Main", type: :request do
       expect(page.find("article")).to have_css("form[hidden][action='#{article_dismissal_path(article)}'][data-swipe-target='form']", visible: :all)
     end
 
+    it "保存した記事は行にも未読数にも出ない。「保存」は見えるボタンにせず、スワイプが送る form だけ置く" do
+      article = create(:article, title: "残る記事")
+      create(:article, :bookmarked, title: "保存した記事")
+
+      get root_path
+
+      expect(page).to have_css("article h2", text: "残る記事")
+      expect(page).to have_no_text("保存した記事")
+      expect(page.find("nav[aria-label='タブバー']")).to have_css("[data-unread-badge]", text: "1")
+      expect(page.find("article")).to have_no_button("保存")
+      expect(page.find("article")).to have_css("form[hidden][action='#{article_bookmark_path(article)}'][data-swipe-target='saveForm']", visible: :all)
+    end
+
     it "published_at が無い記事は相対時刻を出さない" do
       create(:article, title: "日付なし", published_at: nil)
 
@@ -142,13 +155,14 @@ RSpec.describe "Main", type: :request do
       expect(page).to have_no_css("article")
     end
 
-    it "購読タブは有効で、保存とレポートは無効、フィードが現在地" do
+    it "購読と保存のタブは有効で、レポートだけ無効、フィードが現在地" do
       get root_path
 
       nav = page.find("nav[aria-label='タブバー']")
       expect(nav).to have_css("[aria-current=page]", text: "フィード")
       expect(nav).to have_link("購読", href: feeds_path)
-      expect(nav).to have_css("[aria-disabled=true]", count: 2)
+      expect(nav).to have_link("保存", href: saved_path)
+      expect(nav).to have_css("[aria-disabled=true]", count: 1, text: "レポート")
     end
 
     it "ステータスは 1 本のリンクで、行ごと DailyGoal へ（ストリーク・ゴール・累計 XP を含む）" do

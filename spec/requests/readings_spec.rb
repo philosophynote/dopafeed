@@ -273,6 +273,27 @@ RSpec.describe "Readings", type: :request do
         expect(Reading.count).to eq(1)
       end
 
+      it "保存した記事は次の 1 本に継ぎ足さず、その先の未読へ進む" do
+        create(:article, :bookmarked, title: "保存した記事", published_at: noon - 1.hour)
+        create(:article, title: "その先の記事", published_at: noon - 2.hours)
+
+        travel_to(noon + threshold) { post_turbo(reading) }
+
+        expect(page).to have_no_text("保存した記事")
+        expect(page.find("turbo-stream[action='append'][target='reader']")).to have_css("h1", text: "その先の記事")
+      end
+
+      it "保存した記事を読み終えても、次は Main の未読（その記事より古い方）から継ぎ足す" do
+        current.bookmark!
+        create(:article, title: "Main の未読", published_at: noon - 1.hour)
+
+        travel_to(noon + threshold) { post_turbo(reading) }
+
+        expect(reading.reload).to be_completed
+        expect(current.reload).to be_bookmarked
+        expect(page.find("turbo-stream[action='append'][target='reader']")).to have_css("h1", text: "Main の未読")
+      end
+
       it "complete_after_seconds 以上なら完読。「読み終えた」の form を判定で置き換え、古い方の次の未読を開いて継ぎ足す" do
         create(:article, title: "新しい記事", published_at: noon + 1.hour)
         following = create(:article, title: "次の記事", published_at: noon - 1.hour)

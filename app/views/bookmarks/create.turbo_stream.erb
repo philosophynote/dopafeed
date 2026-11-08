@@ -1,0 +1,5 @@
+<%# 保存した行の場所に「元に戻す」の帯を置き、未読数（タブバーとアイコンのバッジ）を合わせる %>
+<%= turbo_stream.replace dom_id(@article) do %>
+  <%= render "main/bookmarked_card", article: @article %>
+<% end %>
+<%= render "shared/unread_count_streams", unread_count: @unread_count %>
