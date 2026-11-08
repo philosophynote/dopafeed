@@ -26,7 +26,7 @@
 ## 遷移
 - Login → Main（認証後の after_authentication_url）
 - Main の行のどこかをタップ → 行全体が「読む」の POST（`expand=1`）→ 抽選して Reading を作り、要約待ちなら Job を積み、Turbo Stream で行の下の欄を埋めて広げる（モーダルは出さない。#97、ADR 0019）。同じ行をもう一度タップすると送らずに畳む・開く。別の行を広げると前の行は畳む。JS が無ければ直接 Reader へ
-- 広げた欄の「記事に遷移」→ 元記事が別窓（シート）で開き、Stimulus `sheet` が `POST /readings/:id/start` で開いた時刻を記録 → 閉じて戻る（Reader と同じ合図）か、開いた後に出る「読み終えた」を押す → `POST /readings/:id/advance?from=main` → Turbo Stream で「読み終えた」を区切り（読了 +N XP・内訳・今日のゴール、goal 本目なら「宝箱を開く」）に替え、上の 1 行（`#status-card`）と未読数（タブバー・アイコンのバッジ）を書き直す。次の記事は開かず、行はその場に残る（Main を開き直すと完読した記事は出ない）。JS が無ければ Main へ redirect（#97、ADR 0019）
+- 広げた欄の「記事に遷移」→ 元記事が別窓（シート）で開き、Stimulus `sheet` が `POST /readings/:id/start` で開いた時刻を記録 → 閉じて戻る（Reader と同じ合図）か、開いた後に出る「読み終えた」を押す → `POST /readings/:id/advance?from=main` → Turbo Stream で「読み終えた」を区切り（「<希少度>カードを手に入れた！」・滞在と n 本連続・今日のゴール、goal 本目なら「宝箱を開く」。未完なら「カードにならなかった」。#106、ADR 0020）に替え、上の 1 行（`#status-card`）と未読数（タブバー・アイコンのバッジ）を書き直す。次の記事は開かず、行はその場に残る（Main を開き直すと完読した記事は出ない）。JS が無ければ Main へ redirect（#97、ADR 0019）
 - Main → DailyGoal（ステータスの 1 行をタップ。達成前でも開く。5 本目の読了後は Reader の区切りの「宝箱を開く」から。Unit 7 #55）
 - Main → Comments / Similar / ForYou / Learning / AddFeed / Saved / Weekly / Feeds（full page。第一の陣では無い）
 - 第一の陣の導線: 設定ボタンは Learning の最小版（`/learning`。サインアウト + Install への導線だけ。Unit 5 で置いた）へ。フィード追加の「+」は出さない（5 フィードは seed と Unit 3 で入る。AddFeed は第二の陣）
