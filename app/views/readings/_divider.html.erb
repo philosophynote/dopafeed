@@ -1,14 +1,17 @@
 <%# 判定の区切り（docs/screens/reader.md）。「読み終えた」の form と置き換わり、手に入れたカードを見せてから次の 1 本へ流す。
     完読は出目の色（通常とレアは橙、金は金色）、未完は灰。責める文言は出さず、どうすれば手に入るかだけ言う。
-    reveal: 判定した直後の応答だけ true。カードを裏からめくり、金なら全画面で開封する。描き直し（再読込）ではめくらず全画面も出さない（一度きりだから効く） %>
+    reveal: 判定した直後の応答だけ true。カードを裏からめくり、金なら全画面で開封する。描き直し（再読込）ではめくらず全画面も出さない（一度きりだから効く）。
+    fullscreen: 金の全画面を出すか（既定は reveal と同じ）。一覧の広げた欄は false（一覧ではモーダルも全画面も出さない決まり。めくりだけ） %>
 <% completed = reading.completed? %>
 <% reveal = local_assigns.fetch(:reveal, false) %>
+<% fullscreen = local_assigns.fetch(:fullscreen, reveal) %>
 <% tone = completed ? rarity_tone(reading.tier, base: "bg-orange-500 text-white") : "bg-gray-200 text-gray-700" %>
 <section id="<%= dom_id(reading, :result) %>" class="rounded-2xl p-4 text-center <%= tone %>" aria-label="判定" data-tier="<%= reading.tier %>" data-completed="<%= completed %>">
   <% if completed %>
     <p class="text-xs font-semibold opacity-90">読了</p>
     <p class="text-2xl font-black"><%= card_name(reading.tier) %>を手に入れた！</p>
-    <ul class="card-deck mx-auto mt-3 w-32"><%= render "cards/card", card: reading, reveal: (0 if reveal) %></ul>
+    <%# 束は Turbo がスナップショットを取る前にめくりの印を落とす（履歴で戻ってもめくり直さない） %>
+    <ul class="card-deck mx-auto mt-3 w-32" data-controller="reveal" data-action="turbo:before-cache@document->reveal#settle"><%= render "cards/card", card: reading, reveal_order: (0 if reveal) %></ul>
     <p class="mt-3 text-sm">滞在 <%= dwell_in_words(reading.dwell_seconds) %> ・ <%= reading.combo_count %> 本連続</p>
   <% else %>
     <p class="text-2xl font-black">カードにならなかった</p>
@@ -21,5 +24,5 @@
   <% if summary.day == ReadingDay.of && summary.achieved_by?(reading) %>
     <%= link_to "宝箱を開く", daily_goal_path, class: "mt-3 flex h-12 w-full items-center justify-center rounded-full bg-[#FFD166] text-base font-bold text-gray-900 active:bg-yellow-300" %>
   <% end %>
-  <%= render "readings/gold_reveal", reading: reading if reveal && completed && reading.jackpot? %>
+  <%= render "readings/gold_reveal", reading: reading if fullscreen && completed && reading.jackpot? %>
 </section>

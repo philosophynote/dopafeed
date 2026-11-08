@@ -79,6 +79,7 @@ RSpec.describe "Collection", type: :request do
       expect(page).to have_css("li[data-tier='#{rare}']##{dom_id(rare_card, :card)}.border-orange-500", text: "レア レアの記事", normalize_ws: true)
       expect(page).to have_css("li[data-tier='#{common}']", count: 3)
       expect(page.find("li[data-tier='#{common}']", text: "通常 0")).to have_no_css("[data-rarity-label]")
+      expect(page).to have_no_css("li.card-reveal") # 図鑑では並べて見るだけで、めくらない
     end
 
     it "未完の行と未読の記事はカードにならない" do
@@ -103,7 +104,7 @@ RSpec.describe "Collection", type: :request do
       expect(with_card).to have_css("figure[data-controller='image-fallback'] img[src='https://img.example.com/a.png'][referrerpolicy='no-referrer'][loading='lazy'][data-action='error->image-fallback#remove']")
       without_card = page.find("##{dom_id(without, :card)}")
       expect(without_card).to have_no_css("img")
-      expect(without_card["class"]).to match(/\bbg-/)
+      expect(without_card.find(".card-face")["class"]).to match(/\bbg-/) # 色地は面（回る箱の li には置かない）
       [ [ with_card, "https://example.com/a", "画像あり" ], [ without_card, "https://example.com/b", "画像なし" ] ].each do |element, href, title|
         link = element.find_link(href: href)
         expect(link[:target]).to eq("_blank")
@@ -121,7 +122,7 @@ RSpec.describe "Collection", type: :request do
 
       travel_to(noon) { get collection_path }
 
-      tone = ->(reading) { page.find("##{dom_id(reading, :card)}")["class"][/\bbg-\S+/] }
+      tone = ->(reading) { page.find("##{dom_id(reading, :card)} .card-face")["class"][/\bbg-\S+/] }
       expect(tone.call(a1)).to eq(tone.call(a2))
       expect(tone.call(a1)).not_to eq(tone.call(b))
     end

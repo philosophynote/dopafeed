@@ -85,7 +85,7 @@ RSpec.describe "Articles", type: :request do
 
       expect(page).to have_css("section[aria-label='判定'] li[data-tier='#{reading.tier}'] h3", text: "前に読んだ金")
       expect(page).to have_no_css("li.card-reveal")
-      expect(page).to have_no_css("[data-controller='reveal']")
+      expect(page).to have_no_css("[role='dialog']")
     end
 
     it "「読む」を押していない記事は Main へ" do

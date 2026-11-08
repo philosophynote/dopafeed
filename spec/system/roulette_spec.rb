@@ -91,8 +91,9 @@ RSpec.describe "Roulette", type: :system do
     page.evaluate_async_script("const done = arguments[0]; Promise.all(document.querySelector('[data-controller=reveal] li.card-reveal').getAnimations().map((a) => a.finished)).then(() => done(true))")
     expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "横スクロールが出ている"
     screenshot!("gold")
-    overlay.click_on "閉じる"
-    expect(page).to have_no_css("[data-controller='reveal']")
+    expect(page.evaluate_script("document.activeElement.textContent")).to eq("閉じる")
+    overlay.find("p", text: "JACKPOT").click # ボタン以外のどこを押しても閉じる
+    expect(page).to have_no_css("[data-controller='reveal'][role='dialog']")
     expect(page).to have_css("section[aria-label='判定']", text: "金のカードを手に入れた！")
     expect(page).to have_css("section[aria-label='判定'] li[data-tier='#{jackpot[:name]}'] h3", text: "読む記事")
     expect(article.reading.reload).to be_completed

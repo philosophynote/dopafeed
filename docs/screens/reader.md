@@ -33,6 +33,8 @@
 - Given 記事を開いて complete_after_seconds 以上たった When Reader に戻る Then 区切りに「〜カードを手に入れた！」と、裏からめくれて表になるカードが出て、下に次の未読（published_at が古い方の 1 本）のカードが継ぎ足される（#106）
 - Given 金の出目の記事 When 完読して戻る Then 区切りの上に全画面の開封（「金のカードを手に入れた！」とカード）が重なり、どこを押しても閉じる。閉じた後も区切りの金のカードは残る（#106）
 - Given 判定済みの区切り When Reader を再読込する Then カードは表のまま出て、めくり直さず全画面も出ない（#106）
+- Given 区切りを見た後に Main へ移った When 履歴で Reader に戻る Then カードは表のまま出て、めくり直さない（#106）
+- Given 金の全画面 When 開く Then 「閉じる」に焦点が移り、Escape でも背景のどこを押しても閉じ、焦点は区切りへ戻る（#106）
 - Given prefers-reduced-motion When 完読して戻る Then カードはめくらずに表で出る（#106）
 - Given 記事を開いてすぐ戻った When Reader に戻る Then 区切りは「カードにならなかった」で、記事は Main に未読のまま残る（コンボは途切れる）
 - Given 戻りの合図が来ない端末 When 記事を開いた後に「読み終えた」を押す Then 同じ判定になる

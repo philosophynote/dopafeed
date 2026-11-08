@@ -35,7 +35,7 @@ SNS には無い「止まり所」。今日の 5 本を読み切ったら宝箱�
 - Given ゴール未達 When Main のゴール表示をタップ Then 宝箱は閉じたまま「あと N 本」が出る
 
 ## 使う設定の鍵
-dopamine.yml: `daily_goal.articles`, `daily_goal.reset_hour`, `cards.reveal_duration_ms`（カードのめくり）
+dopamine.yml: `daily_goal.articles`, `daily_goal.reset_hour`, `cards.reveal_duration_ms`（カードのめくり。1 枚ずつずらす幅は鍵が無く CSS の `--reveal-stagger`）
 personas.yml: なし
 
 ## 外部 API
