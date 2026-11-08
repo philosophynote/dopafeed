@@ -51,12 +51,16 @@ class HttpGet
   SCHEMES = %w[http https].freeze
   # 取りに行かない宛先。ループバック・プライベート・リンクローカル（クラウドのインスタンスメタデータ 169.254.169.254 を含む）・
   # 未指定・共有アドレス・マルチキャスト・予約帯（IETF 用、ベンチマーク用、240/4）。外部サイトへ飛ぶ記事リンクを日々取りに
-  # 行くので、どこへ飛ばされても内側には届かせない。IPv6 の ::/96 は IPv4 互換（::127.0.0.1）で、中身を見ずに丸ごと塞ぐ
+  # 行くので、どこへ飛ばされても内側には届かせない。IPv4 を埋め込む IPv6 のうち、中身を見ずに丸ごと塞ぐもの:
+  # ::/96 は IPv4 互換（::127.0.0.1）、64:ff9b:1::/48 はローカル用 NAT64（公開されない）、2001::/32 は Teredo（IPv4 が XOR で隠れて見られない）
   INTERNAL_RANGES = %w[
     0.0.0.0/8 10.0.0.0/8 100.64.0.0/10 127.0.0.0/8 169.254.0.0/16 172.16.0.0/12 192.0.0.0/24 192.168.0.0/16
     198.18.0.0/15 224.0.0.0/4 240.0.0.0/4
-    ::/96 fc00::/7 fe80::/10 ff00::/8
+    ::/96 64:ff9b:1::/48 2001::/32 fc00::/7 fe80::/10 ff00::/8
   ].map { |cidr| IPAddr.new(cidr) }.freeze
+  # 中の IPv4 を取り出して判定する IPv6 の帯と、IPv4 の下に続くビット数。NAT64 の既定の接頭辞は末尾 32 ビット、
+  # 6to4 は接頭辞 16 ビットの直後の 32 ビットが IPv4。そのままでは IPv6 の帯に当たらず、2002:7f00:1:: が 127.0.0.1 として素通りする
+  EMBEDDED_IPV4 = { IPAddr.new("64:ff9b::/96") => 0, IPAddr.new("2002::/16") => 80 }.freeze
   USER_AGENT = "Dopafeed (+https://github.com/philosophynote/dopafeed)".freeze
 
   # @param headers [Hash{String => String}] 足すヘッダ（Accept、条件付き GET の If-None-Match など）
@@ -80,6 +84,26 @@ class HttpGet
     nil
   end
 
+  # 内部ネットワークのアドレスか。IPv4 を埋め込む IPv6（IPv4-mapped・NAT64・6to4）は中の IPv4 で判定する。
+  # 名前を引かずに IP だけで判定する相手にも同じ線を引くため公開する
+  #
+  # @param address [IPAddr]
+  def self.internal_address?(address)
+    address = embedded_ipv4(address) || address
+    INTERNAL_RANGES.any? { |range| range.include?(address) }
+  end
+
+  # @return [IPAddr, nil] 中を取り出して判定する形式（IPv4-mapped・NAT64・6to4）でなければ nil
+  def self.embedded_ipv4(address)
+    return address.native if address.ipv4_mapped?
+
+    EMBEDDED_IPV4.each do |range, shift|
+      return IPAddr.new((address.to_i >> shift) & IPAddr::IN4MASK, Socket::AF_INET) if range.include?(address)
+    end
+    nil
+  end
+  private_class_method :embedded_ipv4
+
   # URI と接続の例外を {Error} / {TransientError} に畳む。呼ぶ側が rescue する型を 2 つに保つ
   def self.fold_errors
     yield
@@ -91,6 +115,9 @@ class HttpGet
   private_class_method :fold_errors
 
   def initialize(headers, content_types = nil)
+    # Accept-Encoding を呼ぶ側が決めると net-http は展開をやめ、本文の上限が圧縮後の大きさで数えられる（展開すると上限を超えて膨らむ）
+    raise ArgumentError, "Accept-Encoding は HttpGet が決める" if headers.keys.any? { |key| key.to_s.casecmp?("Accept-Encoding") }
+
     @headers = { "User-Agent" => USER_AGENT }.merge(headers)
     @content_types = content_types
     @permanent_url = nil
@@ -101,9 +128,9 @@ class HttpGet
   # @return [Net::HTTPResponse] 2xx か 304
   def get(uri, redirects = 0)
     # 検査した IP にそのまま繋ぐ（ipaddr:）。Net::HTTP に名前を引き直させると、検査の後で内部アドレスに変わる
-    # DNS rebinding が通る。TLS の証明書検証と SNI はホスト名のまま。http_proxy 環境変数があると Net::HTTP は
-    # プロキシに名前を引かせるので ipaddr: は効かない（本番に置かない前提）
-    response = Net::HTTP.start(uri.hostname, uri.port, ipaddr: check!(uri), use_ssl: uri.scheme == "https", open_timeout: timeout, read_timeout: timeout) do |http|
+    # DNS rebinding が通る。TLS の証明書検証と SNI はホスト名のまま。プロキシは第 3 引数の nil で切る（既定の :ENV だと
+    # http_proxy 環境変数のプロキシに名前を引かせ、ipaddr: が効かない）
+    response = Net::HTTP.start(uri.hostname, uri.port, nil, ipaddr: check!(uri), use_ssl: uri.scheme == "https", open_timeout: timeout, read_timeout: timeout) do |http|
       http.request(Net::HTTP::Get.new(uri, @headers)) do |res|
         raise UnexpectedContentType, res.content_type.to_s if res.is_a?(Net::HTTPSuccess) && unexpected_content_type?(res)
         raise Error, too_large if res.content_length.to_i > max_body_bytes
@@ -157,7 +184,7 @@ class HttpGet
   def resolve(host)
     addresses = addresses_of(host)
     raise Resolv::ResolvError, "名前が引けません (#{host})" if addresses.empty?
-    raise Error, "内部ネットワークの URL です" if addresses.any? { |address| internal?(address) }
+    raise Error, "内部ネットワークの URL です" if addresses.any? { |address| self.class.internal_address?(address) }
 
     addresses.first.to_s
   end
@@ -169,12 +196,6 @@ class HttpGet
     # 既定の Resolv は死んだリゾルバ相手に 5・10・20・40 秒と粘り、それを A と AAAA、検索ドメインの候補ごとに
     # 繰り返す。問い合わせ 1 回ずつではなく名前解決の全体を fetch.timeout_seconds で切る
     Timeout.timeout(timeout, Resolv::ResolvTimeout) { Resolv.getaddresses(host) }.map { |address| IPAddr.new(address) }
-  end
-
-  # IPv4-mapped IPv6（::ffff:127.0.0.1）は中の IPv4 で判定する。そのままでは IPv6 の帯に当たらず素通りする
-  def internal?(address)
-    address = address.native if address.ipv4_mapped?
-    INTERNAL_RANGES.any? { |range| range.include?(address) }
   end
 
   # @return [Integer] 接続と読み取りそれぞれの待ち時間（秒）。dopamine.yml の fetch.timeout_seconds

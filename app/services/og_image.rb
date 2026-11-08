@@ -51,16 +51,15 @@ class OgImage
     return true if host == "localhost" || host.end_with?(".localhost")
 
     address = ip_address(host)
-    return HttpGet::INTERNAL_RANGES.any? { |range| range.include?(address) } if address
+    return HttpGet.internal_address?(address) if address
 
     !host.match?(DNS_NAME) || host.split(".").last.match?(NUMERIC_LABEL)
   end
   private_class_method :internal_host?
 
-  # @return [IPAddr, nil] 正規の IP の書き方なら IPAddr（IPv4-mapped IPv6 は中の IPv4）。でなければ nil
+  # @return [IPAddr, nil] 正規の IP の書き方なら IPAddr。でなければ nil
   def self.ip_address(host)
-    address = IPAddr.new(host)
-    address.ipv4_mapped? ? address.native : address
+    IPAddr.new(host)
   rescue IPAddr::InvalidAddressError
     nil
   end
