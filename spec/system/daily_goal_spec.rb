@@ -56,6 +56,8 @@ RSpec.describe "DailyGoal", type: :system do
     expect(page).to have_text("今日の #{goal_articles} 本、読み切った！")
     expect(page).to have_css("[data-chest=open]")
     expect(page).to have_text("ストリーク 1 日目 確定")
+    expect(page).to have_css("ul.card-deck li.card-reveal[data-tier]", count: goal_articles)
+    expect(page).to have_css("ul.card-deck li h3", text: "今日の最後の 1 本")
     expect(page).to have_text("#{goal_articles} 本 ・")
     expect(page).to have_no_button("もう 1 本だけ") # 未読が尽きた
     expect(no_horizontal_scroll?).to be(true), "横スクロールが出ている"

@@ -36,12 +36,10 @@
           <dd class="font-bold text-gray-600"><%= @summary.count %> 本 ・ <%= @summary.dwell_seconds / 60 %> 分</dd>
         </div>
       </dl>
-      <ul class="mt-3 flex flex-col gap-1.5 text-sm" aria-label="カードの一覧">
-        <% @summary.cards.each do |card| %>
-          <li class="flex items-center gap-2" data-tier="<%= card.tier %>">
-            <span class="shrink-0 rounded-full px-2 py-0.5 text-xs font-bold <%= rarity_tone(card.tier, base: "bg-gray-100 text-gray-600") %>"><%= rarity_label(card.tier) %></span>
-            <span class="min-w-0 truncate"><%= card.article.title %></span>
-          </li>
+      <%# 今日のカードを順にめくって見せる（宝箱の中身。開くたびにめくれるのは、宝箱を開ける瞬間そのものが止まり所の報酬だから） %>
+      <ul class="card-deck mt-3 grid grid-cols-3 gap-2" aria-label="カードの一覧">
+        <% @summary.cards.each_with_index do |card, i| %>
+          <%= render "cards/card", card: card, reveal: i %>
         <% end %>
       </ul>
     <% else %>

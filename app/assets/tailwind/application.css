@@ -94,12 +94,34 @@
   100% { box-shadow: 0 0 0 0.75rem rgb(251 191 36 / 0); transform: scale(1); }
 }
 
+/* カードの開封（cards/_card に reveal を渡したとき）。裏（.card-back）を向いた状態から表へめくる。
+   長さ（--reveal-duration）は yml から、束の中の順番（--i）ぶん遅らせる。奥行きは束（.card-deck）に持たせる */
+.card-deck {
+  perspective: 800px;
+}
+.card-reveal {
+  transform-style: preserve-3d;
+  transform: rotateY(180deg);
+  animation: card-flip var(--reveal-duration) cubic-bezier(0.2, 0.8, 0.3, 1.1) calc(var(--i) * 120ms) forwards;
+}
+.card-reveal > * {
+  backface-visibility: hidden;
+}
+.card-reveal > .card-back {
+  transform: rotateY(180deg);
+}
+@keyframes card-flip {
+  to { transform: rotateY(0deg); }
+}
+
 /* 広げた欄の「読み終えた」は開くまで隠れる。隠れている間は枠の余白も畳み、欄の下の余白を上と揃える */
 .detail-end:has(> form[hidden]) {
   margin-top: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .card-reveal { animation: none; transform: none; }
+  .card-reveal > .card-back { display: none; }
   .tier-glow { animation: none; }
   .roulette-strip { animation-duration: 1ms; }
   .roulette-result { animation-delay: 0ms; }

@@ -56,6 +56,12 @@ RSpec.describe "Reader", type: :system do
     open_source_and_return(first.reading) { make_dwell(first.reading, threshold + 5) }
 
     expect(page).to have_css("section[aria-label='判定']", text: "通常カードを手に入れた！")
+    # カードは裏からめくれて表になる（めくり終わるまで待ってから次へ）
+    card = find("section[aria-label='判定'] li.card-reveal")
+    expect(card).to have_css("h3", text: "最初の記事")
+    page.evaluate_async_script("const done = arguments[0]; Promise.all(document.querySelector('li.card-reveal').getAnimations().map((a) => a.finished)).then(() => done(true))")
+    expect(page.evaluate_script("getComputedStyle(document.querySelector('li.card-reveal')).transform")).to eq("none").or eq("matrix(1, 0, 0, 1, 0, 0)")
+    expect(page).to have_no_css("[data-controller='reveal']") # 通常は全画面にしない
     expect(page).to have_text("今日のゴール 1 / #{goal_articles}")
     expect(page).to have_css("h1", text: "次の記事")
     expect(page).to have_current_path(read_article_path(first))
@@ -74,6 +80,19 @@ RSpec.describe "Reader", type: :system do
     expect(page).to have_current_path(root_path)
     expect(page).to have_no_text("最初の記事")
     expect(page).to have_text("次の記事")
+  end
+
+  it "prefers-reduced-motion ならカードはめくらずに表で出る" do
+    article = create(:article, title: "動かさない記事", url: source_url("still"), summary: "・一")
+    sign_in
+    page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: [ { name: "prefers-reduced-motion", value: "reduce" } ])
+
+    read_from_saved(article)
+    open_source_and_return(article.reading) { make_dwell(article.reading, threshold + 5) }
+
+    expect(page).to have_css("section[aria-label='判定'] li.card-reveal h3", text: "動かさない記事")
+    expect(page.evaluate_script("getComputedStyle(document.querySelector('li.card-reveal')).animationName")).to eq("none")
+    expect(page.evaluate_script("getComputedStyle(document.querySelector('li.card-reveal')).transform")).to eq("none")
   end
 
   it "OGP 画像のある記事は Reader のカードの上端に出し、無い記事には枠を出さない" do

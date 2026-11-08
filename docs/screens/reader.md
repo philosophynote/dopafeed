@@ -16,7 +16,7 @@
    - 「Claude の 3 行要約」（DB: summary）。本文は描かない。要約は「読む」を押してから作る（ADR 0015）ので、出来るまでは「要約を作成中…」、出来るとその欄だけ差し替わる（Turbo Stream）。失敗なら「要約できませんでした。記事を開いて読めます」、その日の上限（`claude.daily_call_limit`）なら「今日の要約の上限に達しました。記事を開いて読めます」
    - 「記事を開く」（橙の大きなボタン。元サイトを別窓で開く。iPhone のホーム画面アプリではシート）
 3. 「読み終えた」ボタン。「記事を開く」を押すまで隠す（JS が無いときは最初から見える）。判定が済むと区切りに置き換わる
-4. 区切り（判定）: 完読なら出目の色（通常・レアは橙、金は金色）で「読了」「レアカードを手に入れた！」「滞在 X ・ n 本連続」、未完なら灰で「カードにならなかった」「滞在 X。S 秒以上読むと手に入る」（S = `read.complete_after_seconds`）。どちらも「今日のゴール n / 5 ・ あと m 本で宝箱」（`daily_goal.articles`）。完読数がちょうど 5 本目の区切りには金色の「宝箱を開く」（→ DailyGoal。Unit 7 #55）
+4. 区切り（判定）: 完読なら出目の色（通常・レアは橙、金は金色）で「読了」「レアカードを手に入れた！」、手に入れたカード（`cards/_card`。判定した直後の応答では裏（ロゴ）から表へめくれる。長さは `cards.reveal_duration_ms`。金はさらに全画面で開封し、どこを押しても Escape でも閉じる。再読込の描き直しではめくらず全画面も出さない。`prefers-reduced-motion` なら表のまま出す。#106 23c）、「滞在 X ・ n 本連続」、未完なら灰で「カードにならなかった」「滞在 X。S 秒以上読むと手に入る」（S = `read.complete_after_seconds`）。どちらも「今日のゴール n / 5 ・ あと m 本で宝箱」（`daily_goal.articles`）。完読数がちょうど 5 本目の区切りには金色の「宝箱を開く」（→ DailyGoal。Unit 7 #55）
 5. 次の記事のカード（2. と同じ形）。未読が尽きたら「全部読んだ。」と「閉じる」
 
 ## 遷移
@@ -30,7 +30,10 @@
 ## 受け入れ条件（Given-When-Then）
 - Given 「読む」を押した When 出目が止まる Then Reader に記事のカード（見出し・出目の帯・3 行要約・「記事を開く」）が出る。本文は描かれない
 - Given Reader のカード When 「記事を開く」を押す Then 元サイトが別窓（iPhone のホーム画面アプリではシート）で開き、滞在はこの時刻から数える
-- Given 記事を開いて complete_after_seconds 以上たった When Reader に戻る Then 区切りに「〜カードを手に入れた！」が出て、下に次の未読（published_at が古い方の 1 本）のカードが継ぎ足される
+- Given 記事を開いて complete_after_seconds 以上たった When Reader に戻る Then 区切りに「〜カードを手に入れた！」と、裏からめくれて表になるカードが出て、下に次の未読（published_at が古い方の 1 本）のカードが継ぎ足される（#106）
+- Given 金の出目の記事 When 完読して戻る Then 区切りの上に全画面の開封（「金のカードを手に入れた！」とカード）が重なり、どこを押しても閉じる。閉じた後も区切りの金のカードは残る（#106）
+- Given 判定済みの区切り When Reader を再読込する Then カードは表のまま出て、めくり直さず全画面も出ない（#106）
+- Given prefers-reduced-motion When 完読して戻る Then カードはめくらずに表で出る（#106）
 - Given 記事を開いてすぐ戻った When Reader に戻る Then 区切りは「カードにならなかった」で、記事は Main に未読のまま残る（コンボは途切れる）
 - Given 戻りの合図が来ない端末 When 記事を開いた後に「読み終えた」を押す Then 同じ判定になる
 - Given 「記事を開く」を押していない When Reader を見る Then 「読み終えた」は出ていない
@@ -47,7 +50,7 @@
 - Given 「読む」を押していない記事 When 新しい記事が取り込まれる Then 要約は作られない（API を呼ばない）
 
 ## 使う設定の鍵
-dopamine.yml: `read.complete_after_seconds`, `claude.daily_call_limit`, `cards.rarities`, `daily_goal.articles`
+dopamine.yml: `read.complete_after_seconds`, `claude.daily_call_limit`, `cards.rarities`, `cards.reveal_duration_ms`（区切りのカードのめくり）, `daily_goal.articles`
 personas.yml: なし
 
 ## 外部 API

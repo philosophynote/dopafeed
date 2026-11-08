@@ -1,9 +1,14 @@
 <%# カード 1 枚（docs/screens/collection.md）。完読した readings の行がそのままカード。
     表は OGP 画像、無ければ（読めなければ）フィードの色地。見出しとフィード名を下に重ね、枠の色が希少度。
     画像が読めなかったら image-fallback が figure ごと外し、下の色地が出る。
-    リンクは元記事を別窓（iPhone のホーム画面アプリではシート）で開く。読み直しても抽選し直さない（1 記事 1 行） %>
+    リンクは元記事を別窓（iPhone のホーム画面アプリではシート）で開く。読み直しても抽選し直さない（1 記事 1 行）。
+    reveal: 束の中の順番（0 から）を渡すと、裏（ロゴ）から表へめくれて現れる。長さは yml の cards.reveal_duration_ms、順番ぶん遅らせる。
+    図鑑のように並べて見るだけの場所では渡さない（毎回めくると慣れる） %>
 <% article = card.article %>
-<li id="<%= dom_id(card, :card) %>" class="relative aspect-[3/4] overflow-hidden rounded-xl border-2 <%= rarity_frame(card.tier) %> <%= feed_tone(article.feed) %>" data-tier="<%= card.tier %>">
+<% reveal = local_assigns[:reveal] %>
+<% style = "--reveal-duration: #{Dopamine.settings.dig(:cards, :reveal_duration_ms)}ms; --i: #{reveal}" if reveal %>
+<li id="<%= dom_id(card, :card) %>" class="relative aspect-[3/4] overflow-hidden rounded-xl border-2 <%= rarity_frame(card.tier) %> <%= feed_tone(article.feed) %> <%= "card-reveal" if reveal %>"
+    data-tier="<%= card.tier %>" <%= tag.attributes(style: style) %>>
   <% if article.image_url.present? %>
     <figure class="absolute inset-0" data-controller="image-fallback">
       <img src="<%= article.image_url %>" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" draggable="false"
@@ -19,5 +24,9 @@
     <% end %>
     <h3 class="line-clamp-3 break-words text-xs font-bold leading-snug"><%= article.title %></h3>
     <p class="mt-0.5 truncate text-[10px] text-white/80"><%= article.feed.title %></p>
+  <% end %>
+  <% if reveal %>
+    <%# 裏面。めくれる前に見える側。表と同じ枠の中に置き、表が向くと隠れる（backface-visibility） %>
+    <span class="card-back absolute inset-0 flex items-center justify-center bg-[#141416] text-sm font-black tracking-tight text-white" aria-hidden="true"><span class="text-orange-500">Dopa</span>Feed</span>
   <% end %>
 </li>
