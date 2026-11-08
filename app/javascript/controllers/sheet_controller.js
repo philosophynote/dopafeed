@@ -69,10 +69,7 @@ export default class extends Controller {
   // 開いた印も下ろす。未完の応答で置き直された「読み終えた」を、開き直すまで隠すため（押しても同じ未完が返るだけ）
   submit(event) {
     const form = event.target
-    if ("handed" in form.dataset) {
-      delete form.dataset.handed
-      return
-    }
+    if ("handed" in form.dataset) return
 
     // 預けた後の押し直しは捨てる（列で待つ間に二重に送らない）
     event.preventDefault()
@@ -91,10 +88,18 @@ export default class extends Controller {
   }
 
   // 送信は finish の出来事で周りに預ける。一覧では行の送信の列（swipe）が受け取り、他の送信と応答を捨て合わないよう 1 本ずつ送る。受け取り手が無ければ自分で送る
+  // 預けた送信の印は送る瞬間だけ立てる（submit は requestSubmit の中で同期に来る）。列で待つ間の手押しを、預けた送信と取り違えないため
   handOver(form, submitter) {
     form.dataset.pending = ""
-    form.dataset.handed = ""
-    const handed = this.dispatch("finish", { detail: { form, submitter }, cancelable: true })
-    if (!handed.defaultPrevented) form.requestSubmit(submitter)
+    const send = () => {
+      form.dataset.handed = ""
+      try {
+        form.requestSubmit(submitter)
+      } finally {
+        delete form.dataset.handed
+      }
+    }
+    const handed = this.dispatch("finish", { detail: { form, submitter, send }, cancelable: true })
+    if (!handed.defaultPrevented) send()
   }
 }

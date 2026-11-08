@@ -162,7 +162,7 @@ export default class extends Controller {
     this.enqueue(form, null, (success) => { if (!success) this.restore() })
   }
 
-  enqueue(form, submitter, done, { stopOnTimeout = false } = {}) {
+  enqueue(form, submitter, done, { stopOnTimeout = false, send = () => form.requestSubmit(submitter) } = {}) {
     submissions = submissions.then(() => new Promise((resolve) => {
       if (!form.isConnected) return resolve()
 
@@ -193,7 +193,7 @@ export default class extends Controller {
       document.addEventListener("turbo:submit-start", started)
       document.addEventListener("turbo:submit-end", ended)
       this.submitCleanup = finish
-      form.requestSubmit(submitter)
+      send()
     }))
   }
 
@@ -251,11 +251,12 @@ export default class extends Controller {
     if (open) this.dispatch("expanded")
   }
 
-  // 行の下の欄が戻りの「読み終えた」を預けてきた。興味なし・保存・読むと同じ列に並べ、送信中の応答を捨てさせない
+  // 行の下の欄が戻りの「読み終えた」を預けてきた。興味なし・保存・読むと同じ列に並べ、送信中の応答を捨てさせない。
+  // 送るのは欄が渡した send（預けた送信と手押しを欄が見分けるため）
   finish(event) {
     event.preventDefault()
-    const { form, submitter } = event.detail
-    this.enqueue(form, submitter, () => {})
+    const { form, submitter, send } = event.detail
+    this.enqueue(form, submitter, () => {}, { send })
   }
 
   restore() {

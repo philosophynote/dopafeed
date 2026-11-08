@@ -370,6 +370,29 @@ RSpec.describe "Main", type: :system do
       expect(Article.find_by!(title: "消す記事")).to be_dismissed
     end
 
+    it "戻りの合図で列に預けた後の手押しは、先に待つ興味なしを追い越さない" do
+      create(:article, title: "読む記事", summary: "・要約", published_at: 1.hour.ago)
+      create(:article, title: "消す記事", published_at: 2.hours.ago)
+      allow_any_instance_of(DismissalsController).to receive(:create).and_wrap_original do |original, *args|
+        sleep 1
+        original.call(*args)
+      end
+      sign_in
+      fake_sheet!
+
+      expand("読む記事")
+      open_link("読む記事")
+      page.execute_script(<<~JS)
+        const row = document.querySelector("li#article_#{Article.find_by!(title: "消す記事").id}")
+        window.Stimulus.getControllerForElementAndIdentifier(row, "swipe").submit(-1)
+      JS
+      leave_and_return # 自動送信は興味なしの後ろで待つ
+      click_on "読み終えた"
+
+      expect(page).to have_css("section[aria-label='判定']", text: "未完")
+      expect(find("li", text: "を削除した")).to have_text("消す記事")
+    end
+
     it "畳んだ行は戻りの合図で判定しない（開いたまま合図が来なかった行が、別の行の戻りで判定されない）" do
       threshold = Dopamine.settings.dig(:read, :complete_after_seconds)
       create(:article, title: "最初の記事", summary: "・一行目", published_at: 1.hour.ago)
