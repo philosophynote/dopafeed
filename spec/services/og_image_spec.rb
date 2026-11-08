@@ -40,6 +40,7 @@ RSpec.describe OgImage do
       https://2130706433/og.png https://0x7f000001/og.png https://127.1/og.png https://0177.0.0.1/og.png https://10.0x1/og.png
       https://127%2e0%2e0%2e1/og.png https://%31%32%37.0.0.1/og.png https://cdn_1.example.com/og.png
       https://localhost/og.png https://app.localhost/og.png https://u:p@cdn.example.com/og.png
+      https://[2002:7f00:1::]/og.png https://[64:ff9b::a9fe:a9fe]/og.png
     ].each do |url|
       expect(described_class.from(html(%(<meta property="og:image" content="#{url}">)), base)).to be_nil, url
     end

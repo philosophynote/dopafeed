@@ -20,7 +20,7 @@ RSpec.describe HttpGet do
 
     described_class.call(url)
 
-    expect(Net::HTTP).to have_received(:start).with("fixtures.example.com", 443, hash_including(open_timeout: seconds, read_timeout: seconds))
+    expect(Net::HTTP).to have_received(:start).with("fixtures.example.com", 443, nil, hash_including(open_timeout: seconds, read_timeout: seconds))
   end
 
   it "304 もそのまま返す" do
@@ -134,10 +134,24 @@ RSpec.describe HttpGet do
   describe "内部ネットワークの宛先" do
     it "IP リテラルがループバック・プライベート・リンクローカル・未指定・共有・マルチキャスト・予約帯なら取りに行かず Error" do
       %w[127.0.0.1 10.0.0.1 172.16.0.1 192.168.1.1 169.254.169.254 0.0.0.0 100.64.0.1 192.0.0.1 198.18.0.1 224.0.0.1 240.0.0.1 255.255.255.255
-         [::] [::1] [fe80::1] [fc00::1] [ff02::1] [::ffff:127.0.0.1] [::7f00:1]].each do |host|
+         [::] [::1] [fe80::1] [fc00::1] [ff02::1] [::ffff:127.0.0.1] [::7f00:1]
+         [2002:7f00:1::] [2002:a00:1::1] [64:ff9b::a9fe:a9fe] [64:ff9b::7f00:1] [64:ff9b:1::1] [2001::1]].each do |host|
         expect { described_class.call("http://#{host}/latest/meta-data/") }.to raise_error(described_class::Error, "内部ネットワークの URL です") { |e| expect(e).not_to be_a(described_class::TransientError) }
       end
       expect(a_request(:get, /./)).not_to have_been_made
+    end
+
+    it "6to4・NAT64 は埋め込まれた IPv4 で判定し、外部の IPv4 なら取りに行く" do
+      stub_request(:get, "http://[2002:cb00:710a::]/").to_return(status: 200, body: "6to4")
+      stub_request(:get, "http://[64:ff9b::cb00:710a]/").to_return(status: 200, body: "nat64")
+
+      expect(described_class.call("http://[2002:cb00:710a::]/").body).to eq("6to4")
+      expect(described_class.call("http://[64:ff9b::cb00:710a]/").body).to eq("nat64")
+    end
+
+    it "名前が 6to4 で内部アドレスに化けるなら Error" do
+      allow(Resolv).to receive(:getaddresses).with("evil.example.com").and_return([ "2002:7f00:1::" ])
+      expect { described_class.call("http://evil.example.com/") }.to raise_error(described_class::Error, "内部ネットワークの URL です")
     end
 
     it "名前が内部アドレスに解けても Error（解けた全アドレスを見る）" do
@@ -183,8 +197,29 @@ RSpec.describe HttpGet do
 
       described_class.call(url)
 
-      expect(Net::HTTP).to have_received(:start).with("fixtures.example.com", 443, hash_including(ipaddr: "203.0.113.10", use_ssl: true))
+      expect(Net::HTTP).to have_received(:start).with("fixtures.example.com", 443, nil, hash_including(ipaddr: "203.0.113.10", use_ssl: true))
     end
+
+    it "http_proxy 環境変数があってもプロキシを通さない（通すとプロキシが名前を引き直し、検査した IP に繋がらない）" do
+      stub_request(:get, url).to_return(status: 200, body: "ok")
+      proxied = []
+      allow(Net::HTTP).to receive(:new).and_wrap_original { |original, *args| original.call(*args).tap { |http| proxied << http.proxy? } }
+
+      with_env("http_proxy" => "http://proxy.example.com:8080", "https_proxy" => "http://proxy.example.com:8080",
+               "HTTP_PROXY" => nil, "HTTPS_PROXY" => nil, "no_proxy" => nil, "NO_PROXY" => nil) do
+        described_class.call(url)
+      end
+
+      expect(proxied).to eq([ false ])
+    end
+  end
+
+  it "呼ぶ側の Accept-Encoding は ArgumentError で、取りに行かない（渡すと net-http が展開をやめ、本文の上限が圧縮後で数えられる）" do
+    stub_request(:get, url)
+
+    expect { described_class.call(url, headers: { "accept-encoding" => "gzip" }) }.to raise_error(ArgumentError)
+    expect { described_class.call(url, headers: { "Accept-Encoding" => "identity" }) }.to raise_error(ArgumentError)
+    expect(a_request(:get, url)).not_to have_been_made
   end
 
   describe "本文サイズの上限" do
