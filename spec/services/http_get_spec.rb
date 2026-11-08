@@ -149,6 +149,11 @@ RSpec.describe HttpGet do
       expect(described_class.call("http://[64:ff9b::cb00:710a]/").body).to eq("nat64")
     end
 
+    it "取りに行かない宛先の検査（verify_external!）も埋め込まれた IPv4 で判定する" do
+      expect { described_class.verify_external!("https://[2002:a9fe:a9fe::]/push") }.to raise_error(described_class::Error, "内部ネットワークの URL です")
+      expect(described_class.verify_external!("https://[2002:cb00:710a::]/push")).to be_nil
+    end
+
     it "名前が 6to4 で内部アドレスに化けるなら Error" do
       allow(Resolv).to receive(:getaddresses).with("evil.example.com").and_return([ "2002:7f00:1::" ])
       expect { described_class.call("http://evil.example.com/") }.to raise_error(described_class::Error, "内部ネットワークの URL です")
@@ -219,6 +224,7 @@ RSpec.describe HttpGet do
 
     expect { described_class.call(url, headers: { "accept-encoding" => "gzip" }) }.to raise_error(ArgumentError)
     expect { described_class.call(url, headers: { "Accept-Encoding" => "identity" }) }.to raise_error(ArgumentError)
+    expect { described_class.call(url, headers: { "accept-encoding": "gzip" }) }.to raise_error(ArgumentError)
     expect(a_request(:get, url)).not_to have_been_made
   end
 

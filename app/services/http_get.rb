@@ -61,7 +61,6 @@ class HttpGet
   # 中の IPv4 を取り出して判定する IPv6 の帯と、IPv4 の下に続くビット数。NAT64 の既定の接頭辞は末尾 32 ビット、
   # 6to4 は接頭辞 16 ビットの直後の 32 ビットが IPv4。そのままでは IPv6 の帯に当たらず、2002:7f00:1:: が 127.0.0.1 として素通りする
   EMBEDDED_IPV4 = { IPAddr.new("64:ff9b::/96") => 0, IPAddr.new("2002::/16") => 80 }.freeze
-  IPV4_MASK = IPAddr::IN4MASK
   USER_AGENT = "Dopafeed (+https://github.com/philosophynote/dopafeed)".freeze
 
   # @param headers [Hash{String => String}] 足すヘッダ（Accept、条件付き GET の If-None-Match など）
@@ -86,7 +85,7 @@ class HttpGet
   end
 
   # 内部ネットワークのアドレスか。IPv4 を埋め込む IPv6（IPv4-mapped・NAT64・6to4）は中の IPv4 で判定する。
-  # 名前を引かずに宛先を判定する相手（画像 URL の検査）にも同じ線を引くため公開する
+  # 名前を引かずに IP だけで判定する相手にも同じ線を引くため公開する
   #
   # @param address [IPAddr]
   def self.internal_address?(address)
@@ -94,12 +93,12 @@ class HttpGet
     INTERNAL_RANGES.any? { |range| range.include?(address) }
   end
 
-  # @return [IPAddr, nil] 埋め込まれた IPv4。埋め込みの無いアドレスなら nil
+  # @return [IPAddr, nil] 中を取り出して判定する形式（IPv4-mapped・NAT64・6to4）でなければ nil
   def self.embedded_ipv4(address)
     return address.native if address.ipv4_mapped?
 
     EMBEDDED_IPV4.each do |range, shift|
-      return IPAddr.new((address.to_i >> shift) & IPV4_MASK, Socket::AF_INET) if range.include?(address)
+      return IPAddr.new((address.to_i >> shift) & IPAddr::IN4MASK, Socket::AF_INET) if range.include?(address)
     end
     nil
   end
