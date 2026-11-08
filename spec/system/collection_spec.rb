@@ -11,13 +11,15 @@ RSpec.describe "Collection", type: :system do
 
   it "タブバーの「図鑑」から開き、30 枚が日ごとに 3 列で並ぶ。金とレアは枠の色で分かり、横スクロールが無く、タップ領域は 44px 以上" do
     feeds = Array.new(3) { |i| create(:feed, title: "Feed #{i}") }
-    now = Time.current
+    # 今日の束に 4 枚を置くため、読書日の正午に固定する（実時刻だと reset_hour の直後に束が割れる）
+    noon = Time.zone.local(2026, 11, 6, reset_hour) + 8.hours
     30.times do |i|
       tier = if i == 1 then gold elsif (i % 7).zero? then rare else Dopamine.base_rarity[:name] end
-      card(title: "#{i + 1} 枚目の、390 幅の 3 列で 3 行に折り返されるくらい長い見出し", completed_at: now - (i * 5).hours - 1.minute,
+      card(title: "#{i + 1} 枚目の、390 幅の 3 列で 3 行に折り返されるくらい長い見出し", completed_at: noon - (i * 2).hours - 1.minute,
            tier: tier, feed: feeds[i % 3], image_url: i.even? ? "/icon.png" : nil)
     end
     create(:article, title: "Main の未読")
+    travel_to(noon) do
     sign_in
 
     find("nav").click_link("図鑑")
@@ -27,6 +29,7 @@ RSpec.describe "Collection", type: :system do
     expect(page).to have_css("li[data-tier]", count: 30)
     expect(page).to have_css("li[data-tier='#{gold}']", count: 1)
     expect(page.first("section[data-day] h2").text).to eq("今日")
+    expect(page.first("section[data-day]")).to have_css("li[data-tier]", count: 4)
     expect(find("nav").find_link("図鑑")["aria-current"]).to eq("page")
     expect(viewport_width).to eq(390)
     expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "横スクロールが出ている"
@@ -42,6 +45,7 @@ RSpec.describe "Collection", type: :system do
     JS
     expect(small).to be_empty, "44px 未満のタップ領域: #{small.inspect}"
     screenshot!("cards")
+    end
   end
 
   it "0 枚なら空状態" do

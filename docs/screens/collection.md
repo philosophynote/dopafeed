@@ -4,7 +4,7 @@
 「手に入れて残るもの」の置き場。完読した記事 1 本がカード 1 枚になり、ここに溜まる。数字の XP に代わる積み上がりの感覚を担う（可変報酬の結果が残る場所。報酬距離の「次の 1 枚」もここで見える）。モックには無い画面で、タブ「レポート」の枠に置く（Weekly は後で図鑑の中の集計に畳む）。
 
 ## 要素
-1. 見出し「図鑑」と枚数「N 枚」（DB: `Reading.card_count`）。その下に内訳「通常 a ・ レア b ・ 金 c」（DB: `Reading.completed.group(:tier).count`。段と順は `cards.rarities`、名前は locale `dopamine.rarities`）と「🔥 N 日連続」（DB: `ReadingStreak.days`）
+1. 見出し「図鑑」と枚数「N 枚」（DB: `Reading.completed` の数。Main の `Reading.card_count` と同じ数え方）。その下に内訳「通常 a ・ レア b ・ 金 c」（DB: 完読の行を tier で数える。段と順は `cards.rarities`、名前は locale `dopamine.rarities`）と「🔥 N 日連続」（DB: `ReadingStreak.days`。読み上げは「読んだ日が N 日連続」）
 2. 完読日ごとの束（新しい日が上。日付は `ReadingDay`、reset_hour で切る）: 見出し「今日」「昨日」、それより前は「11月6日（木）」。束の中はカードのグリッド 3 列、同じ日の中は完読の新しい順
 3. カード 1 枚（`cards/_card`。23c の開封と宝箱で同じ部品を使う）: 縦長（3:4）。表は OGP 画像（DB: `articles.image_url`。無ければ、読めなければフィードごとの色地）に見出し（最大 3 行）とフィード名を重ねる。枠の色が希少度（通常 = 灰、レア = 橙、金 = 金。`rarity_frame`）。左上に希少度のラベル（通常は出さない。レア・金だけ）。`data-tier` を持つ
 4. 空状態（0 枚）: 「まだカードはありません。」「記事を S 秒以上読むと、その記事がカードになってここに残ります。」（S = `read.complete_after_seconds`）

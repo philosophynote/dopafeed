@@ -74,6 +74,7 @@ RSpec.describe "Collection", type: :request do
 
       expect(page).to have_text("5 枚", normalize_ws: true)
       expect(page).to have_text("通常 3 ・ レア 1 ・ 金 1", normalize_ws: true)
+      expect(page.find("[role='group'][aria-label='内訳']")).to have_text("1 日連続", normalize_ws: true)
       expect(page).to have_css("li[data-tier='#{gold}']##{dom_id(gold_card, :card)}.border-amber-400", text: "金 金の記事", normalize_ws: true)
       expect(page).to have_css("li[data-tier='#{rare}']##{dom_id(rare_card, :card)}.border-orange-500", text: "レア レアの記事", normalize_ws: true)
       expect(page).to have_css("li[data-tier='#{common}']", count: 3)
@@ -99,7 +100,7 @@ RSpec.describe "Collection", type: :request do
       travel_to(noon) { get collection_path }
 
       with_card = page.find("##{dom_id(with, :card)}")
-      expect(with_card).to have_css("img[src='https://img.example.com/a.png'][referrerpolicy='no-referrer'][loading='lazy']")
+      expect(with_card).to have_css("figure[data-controller='image-fallback'] img[src='https://img.example.com/a.png'][referrerpolicy='no-referrer'][loading='lazy'][data-action='error->image-fallback#remove']")
       without_card = page.find("##{dom_id(without, :card)}")
       expect(without_card).to have_no_css("img")
       expect(without_card["class"]).to match(/\bbg-/)
@@ -109,6 +110,32 @@ RSpec.describe "Collection", type: :request do
         expect(link[:rel]).to include("noopener")
         expect(link).to have_text(title)
       end
+    end
+
+    it "画像の無いカードの色地は同じフィードなら同じ色で、別のフィードと見分けられる" do
+      feed_a = create(:feed)
+      feed_b = create(:feed)
+      a1 = card(title: "A の 1", completed_at: noon - 1.hour, feed: feed_a)
+      a2 = card(title: "A の 2", completed_at: noon - 2.hours, feed: feed_a)
+      b = card(title: "B の 1", completed_at: noon - 3.hours, feed: feed_b)
+
+      travel_to(noon) { get collection_path }
+
+      tone = ->(reading) { page.find("##{dom_id(reading, :card)}")["class"][/\bbg-\S+/] }
+      expect(tone.call(a1)).to eq(tone.call(a2))
+      expect(tone.call(a1)).not_to eq(tone.call(b))
+    end
+
+    it "連続日数は昨日まで続いた日数で、束の曜日は日曜と土曜も出る" do
+      sunday = Time.zone.local(2026, 11, 1, reset_hour) + 8.hours
+      card(title: "日曜", completed_at: sunday)
+      card(title: "土曜", completed_at: sunday - 1.day)
+      card(title: "昨日", completed_at: noon - 1.day)
+
+      travel_to(noon) { get collection_path }
+
+      expect(page.all("section[data-day] h2").map(&:text)).to eq([ "昨日", "11月1日（日）", "10月31日（土）" ])
+      expect(page.find("[role='group'][aria-label='内訳']")).to have_text("1 日連続", normalize_ws: true)
     end
 
     it "タブバーの「図鑑」が現在地で、「レポート」は無い。フィードの未読バッジは出る" do
