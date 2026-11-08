@@ -33,7 +33,10 @@ RSpec.describe HttpGet do
     stub_request(:get, "https://fixtures.example.com/moved").to_return(status: 302, headers: { "Location" => "https://fixtures.example.com/final" })
     stub_request(:get, "https://fixtures.example.com/final").to_return(status: 200, body: "final")
 
-    expect(described_class.call(url).body).to eq("final")
+    response = described_class.call(url)
+    expect(response.body).to eq("final")
+    expect(response.final_url).to eq("https://fixtures.example.com/final")
+    expect(response.permanent_url).to eq("https://fixtures.example.com/moved")
   end
 
   describe "恒久移転（permanent_url）" do

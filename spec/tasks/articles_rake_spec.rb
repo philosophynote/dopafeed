@@ -1,6 +1,8 @@
 require "rake"
 
 RSpec.describe "articles:refetch_images" do
+  include ActiveJob::TestHelper
+
   before(:all) { Rails.application.load_tasks if Rake::Task.tasks.none? { |t| t.name == "articles:refetch_images" } }
 
   let(:task) { Rake::Task["articles:refetch_images"] }

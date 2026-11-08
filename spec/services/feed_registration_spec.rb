@@ -49,9 +49,15 @@ RSpec.describe FeedRegistration do
     expect(enqueued_jobs).to be_empty
   end
 
-  it "HTML にはフィードの URL を案内する" do
-    stub_request(:get, url).to_return(body: "<html>site</html>", headers: { "Content-Type" => "text/html" })
-    expect(described_class.call(url).message).to eq("RSS/Atom の URL を入力してください")
+  it "サイトから検出した URL で登録し、登録済みなら候補を再取得・予約しない" do
+    site = "https://fixtures.example.com/"
+    stub_request(:get, site).to_return(body: '<html><head><link rel="alternate" type="application/rss+xml" href="/feed.xml#latest"></head></html>', headers: { "Content-Type" => "text/html" })
+    stub_request(:get, url).to_return(body: rss)
+    result = described_class.call(site)
+    expect(result.feed).to have_attributes(url: url, title: "Fixture RSS")
+    expect(described_class.call(site).message).to eq("登録済み")
+    expect(a_request(:get, url)).to have_been_made.once
+    expect(enqueued_jobs.size).to eq(1)
   end
 
   [ false, ActiveRecord::ConnectionNotEstablished ].each do |failure|
