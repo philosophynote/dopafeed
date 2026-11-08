@@ -329,6 +329,48 @@ RSpec.describe "Main", type: :system do
       expect(Article.find_by!(title: "遅れる記事").reading.reload.returned_at).to be_present
     end
 
+    it "手押しの「読み終えた」で未完になったら、置き直した「読み終えた」は開き直すまで隠す" do
+      create(:article, title: "手で送る記事", summary: "・要約")
+      sign_in
+      fake_sheet!
+
+      expand("手で送る記事")
+      reading = open_link("手で送る記事")
+      click_on "読み終えた" # 戻りの合図が来ない端末
+
+      expect(page).to have_css("section[aria-label='判定']", text: "未完")
+      expect(page).to have_no_button("読み終えた")
+      expect(reading.reload.returned_at).to be_present
+
+      open_link("手で送る記事")
+      expect(page).to have_button("読み終えた")
+      expect(reading.reload.returned_at).to be_nil
+    end
+
+    it "手押しの「読み終えた」も行の送信の列に並び、送信中の興味なしの応答を捨てさせない" do
+      create(:article, title: "読む記事", summary: "・要約", published_at: 1.hour.ago)
+      create(:article, title: "消す記事", published_at: 2.hours.ago)
+      # 興味なしの応答を遅らせ、その間に「読み終えた」を押す
+      allow_any_instance_of(DismissalsController).to receive(:create).and_wrap_original do |original, *args|
+        sleep 1
+        original.call(*args)
+      end
+      sign_in
+      fake_sheet!
+
+      expand("読む記事")
+      open_link("読む記事")
+      page.execute_script(<<~JS)
+        const row = document.querySelector("li#article_#{Article.find_by!(title: "消す記事").id}")
+        window.Stimulus.getControllerForElementAndIdentifier(row, "swipe").submit(-1)
+      JS
+      click_on "読み終えた"
+
+      expect(page).to have_css("section[aria-label='判定']", text: "未完")
+      expect(find("li", text: "を削除した")).to have_text("消す記事")
+      expect(Article.find_by!(title: "消す記事")).to be_dismissed
+    end
+
     it "畳んだ行は戻りの合図で判定しない（開いたまま合図が来なかった行が、別の行の戻りで判定されない）" do
       threshold = Dopamine.settings.dig(:read, :complete_after_seconds)
       create(:article, title: "最初の記事", summary: "・一行目", published_at: 1.hour.ago)
