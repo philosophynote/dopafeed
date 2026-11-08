@@ -6,7 +6,7 @@
 # content_fetched_at は試行時刻、content_error が nil なら成功。
 # guid はフィード内の重複排除の鍵（entry_id、無ければ url。[feed_id, guid] は一意）。
 # いいね・保存は一人用なので記事に直接残す（liked_at / bookmarked_at）。読了は {Reading}（1 記事 1 行）。ADR 0006
-# 興味なし（dismissed_at）も記事に残す。読んでいないので {Reading} は作らず、XP も読了の数も動かない（ADR 0012）
+# 興味なし（dismissed_at）も記事に残す。読んでいないので {Reading} は作らず、カードも読了の数も動かない（ADR 0012）
 # 保存（bookmarked_at）は「あとで読む」の取り置き。未読の流れから退かせ、読み終えても保存は残す（ADR 0018）
 #
 # @!method self.unread

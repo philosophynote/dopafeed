@@ -1,4 +1,4 @@
-# 記事を読まずに片付ける「興味なし」と、その取り消し。{Reading} は作らない（抽選も XP も無い）。
+# 記事を読まずに片付ける「興味なし」と、その取り消し。{Reading} は作らない（抽選もカードも無い）。
 # Turbo の要求にはカードの差し替えと未読数だけを返し、JS が無ければ一覧へ戻す
 class DismissalsController < ApplicationController
   before_action :set_article

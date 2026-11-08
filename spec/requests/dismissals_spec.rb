@@ -42,14 +42,14 @@ RSpec.describe "Dismissals", type: :request do
         expect(page).to have_css("turbo-stream[action='replace'][target='app-badge'] #app-badge[data-badge-count-value='1']", visible: :all)
       end
 
-      it "Reading を作らず、読了・XP・今日のゴール・コンボ・ストリークを変えない" do
+      it "Reading を作らず、読了（カード）・今日のゴール・コンボ・ストリークを変えない" do
         create(:reading, :completed, opened_at: noon - 1.hour)
-        before = travel_to(noon) { [ Reading.completed.sum(:xp), Reading.on(ReadingDay.of).count, Combo.new.multiplier, ReadingStreak.days ] }
+        before = travel_to(noon) { [ Reading.on(ReadingDay.of).count, Combo.new.count, ReadingStreak.days ] }
 
         travel_to(noon) do
           expect { post article_dismissal_path(article), headers: turbo }.not_to change(Reading, :count)
           expect(article.reload.reading).to be_nil
-          expect([ Reading.completed.sum(:xp), Reading.on(ReadingDay.of).count, Combo.new.multiplier, ReadingStreak.days ]).to eq(before)
+          expect([ Reading.on(ReadingDay.of).count, Combo.new.count, ReadingStreak.days ]).to eq(before)
         end
       end
 

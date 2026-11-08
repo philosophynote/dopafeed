@@ -2,7 +2,6 @@
 class DailyGoalsController < ApplicationController
   def show
     @summary = DailySummary.new
-    @goal = DailyGoal.find_by(day: @summary.day)
     # 「もう 1 本だけ」の行き先。入口の一番上のカードと同じ記事
     @next_article = Article.unread.newest_first.first
   end

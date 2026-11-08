@@ -1,11 +1,11 @@
-# 読了。1 記事 1 行（ADR 0006）。
-# 「読む」のタップか、前の記事を読み終えたときに作られ（opened_at と抽選結果 tier）、元の記事を開くと opened_at をその時刻に直し、
-# 読み終えると returned_at（判定した時刻）、完読なら completed_at と xp が入る。
-# tier は名前だけ持つ。倍率・確率は常に config/dopamine.yml から導く。確定した XP だけ xp に数値で残す。
-# 判定と XP の確定は {#return!}（読み終えた時刻で決める）。抽選は {XpRoulette}、コンボは {Combo}。
+# 読了。1 記事 1 行（ADR 0006）。完読した行がそのまま図鑑のカード 1 枚になる（ADR 0020）。
+# 記事を開いたときに作られ（opened_at と抽選結果 tier）、元の記事を開くと opened_at をその時刻に直し、
+# 読み終えると returned_at（判定した時刻）、完読なら completed_at が入る。
+# tier はカードの枠の希少度の名前。確率は常に config/dopamine.yml から導き、数値は保存しない。
+# 判定は {#return!}（読み終えた時刻で決める）。抽選は {RarityDraw}、連続数は {Combo}。
 #
 # @!method self.completed
-#   完読した行（completed_at あり）
+#   完読した行（completed_at あり）= カード
 #   @return [ActiveRecord::Relation<Reading>]
 # @!method self.on(day)
 #   その読書日（{ReadingDay}）に完読した行
@@ -15,12 +15,18 @@ class Reading < ApplicationRecord
 
   validates :opened_at, presence: true
   validates :returned_at, presence: true, if: :completed_at
-  validates :tier, inclusion: { in: ->(_) { Dopamine.tier_names } }
+  validates :tier, inclusion: { in: ->(_) { Dopamine.rarity_names } }
   validates :article_id, uniqueness: true
-  validates :xp, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
 
   scope :completed, -> { where.not(completed_at: nil) }
   scope :on, ->(day) { completed.where(completed_at: ReadingDay.range(day)) }
+
+  # 図鑑の枚数 = 完読した行の数。数え方を 1 か所に置く
+  #
+  # @return [Integer]
+  def self.card_count
+    completed.count
+  end
 
   # 記事を開く。行が無ければ抽選して作り、未完の行は抽選を使い回して開き直す（ADR 0006）。
   # 同時に作られて一意制約で落ちたら、先に入った行を使う（二重タップ）
@@ -30,7 +36,7 @@ class Reading < ApplicationRecord
     reading = find_or_initialize_by(article: article)
     return reading.reopen!(at: at) if reading.persisted?
 
-    reading.update!(tier: XpRoulette.draw, opened_at: at)
+    reading.update!(tier: RarityDraw.draw, opened_at: at)
     reading
   rescue ActiveRecord::RecordNotUnique
     find_by!(article: article)
@@ -40,9 +46,9 @@ class Reading < ApplicationRecord
     completed_at.present?
   end
 
-  # 抽選の頂点を引いたか。頂点は {Dopamine.jackpot_tier}（倍率が最も高い出目）
+  # 頂点の希少度（金）を引いたか。頂点は {Dopamine.top_rarity}
   def jackpot?
-    tier == Dopamine.jackpot_tier[:name]
+    tier == Dopamine.top_rarity[:name]
   end
 
   # 記事を開いてから読み終えるまでの秒数
@@ -54,9 +60,9 @@ class Reading < ApplicationRecord
     (returned_at - opened_at).to_i
   end
 
-  # 記事を読み終えた。滞在が read.complete_after_seconds 以上なら完読として XP を確定する。
+  # 記事を読み終えた。滞在が read.complete_after_seconds 以上なら完読としてカードを確定する。
   # 2 回目以降は無視する（1 記事 1 回。ADR 0006）。
-  # 未完なら returned_at だけ残し、xp は 0 のまま未読に戻る
+  # 未完なら returned_at だけ残し、カードにはならず未読に戻る
   #
   # @param at [Time] 読み終えた時刻。サーバーの時計で決める（端末の時計は信用しない）
   # @return [Reading] self
@@ -64,11 +70,7 @@ class Reading < ApplicationRecord
     return self if returned_at.present?
 
     self.returned_at = at
-    if at - opened_at >= Dopamine.settings.dig(:read, :complete_after_seconds)
-      self.completed_at = at
-      self.combo_multiplier = Combo.new(before: at).multiplier
-      self.xp = (base_xp * combo_multiplier).round
-    end
+    self.completed_at = at if at - opened_at >= Dopamine.settings.dig(:read, :complete_after_seconds)
     save!
     DailyGoal.achieve_if_reached!(at: at) if completed?
     self
@@ -94,19 +96,6 @@ class Reading < ApplicationRecord
 
     update!(opened_at: at, returned_at: nil)
     self
-  end
-
-  # 完読ボーナス = xp.base × ルーレットの倍率。コンボを掛ける前の値
-  def base_xp
-    Dopamine.settings.dig(:xp, :base) * Dopamine.tier(tier)[:multiplier]
-  end
-
-  # XP の内訳。bonus は完読ボーナス、combo はコンボで上乗せした分、total は確定した xp。
-  # 倍率は保存せず yml から導くので、yml を変えると bonus と combo の割り振りは変わるが total は変わらない
-  #
-  # @return [Hash{Symbol => Integer}]
-  def xp_breakdown
-    { bonus: base_xp, combo: xp - base_xp, total: xp }
   end
 
   # この完読を含めた連続完読の本数

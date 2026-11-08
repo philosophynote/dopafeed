@@ -134,15 +134,16 @@ RSpec.describe "Main", type: :request do
       end
     end
 
-    it "ストリーク・累計 XP が出て、未読数と読了累計はステータスに出さない（未読はタブバーのバッジ）" do
+    it "ストリーク・図鑑の枚数が出て、未読数と読了累計はステータスに出さない（未読はタブバーのバッジ）" do
       travel_to noon do
-        3.times { |i| create(:reading, :completed, opened_at: noon - (i + 1).days, xp: 10) }
+        3.times { |i| create(:reading, :completed, opened_at: noon - (i + 1).days) }
         2.times { create(:article) }
 
         get root_path
 
         expect(page).to have_text("3日連続")
-        expect(page).to have_text("累計 30 XP")
+        expect(page).to have_text("図鑑 3 枚", normalize_ws: true)
+        expect(page).to have_no_text("XP")
         expect(page).to have_no_text("読了")
         expect(page).to have_no_css("#unread-count")
         expect(page.find("section[aria-label='今日の進み']")).to have_no_text("未読")
@@ -179,21 +180,22 @@ RSpec.describe "Main", type: :request do
       expect(nav).to have_css("[aria-disabled=true]", count: 1, text: "レポート")
     end
 
-    it "ステータスは 1 本のリンクで、行ごと DailyGoal へ（ストリーク・ゴール・累計 XP を含む）" do
+    it "ステータスは 1 本のリンクで、行ごと DailyGoal へ（ストリーク・ゴール・図鑑の枚数を含む）" do
       get root_path
 
       link = page.find("section[aria-label='今日の進み'] a[href='#{daily_goal_path}']")
-      expect(link).to have_text(/0日連続.*今日のゴール 0 \/ #{goal_articles}.*累計 0 XP/m, normalize_ws: true)
+      expect(link).to have_text(/0日連続.*今日のゴール 0 \/ #{goal_articles}.*図鑑 0 枚/m, normalize_ws: true)
     end
 
-    it "累計 XP には宝箱のボーナスも乗る" do
+    it "図鑑の枚数は完読の数だけで、宝箱の達成は数えない" do
       travel_to noon do
-        create(:reading, :completed, opened_at: noon - 1.hour, xp: 30)
-        create(:daily_goal, :achieved, day: ReadingDay.of(noon) - 1, bonus_xp: 100)
+        create(:reading, :completed, opened_at: noon - 1.hour)
+        create(:reading, opened_at: noon - 10.minutes, returned_at: noon - 9.minutes)
+        create(:daily_goal, :achieved, day: ReadingDay.of(noon) - 1)
 
         get root_path
 
-        expect(page).to have_text("累計 130 XP")
+        expect(page).to have_text("図鑑 1 枚", normalize_ws: true)
       end
     end
 

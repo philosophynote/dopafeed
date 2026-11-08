@@ -1,4 +1,4 @@
-# DailyGoal（Unit 7 #55）
+# DailyGoal（Unit 7 #55。#106 で宝箱の中身を XP から今日のカードに。ADR 0020）
 
 ## 目的
 SNS には無い「止まり所」。今日の 5 本を読み切ったら宝箱が開き、満足して閉じられる。満足して閉じられると翌日も開く。
@@ -8,34 +8,34 @@ SNS には無い「止まり所」。今日の 5 本を読み切ったら宝箱�
 1. 「DAILY GOAL」「今日の 5 本、読み切った！」（`daily_goal.articles`）
 2. 宝箱（CSS / SVG。固定）
 3. 「宝箱の中身」
-   - 「ゴール達成ボーナス +100 XP」（未決 1）
+   - ~~「ゴール達成ボーナス +100 XP」~~ → 「今日のカード N 枚」と、今日手に入れたカードの一覧（希少度のラベル＋見出し。DB: `DailySummary#cards`。#106。23c でカードの絵に）
    - 「ストリーク 4 日目 確定」（DB: ストリーク）
    - 「明日までレア確率 2 倍 P% → 2P%」（P = `xp.tiers` の rare.probability × 100。今の yml なら「25% → 50%」。モックの 16% は採らない。バフ自体と、2 倍にしたとき他の tier の確率をどう減らすかは未決 2。バフを入れないならこの行は出さない）
-4. 「今日の合計 5 本 ・ 23 分 ・ 312 XP」（DB: 今日の読了数、滞在合計（完読した記事の開いた時刻と読み終えた時刻の差の和、分に切り下げ）、XP 合計（読了の xp。ボーナスは 3 の行）。数えるのは `DailySummary`）
+4. 「今日の合計 5 本 ・ 23 分」（DB: 今日の読了数、滞在合計（完読した記事の開いた時刻と読み終えた時刻の差の和、分に切り下げ）。XP 合計は #106 で廃止。数えるのは `DailySummary`）
 5. ボタン「今日はここまで」（→ Main）
 6. ボタン「もう 1 本だけ」（達成後だけ。一番新しい未読の「読む」→ Roulette → Reader。未読が無ければ出さない。モックの「（ボーナス XP は半分）」は未決 3 の決定で出さない）
 7. 注記（固定）
 
 ## 遷移
 - Reader の区切り（5 本目の完読）→ 区切りに金色の「宝箱を開く」→ DailyGoal（`GET /daily_goal`、full page。自動遷移はしない。read_done.md 未決 6）。ボタンは今日の完読数がちょうど `daily_goal.articles` の区切りにだけ出る（6 本目には出ない）
-- Main のステータスの 1 行（ストリーク・ゴールのドット・累計 XP。#91）をタップ → DailyGoal（達成前は閉じた宝箱と「あと N 本で宝箱」。未決 4）
+- Main のステータスの 1 行（ストリーク・ゴールのドット・図鑑の枚数。#91、#106）をタップ → DailyGoal（達成前は閉じた宝箱と「あと N 本で宝箱」。未決 4）
 - DailyGoal → Main（「今日はここまで」/ 達成前は「読みに戻る」）
 - DailyGoal → Roulette → Reader（「もう 1 本だけ」= 一番新しい未読の「読む」。未読が無ければ出さない。未決 3）
 
 ## 受け入れ条件（Given-When-Then）
 - Given 今日 4 本完読 When 5 本目を完読 Then 区切りに「読み切った！」と「宝箱を開く」が出て、タップすると DailyGoal に「今日の 5 本、読み切った！」（自動では開かない。read_done.md 未決 6）
-- Given ゴール達成 When 宝箱を開く Then ゴール達成ボーナスが XP に加算され、2 回目は加算されない（1 日 1 回。冪等。鍵 `daily_goal.bonus_xp` が入ったら。無ければこの条件は落とす）
+- Given ゴール達成 When 宝箱を開く Then 「今日のカード 5 枚」と 5 枚の一覧（レア・金は色付きのラベル）が出て、XP の文字は無い（#106）
 - Given 昨日も 1 本以上完読 When 今日達成 Then ストリークが +1 で「N 日目 確定」（定義は未決 6）
 - Given 一昨日まで完読あり、昨日は 0 本 When 今日達成 Then ストリークは 1 日目
 - Given reset_hour = 4 When 午前 3:59 に完読 Then 前日分として数える
 - Given reset_hour = 4 When 午前 4:00 に完読 Then 当日分として数える
-- Given 達成後 When 6 本目を完読 Then XP は付くが宝箱は再び出ない（ボーナス半分は鍵 `daily_goal.after_goal_xp_ratio` が入ったら。無ければ通常どおり）
-- Given 今日の滞在が 23 分、XP 312 When DailyGoal を開く Then 合計欄に出る
+- Given 達成後 When 6 本目を完読 Then カードは増えるが宝箱は再び出ない
+- Given 今日の滞在が 23 分 When DailyGoal を開く Then 合計欄に「5 本 ・ 23 分」
 - Given 「今日はここまで」When タップ Then Main に戻り、ステータスカードのドットが 5 個塗られている
 - Given ゴール未達 When Main のゴール表示をタップ Then 宝箱は閉じたまま「あと N 本」が出る
 
 ## 使う設定の鍵
-dopamine.yml: `daily_goal.articles`, `daily_goal.reset_hour`、任意で `daily_goal.bonus_xp`（無ければボーナス 0。未決 1）
+dopamine.yml: `daily_goal.articles`, `daily_goal.reset_hour`
 personas.yml: なし
 
 ## 外部 API
@@ -44,6 +44,7 @@ personas.yml: なし
 ## 未決
 1. ゴール達成ボーナス +100 XP。yml に鍵が無い。提案: `daily_goal.bonus_xp: 100`
    → **決定（Unit 7、#55）**: 鍵 `daily_goal.bonus_xp` が入ったら効く形で作った。達成の行は 5 本目の完読を判定した瞬間に `DailyGoal.achieve_if_reached!` が `daily_goals` に作り（開いた時には書かない。day の一意制約で 1 日 1 回）、`bonus_xp` に鍵の値（無ければ 0）を残す。0 なら「ゴール達成ボーナス」の行は出さない。Main の「累計 XP」は readings の xp と daily_goals の bonus_xp の和。鍵の値は PR で提案
+   → **改め（Unit 23、#106、ADR 0020）**: ボーナス XP と列 `daily_goals.bonus_xp`・鍵 `daily_goal.bonus_xp` を廃止。中身は今日のカードとストリーク確定
 2. 「明日までレア確率 2 倍」。Jackpot の未決 2 と同じバフ。第一の陣では出さない案。入れるなら rare を 2 倍にした分を common から引く（jackpot は据え置き）など、確率の合計を 1.0 に保つ規則を dopamine.yml に書く
    → **決定（Unit 7、#55）**: 出さない（Jackpot と同じ）。鍵の提案もしない
 3. 「もう 1 本だけ（ボーナス半分）」の半分の対象（基礎 XP？ ルーレット倍率？）。提案: `daily_goal.after_goal_xp_ratio: 0.5`

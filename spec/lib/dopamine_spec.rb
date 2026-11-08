@@ -1,23 +1,29 @@
 RSpec.describe Dopamine do
+  let(:yml) { Rails.application.config_for(:dopamine) }
+
   it "settings は config/dopamine.yml をそのまま返す" do
-    expect(described_class.settings).to eq(Rails.application.config_for(:dopamine))
+    expect(described_class.settings).to eq(yml)
   end
 
-  it "tier_names は xp.tiers の name を順に返す" do
-    expected = Rails.application.config_for(:dopamine).dig(:xp, :tiers).map { |tier| tier[:name] }
-    expect(described_class.tier_names).to eq(expected)
-    expect(described_class.tier_names).not_to be_empty
+  it "rarities は cards.rarities をそのまま、rarity_names はその name を順に返す" do
+    expect(described_class.rarities).to eq(yml.dig(:cards, :rarities))
+    expect(described_class.rarity_names).to eq(yml.dig(:cards, :rarities).map { |rarity| rarity[:name] })
+    expect(described_class.rarity_names).not_to be_empty
   end
 
-  it "tier(name) は名前で引いた tier、無ければ nil" do
-    name = described_class.tier_names.first
-    expect(described_class.tier(name)[:name]).to eq(name)
-    expect(described_class.tier("legendary")).to be_nil
+  it "rarity(name) は名前で引いた段、無ければ nil" do
+    name = described_class.rarity_names.first
+    expect(described_class.rarity(name)[:name]).to eq(name)
+    expect(described_class.rarity("legendary")).to be_nil
   end
 
-  it "jackpot_tier は倍率が最も高い tier（名前ではなく倍率で決める）" do
-    tiers = Rails.application.config_for(:dopamine).dig(:xp, :tiers)
-    expect(described_class.jackpot_tier).to eq(tiers.max_by { |tier| tier[:multiplier] })
-    expect(described_class.jackpot_tier[:multiplier]).to be > tiers.first[:multiplier]
+  it "top_rarity は yml の最後の段（名前や確率ではなく並び順で決める）" do
+    expect(described_class.top_rarity).to eq(yml.dig(:cards, :rarities).last)
+    expect(described_class.top_rarity[:probability]).to be < yml.dig(:cards, :rarities).first[:probability]
+  end
+
+  it "XP の鍵は無い（ADR 0020）" do
+    expect(yml).not_to have_key(:xp)
+    expect(yml[:daily_goal]).not_to have_key(:bonus_xp)
   end
 end

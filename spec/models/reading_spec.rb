@@ -9,9 +9,9 @@ RSpec.describe Reading, type: :model do
     expect(reading.errors[:tier]).to include("is not included in the list")
   end
 
-  it "tier は dopamine.yml の xp.tiers の name だけ" do
+  it "tier は dopamine.yml の cards.rarities の name だけ" do
     article = create(:article)
-    Dopamine.tier_names.each do |name|
+    Dopamine.rarity_names.each do |name|
       expect(build(:reading, article: article, tier: name)).to be_valid, "#{name} は有効な tier"
     end
 
@@ -20,9 +20,9 @@ RSpec.describe Reading, type: :model do
     expect(bogus.errors[:tier]).to include("is not included in the list")
   end
 
-  it "jackpot? は tier が Dopamine.jackpot_tier のときだけ" do
-    expect(build(:reading, tier: Dopamine.jackpot_tier[:name])).to be_jackpot
-    expect(build(:reading, tier: Dopamine.tier_names.first)).not_to be_jackpot
+  it "jackpot? は tier が Dopamine.top_rarity（yml の最後の段）のときだけ" do
+    expect(build(:reading, tier: Dopamine.top_rarity[:name])).to be_jackpot
+    expect(build(:reading, tier: Dopamine.rarity_names.first)).not_to be_jackpot
   end
 
   it "1 記事 1 行（同じ記事に 2 行目は作れない）" do
@@ -32,18 +32,16 @@ RSpec.describe Reading, type: :model do
     expect(dup.errors[:article_id]).to include("has already been taken")
   end
 
-  it "xp は 0 以上の整数" do
-    reading = build(:reading, :completed)
-    reading.xp = -1
-    expect(reading).not_to be_valid
-    reading.xp = 0
-    expect(reading).to be_valid
+  it "数値の XP は持たない（完読した行がそのままカード。ADR 0020）" do
+    expect(Reading.column_names).not_to include("xp", "combo_multiplier")
   end
 
-  it "開いただけなら xp は 0、combo_multiplier は nil" do
-    reading = create(:reading)
-    expect(reading.xp).to eq(0)
-    expect(reading.combo_multiplier).to be_nil
+  it "card_count は完読した行の数（開いただけ・未完は数えない）" do
+    create(:reading, :completed)
+    create(:reading, :completed, :jackpot)
+    create(:reading)
+    create(:reading, opened_at: Time.zone.local(2026, 10, 6, 8), returned_at: Time.zone.local(2026, 10, 6, 8, 0, 5))
+    expect(Reading.card_count).to eq(2)
   end
 
   it "completed? は completed_at の有無" do
@@ -93,11 +91,11 @@ RSpec.describe Reading, type: :model do
 
   describe ".open!" do
     let(:at) { Time.zone.local(2026, 10, 20, 12) }
-    let(:rare) { Dopamine.tier_names.second }
+    let(:rare) { Dopamine.rarity_names.second }
 
     it "行が無ければ抽選して opened_at を今にして作る" do
       article = create(:article)
-      allow(XpRoulette).to receive(:draw).and_return(rare)
+      allow(RarityDraw).to receive(:draw).and_return(rare)
 
       reading = Reading.open!(article, at: at)
 
@@ -108,7 +106,7 @@ RSpec.describe Reading, type: :model do
 
     it "未完の行があれば再抽選せず開き直す" do
       reading = create(:reading, tier: rare, opened_at: at - 1.hour, returned_at: at - 1.hour + 5.seconds)
-      expect(XpRoulette).not_to receive(:draw)
+      expect(RarityDraw).not_to receive(:draw)
 
       expect(Reading.open!(reading.article, at: at)).to eq(reading)
       expect(reading.reload.opened_at).to eq(at)

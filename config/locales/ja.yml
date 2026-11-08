@@ -2,10 +2,10 @@
 # rails-i18n を入れて全部を ja にするのは、ActiveRecord のエラー文言まで変わるので別に決める
 ja:
   dopamine:
-    tiers: # config/dopamine.yml の xp.tiers の name に対する表示
+    rarities: # config/dopamine.yml の cards.rarities の name に対する表示（カードの枠の希少度）
       common: 通常
-      rare: 掘り出し物
-      jackpot: ジャックポット
+      rare: レア
+      jackpot: 金
   datetime:
     distance_in_words:
       half_a_minute: 30秒

@@ -5,7 +5,7 @@ import { Controller } from "@hotwired/stimulus"
 // 出たと見なすのは画面が隠れた（visibilitychange で hidden）ときだけ。blur は使わない。
 // iPhone では押した瞬間に blur → focus が続けて来て、シートが開く前に戻ったと取り違えるため。
 // 戻りは hidden の後の visible か focus。合図が来ない端末のために、「読み終えた」は開いた後に出して手でも押せるようにする。
-// 開く前は隠す。開かずに押して XP を取れないように（JS が無いときは隠さないので、ボタンで送れる）
+// 開く前は隠す。開かずに押してカードを取れないように（JS が無いときは隠さないので、ボタンで送れる）
 export default class extends Controller {
   static targets = ["finish"]
   static values = { startUrl: String }
