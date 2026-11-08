@@ -1,0 +1,15 @@
+<%# 行の Frame に収まる前提で見出しを持たない。JS が無ければこのページ単独で開き、保存で一覧へ戻る %>
+<% content_for :title, "名前を変更" %>
+<%= turbo_frame_tag dom_id(@feed, :title) do %>
+  <%= form_with model: @feed, class: "mb-2 space-y-2", data: { no_swipe: true } do |form| %>
+    <%= form.label :title, "名前", class: "block text-sm font-semibold" %>
+    <%= form.text_field :title, required: true, autofocus: true, class: "min-h-11 w-full rounded-xl border border-gray-300 px-3 text-base", aria: { invalid: @feed.errors.include?(:title) } %>
+    <% if @feed.errors.include?(:title) %>
+      <p class="text-sm text-red-600" role="alert">名前を入力してください</p>
+    <% end %>
+    <div class="flex gap-2">
+      <%= form.submit "保存", class: "min-h-11 flex-1 rounded-xl bg-orange-500 px-4 font-bold text-white disabled:opacity-50" %>
+      <%= link_to "やめる", feeds_path, class: "flex min-h-11 flex-1 items-center justify-center rounded-xl bg-gray-100 px-4 text-sm" %>
+    </div>
+  <% end %>
+<% end %>
