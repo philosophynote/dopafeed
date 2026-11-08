@@ -1,0 +1,34 @@
+<%# Collection（docs/screens/collection.md）。上から: 見出しと枚数 / 内訳と連続日数 / 完読日ごとのカードの束（新しい日が上） / タブバー %>
+<% content_for :title, "図鑑" %>
+<header class="flex min-h-11 items-end justify-between">
+  <h1 class="text-2xl font-black tracking-tight">図鑑</h1>
+  <p class="text-2xl font-black text-amber-700"><%= number_with_delimiter(@cards_count) %> <span class="text-sm font-bold text-gray-500">枚</span></p>
+</header>
+<p class="mt-1 flex flex-wrap items-center gap-x-2 text-sm font-semibold text-gray-600" aria-label="内訳">
+  <span><%= Dopamine.rarity_names.map { |name| "#{rarity_label(name)} #{@counts.fetch(name, 0)}" }.join(" ・ ") %></span>
+  <span class="ml-auto shrink-0"><span aria-hidden="true">🔥</span> <%= @streak_days %> 日連続</span>
+</p>
+
+<% if @cards_by_day.empty? %>
+  <section class="mt-4 rounded-2xl bg-white px-4 py-10 text-center shadow-sm" aria-label="空の図鑑">
+    <p class="text-lg font-bold">まだカードはありません。</p>
+    <p class="mt-1 text-sm text-gray-500">記事を <%= Dopamine.settings.dig(:read, :complete_after_seconds) %> 秒以上読むと、その記事がカードになってここに残ります。</p>
+  </section>
+<% else %>
+  <% today = ReadingDay.of %>
+  <% @cards_by_day.each do |day, cards| %>
+    <section class="mt-4" data-day="<%= day %>" aria-label="<%= reading_day_label(day, today: today) %>のカード">
+      <div class="flex items-baseline gap-2">
+        <h2 class="text-sm font-bold text-gray-700"><%= reading_day_label(day, today: today) %></h2>
+        <span class="text-xs font-semibold text-gray-400"><%= cards.size %> 枚</span>
+      </div>
+      <ul class="mt-2 grid grid-cols-3 gap-2">
+        <% cards.each do |card| %>
+          <%= render "cards/card", card: card %>
+        <% end %>
+      </ul>
+    </section>
+  <% end %>
+<% end %>
+
+<%= render "main/tab_bar" %>

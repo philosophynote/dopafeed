@@ -1,0 +1,21 @@
+<%# カード 1 枚（docs/screens/collection.md）。完読した readings の行がそのままカード。
+    表は OGP 画像、無ければ（読めなければ）フィードの色地。見出しとフィード名を下に重ね、枠の色が希少度。
+    画像が読めなかったら image-fallback が figure ごと外し、下の色地が出る。
+    リンクは元記事を別窓（iPhone のホーム画面アプリではシート）で開く。読み直しても抽選し直さない（1 記事 1 行） %>
+<% article = card.article %>
+<li id="<%= dom_id(card, :card) %>" class="relative aspect-[3/4] overflow-hidden rounded-xl border-2 <%= rarity_frame(card.tier) %> <%= feed_tone(article.feed) %>" data-tier="<%= card.tier %>">
+  <% if article.image_url.present? %>
+    <figure class="absolute inset-0" data-controller="image-fallback">
+      <img src="<%= article.image_url %>" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" draggable="false"
+           class="pointer-events-none h-full w-full select-none object-cover" data-image-fallback-target="image" data-action="error->image-fallback#remove">
+    </figure>
+  <% end %>
+  <%= link_to article.url, target: "_blank", rel: "noopener noreferrer", draggable: "false",
+              class: "absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2 text-white [-webkit-tap-highlight-color:transparent] active:bg-black/20" do %>
+    <% unless base_rarity?(card.tier) %>
+      <span class="absolute left-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold <%= rarity_tone(card.tier, base: "") %>" data-rarity-label><%= rarity_label(card.tier) %></span>
+    <% end %>
+    <h3 class="line-clamp-3 text-xs font-bold leading-snug"><%= article.title %></h3>
+    <p class="mt-0.5 truncate text-[10px] text-white/80"><%= article.feed.title %></p>
+  <% end %>
+</li>

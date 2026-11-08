@@ -12,7 +12,7 @@
 | 1 | ReadDone | read_done.md（Reader の区切りに畳んだ） | ReadDone.dc.html | 5 | 深 |
 | 1 | Reader | reader.md | （モックに無い。ADR 0010・0011） | 5c・5d | 深 |
 | 1 | DailyGoal | daily_goal.md | DailyGoal.dc.html | 7、中身を今日のカードに 23（#106） | 深 |
-| 1 | Collection（図鑑） | collection.md（23b で書く） | （モックに無い。ADR 0020） | 23b（#106） | 深 |
+| 1 | Collection（図鑑） | collection.md | （モックに無い。ADR 0020） | 23b（#106） | 深 |
 | 1 | Comments | comments.md | Comments.dc.html | 未定（案: 9） | 浅 |
 | 2 個人最適化 | ForYou | for_you.md | ForYou.dc.html | 未定（案: 11） | 浅 |
 | 2 | Learning | learning.md | Learning.dc.html | 未定（案: 12） | 浅 |
