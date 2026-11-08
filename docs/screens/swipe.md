@@ -1,4 +1,4 @@
-# Swipe（左スワイプの「興味なし」は Unit 8a #56。一掃・「もう一度読む」・学習は第二の陣）
+# Swipe（左スワイプの「興味なし」は Unit 8a #56、右スワイプの「保存」は Unit 20 #95。一掃・「もう一度読む」・学習は第二の陣）
 
 ## 目的
 無限供給と FOMO の裏側。未読が積もったときの「逃げ道」を用意し、罪悪感をリセットする。
@@ -14,7 +14,7 @@
 - Main 内の操作（別画面ではない。Main の状態の一つ）
 - 左スワイプ → 行の中の隠れた「興味なし」の form を送る → `POST /articles/:id/dismissal`（見えるボタンは無い。#91） → Turbo Stream で行を「「見出し」を削除した ・ 元に戻す」の帯に替え、未読数（タブバーとアイコンのバッジ）を合わせる。重みの更新は第二の陣（ADR 0012）
 - 「元に戻す」→ `DELETE /articles/:id/dismissal` → 帯がカードに戻る。帯は Main を開き直すと出ない
-- 右スワイプ → 「保存」（あとで読む。ジェスチャーは 20b）。行の中の隠れた form を送る → `POST /articles/:id/bookmark`（Unit 20、ADR 0018。docs/screens/saved.md）
+- 右スワイプ → 「保存」（あとで読む）。引いた幅だけ左から背景とブックマークのアイコンが伸び、閾値の手前は灰、越えたら橙。行の中の隠れた form を送る → `POST /articles/:id/bookmark`（Unit 20、ADR 0018。docs/screens/saved.md）
 - 「一掃」→ 対象記事を archived に（Main に戻る）
 - 「読み返す」→ Roulette
 
