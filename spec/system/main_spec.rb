@@ -389,7 +389,7 @@ RSpec.describe "Main", type: :system do
       leave_and_return # 自動送信は興味なしの後ろで待つ
       click_on "読み終えた"
 
-      expect(page).to have_css("section[aria-label='判定']", text: "未完")
+      expect(page).to have_css("section[aria-label='判定']", text: "カードにならなかった")
       expect(find("li", text: "を削除した")).to have_text("消す記事")
     end
 
