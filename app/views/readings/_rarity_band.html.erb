@@ -1,6 +1,6 @@
 <%# 出目の帯。抽選済みの希少度（readings.tier）を、完読で手に入るカードの予告として見せる。
     色は段が上がるほど目立たせる（レアは橙、頂点の金は金色）。現れた瞬間に光るのは通常以外だけ（毎回光ると慣れる） %>
-<% band = if reading.jackpot? then "tier-glow bg-amber-400 text-amber-950" elsif reading.tier != Dopamine.rarity_names.first then "tier-glow bg-orange-500 text-white" else "bg-orange-50 text-orange-700" end %>
+<% band = [("tier-glow" unless base_rarity?(reading.tier)), rarity_tone(reading.tier, base: "bg-orange-50 text-orange-700")].compact.join(" ") %>
 <p class="inline-block rounded-full px-3 py-1 text-xs font-semibold <%= band %>" data-tier="<%= reading.tier %>">
   出目 <%= rarity_label(reading.tier) %> ・ 完読で<%= card_name(reading.tier) %>
 </p>

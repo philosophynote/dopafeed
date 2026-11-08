@@ -23,7 +23,12 @@ RSpec.describe RarityDraw do
     expect(rarities.sum { |rarity| rarity[:probability] }).to be_within(0.0001).of(1.0)
   end
 
-  it "段に数値の倍率を持たない（カードの希少度は名前と確率だけ。ADR 0020）" do
-    expect(rarities.flat_map(&:keys).uniq).to contain_exactly(:name, :probability)
+  it "段に数値の倍率を持たない（ADR 0020）" do
+    expect(rarities.flat_map(&:keys).uniq).not_to include(:multiplier)
+  end
+
+  it "浮動小数の丸めで目が累積の合計を超えても、頂点の段に収める（外れ無し）" do
+    random = instance_double(Random, rand: 1.0)
+    expect(described_class.draw(random: random)).to eq(Dopamine.top_rarity[:name])
   end
 end

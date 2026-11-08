@@ -24,6 +24,22 @@ module ReadingsHelper
     name == Dopamine.top_rarity[:name] ? "#{rarity_label(name)}のカード" : "#{rarity_label(name)}カード"
   end
 
+  # 一番低い段（通常）か。色や光らせ方を段で分けるときの境目
+  def base_rarity?(name)
+    name == Dopamine.base_rarity[:name]
+  end
+
+  # 希少度の色。頂点は金、間の段は橙で、段が上がるほど目立たせる。一番低い段は場所ごとに違うので呼ぶ側が渡す
+  #
+  # @param base [String] 一番低い段に使う Tailwind のクラス
+  # @return [String]
+  def rarity_tone(name, base:)
+    if name == Dopamine.top_rarity[:name] then "bg-amber-400 text-amber-950"
+    elsif base_rarity?(name) then base
+    else "bg-orange-500 text-white"
+    end
+  end
+
   # 希少度の確率を百分率で。0.05 → 5、0.003 → 0.3（整数なら小数を出さない）
   def rarity_percent(rarity)
     number_with_precision(rarity[:probability] * 100, precision: 1, strip_insignificant_zeros: true)

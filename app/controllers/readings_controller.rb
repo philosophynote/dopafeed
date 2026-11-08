@@ -30,7 +30,7 @@ class ReadingsController < ApplicationController
   # その場合は判定し直さず、次の記事が判定前なら開き直さない（滞在を測り直さない）
   def advance
     @reading = Reading.includes(article: :feed).find(params[:id])
-    # 判定を 1 回にするため、読み直しと判定を同じ書き込みトランザクションに入れる（同時に 2 本届くと連続数と宝箱が二重に数わる）
+    # 判定を 1 回にするため、読み直しと判定を同じ書き込みトランザクションに入れる（同時に 2 本届くと連続数と宝箱が二重に数える）
     judged = @reading.with_lock do
       next true if @reading.returned_at.present?
 

@@ -17,6 +17,10 @@ RSpec.describe Dopamine do
     expect(described_class.rarity("legendary")).to be_nil
   end
 
+  it "base_rarity は yml の最初の段" do
+    expect(described_class.base_rarity).to eq(yml.dig(:cards, :rarities).first)
+  end
+
   it "top_rarity は yml の最後の段（名前や確率ではなく並び順で決める）" do
     expect(described_class.top_rarity).to eq(yml.dig(:cards, :rarities).last)
     expect(described_class.top_rarity[:probability]).to be < yml.dig(:cards, :rarities).first[:probability]

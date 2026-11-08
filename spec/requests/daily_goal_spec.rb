@@ -22,9 +22,10 @@ RSpec.describe "DailyGoal", type: :request do
   context "ログイン済み" do
     before { sign_in_as(create(:user)) }
 
-    it "達成なら「今日の N 本、読み切った！」、開いた宝箱、ストリーク、今日の合計（本数 ・ 分）、今日のカード" do
-      complete(goal_articles - 1)
+    it "達成なら「今日の N 本、読み切った！」、開いた宝箱、ストリーク、今日の合計（本数 ・ 分）、今日のカード（レア・金は色付きのラベル）" do
+      complete(goal_articles - 2)
       rare = create(:reading, :completed, :rare, article: create(:article, title: "レアの記事"), opened_at: noon - 30.minutes)
+      gold = create(:reading, :completed, :jackpot, article: create(:article, title: "金の記事"), opened_at: noon - 20.minutes)
       create(:daily_goal, :achieved, day: today)
 
       travel_to(noon) { get daily_goal_path }
@@ -36,9 +37,13 @@ RSpec.describe "DailyGoal", type: :request do
       # 滞在は factory の 4 分 12 秒 × 本数を分に切り下げる
       expect(page).to have_text("#{goal_articles} 本 ・ #{goal_articles * (4 * 60 + 12) / 60} 分")
       expect(page).to have_no_text("XP")
-      cards = page.find("ul[aria-label='今日のカード']")
+      cards = page.find("ul[aria-label='カードの一覧']")
       expect(cards).to have_css("li", count: goal_articles)
+      expect(cards).to have_css("li[data-tier='#{rare.tier}'] span.bg-orange-500", text: "レア")
       expect(cards).to have_css("li[data-tier='#{rare.tier}']", text: "レア レアの記事", normalize_ws: true)
+      expect(cards).to have_css("li[data-tier='#{gold.tier}'] span.bg-amber-400", text: "金")
+      expect(cards).to have_css("li[data-tier='#{gold.tier}']", text: "金 金の記事", normalize_ws: true)
+      expect(cards).to have_css("li[data-tier='#{Dopamine.base_rarity[:name]}'] span.bg-gray-100", text: "通常", count: goal_articles - 2)
       expect(page).to have_text("今日のカード #{goal_articles} 枚", normalize_ws: true)
       expect(page).to have_link("今日はここまで", href: root_path)
       expect(page).to have_no_text("レア確率")

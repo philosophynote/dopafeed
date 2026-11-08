@@ -1,4 +1,4 @@
-# 読了。1 記事 1 行（ADR 0006）。完読した行がそのまま図鑑のカード 1 枚になる（ADR 0020）。
+# 読了。1 記事 1 行（ADR 0006）。完読した行がそのままカード 1 枚になる（ADR 0020）。
 # 記事を開いたときに作られ（opened_at と抽選結果 tier）、元の記事を開くと opened_at をその時刻に直し、
 # 読み終えると returned_at（判定した時刻）、完読なら completed_at が入る。
 # tier はカードの枠の希少度の名前。確率は常に config/dopamine.yml から導き、数値は保存しない。
@@ -21,9 +21,7 @@ class Reading < ApplicationRecord
   scope :completed, -> { where.not(completed_at: nil) }
   scope :on, ->(day) { completed.where(completed_at: ReadingDay.range(day)) }
 
-  # 図鑑の枚数 = 完読した行の数。数え方を 1 か所に置く
-  #
-  # @return [Integer]
+  # 手に入れたカードの枚数 = 完読した行の数。数え方を 1 か所に置く
   def self.card_count
     completed.count
   end

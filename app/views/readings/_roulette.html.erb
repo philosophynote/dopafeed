@@ -23,7 +23,7 @@
       <div class="pointer-events-none absolute inset-x-3 top-1/2 h-12 -translate-y-1/2 rounded-xl border-2 border-orange-400"></div>
     </div>
 
-    <% if reading.tier != rarities.first[:name] && !reading.jackpot? %>
+    <% if !base_rarity?(reading.tier) && !reading.jackpot? %>
       <p class="roulette-result mt-3 text-center text-base font-bold text-orange-600"><%= card_name(reading.tier) %>が懸かった！ 完読で手に入る</p>
     <% end %>
 

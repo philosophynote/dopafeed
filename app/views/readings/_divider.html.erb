@@ -1,7 +1,7 @@
 <%# 判定の区切り（docs/screens/reader.md）。「読み終えた」の form と置き換わり、手に入れたカードを見せてから次の 1 本へ流す。
     完読は出目の色（通常とレアは橙、金は金色）、未完は灰。責める文言は出さず、どうすれば手に入るかだけ言う %>
 <% completed = reading.completed? %>
-<% tone = if !completed then "bg-gray-200 text-gray-700" elsif reading.jackpot? then "bg-amber-400 text-amber-950" else "bg-orange-500 text-white" end %>
+<% tone = completed ? rarity_tone(reading.tier, base: "bg-orange-500 text-white") : "bg-gray-200 text-gray-700" %>
 <section id="<%= dom_id(reading, :result) %>" class="rounded-2xl p-4 text-center <%= tone %>" aria-label="判定" data-tier="<%= reading.tier %>" data-completed="<%= completed %>">
   <% if completed %>
     <p class="text-xs font-semibold opacity-90">読了</p>

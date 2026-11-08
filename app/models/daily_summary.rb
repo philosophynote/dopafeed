@@ -19,10 +19,8 @@ class DailySummary
   end
 
   # その日に手に入れたカード。開封の順（古い完読が先）
-  #
-  # @return [ActiveRecord::Relation<Reading>]
   def cards
-    readings.includes(article: :feed).order(:completed_at, :id)
+    readings.includes(:article).order(:completed_at, :id)
   end
 
   def goal

@@ -26,6 +26,13 @@ module Dopamine
     rarities.find { |rarity| rarity[:name] == name }
   end
 
+  # 一番低い段（通常）。yml の最初の段で決める（{top_rarity} と対にして、並び順を約束にする）
+  #
+  # @return [Hash] name / probability
+  def self.base_rarity
+    rarities.first
+  end
+
   # 頂点の段（金）。yml の最後の段で決める。
   # 名前で引くと yml の綴りに縛られ、確率で引くと同率の段が増えたときに揺れるため、並び順を約束にする
   #

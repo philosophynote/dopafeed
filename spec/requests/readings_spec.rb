@@ -355,6 +355,32 @@ RSpec.describe "Readings", type: :request do
       let(:current) { create(:article, title: "今の記事", published_at: noon) }
       let!(:reading) { create(:reading, article: current, tier: common, opened_at: noon) }
 
+      it "金の完読は区切りが金色" do
+        gold = create(:reading, :jackpot, article: create(:article, published_at: noon - 1.hour), opened_at: noon)
+
+        travel_to(noon + threshold) { post_turbo(gold) }
+
+        expect(page).to have_css("section[aria-label='判定'][data-tier='#{gold.tier}'].bg-amber-400", text: "金のカードを手に入れた！")
+      end
+
+      it "レアの完読は区切りが橙（通常と同じ色）" do
+        rare = create(:reading, :rare, article: create(:article, published_at: noon - 1.hour), opened_at: noon)
+
+        travel_to(noon + threshold) { post_turbo(rare) }
+
+        expect(page).to have_css("section[aria-label='判定'][data-tier='#{rare.tier}'].bg-orange-500", text: "レアカードを手に入れた！")
+        expect(page).to have_no_css("section[aria-label='判定'].bg-amber-400")
+      end
+
+      it "未完の区切りは灰で、出目の色を使わない" do
+        gold = create(:reading, :jackpot, article: create(:article, published_at: noon - 1.hour), opened_at: noon)
+
+        travel_to(noon + 5.seconds) { post_turbo(gold) }
+
+        expect(page).to have_css("section[aria-label='判定'][data-completed='false'].bg-gray-200", text: "カードにならなかった")
+        expect(page).to have_no_css("section[aria-label='判定'].bg-amber-400")
+      end
+
       it "興味なしにした記事は次の 1 本に継ぎ足さず、他に無ければ「全部読んだ」" do
         create(:article, :dismissed, title: "興味なしの記事", published_at: noon - 1.hour)
 
