@@ -128,6 +128,67 @@ RSpec.describe "Main", type: :system do
       expect(page.evaluate_script("window.__submits")).to eq(0)
     end
 
+    it "応答を待つ間に別の行を押したら、最後に押した行だけが開く（送信は順に届く）" do
+      create(:article, title: "最初の記事", summary: "・一行目", published_at: 1.hour.ago)
+      create(:article, title: "次の記事", summary: "・次の要約", published_at: 2.hours.ago)
+      create(:article, title: "三本目の記事", summary: "・三本目の要約", published_at: 3.hours.ago)
+      sign_in
+      expand("三本目の記事")
+      expect(page).to have_text("・三本目の要約")
+
+      # POST の応答を手で放すまで止める（圏外で応答が遅い状態）
+      page.execute_script(<<~JS)
+        window.__held = []
+        window.__fetch = window.fetch
+        window.fetch = (url, options) => (options?.method || "GET").toUpperCase() === "POST"
+          ? new Promise((resolve) => window.__held.push(() => window.__fetch(url, options).then(resolve)))
+          : window.__fetch(url, options)
+        window.__release = () => { const next = window.__held.shift(); if (next) next() }
+      JS
+      expand("最初の記事")
+      expand("次の記事")
+      # 応答を待つ間に、読み込み済みの行を送らずに開き、最後に押した行にする
+      expand("三本目の記事")
+      expand("三本目の記事")
+      expect(expanded?("三本目の記事")).to be(true)
+      Timeout.timeout(Capybara.default_max_wait_time) { sleep 0.05 until page.evaluate_script("window.__held.length") == 1 }
+      page.execute_script("window.__release()")
+      expect(page).to have_css("##{ActionView::RecordIdentifier.dom_id(Article.find_by!(title: "最初の記事"), :detail)}", visible: :all)
+      Timeout.timeout(Capybara.default_max_wait_time) { sleep 0.05 until page.evaluate_script("window.__held.length") == 1 }
+      page.execute_script("window.__release()")
+      expect(page).to have_css("##{ActionView::RecordIdentifier.dom_id(Article.find_by!(title: "次の記事"), :detail)} section", visible: :all)
+
+      expect(page).to have_text("・三本目の要約")
+      expect(page).to have_no_text("・一行目")
+      expect(page).to have_no_text("・次の要約")
+      expect(expanded?("三本目の記事")).to be(true)
+    end
+
+    it "応答を待つ間に別の未読の行も押したら、後に押した行が開く" do
+      create(:article, title: "最初の記事", summary: "・一行目", published_at: 1.hour.ago)
+      create(:article, title: "次の記事", summary: "・次の要約", published_at: 2.hours.ago)
+      sign_in
+      page.execute_script(<<~JS)
+        window.__held = []
+        window.__fetch = window.fetch
+        window.fetch = (url, options) => (options?.method || "GET").toUpperCase() === "POST"
+          ? new Promise((resolve) => window.__held.push(() => window.__fetch(url, options).then(resolve)))
+          : window.__fetch(url, options)
+        window.__release = () => { const next = window.__held.shift(); if (next) next() }
+      JS
+      expand("最初の記事")
+      expand("次の記事")
+      2.times do
+        Timeout.timeout(Capybara.default_max_wait_time) { sleep 0.05 until page.evaluate_script("window.__held.length") >= 1 }
+        page.execute_script("window.__release()")
+      end
+
+      expect(page).to have_text("・次の要約")
+      expect(page).to have_no_text("・一行目")
+      expect(expanded?("次の記事")).to be(true)
+      expect(expanded?("最初の記事")).to be(false)
+    end
+
     it "別の画面から戻る（Turbo のキャッシュ）と、離れたときの開閉のまま。畳んで離れた行は開き直さない" do
       create(:article, title: "最初の記事", summary: "・一行目", published_at: 1.hour.ago)
       create(:article, title: "次の記事", summary: "・次の要約", published_at: 2.hours.ago)

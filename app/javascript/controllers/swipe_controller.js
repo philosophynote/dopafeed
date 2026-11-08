@@ -18,6 +18,8 @@ const SETTLE_MARGIN_MS = 100
 // Turbo は form の送信中に別の form が送られると先の送信を止めて応答を捨てる（先のカードが画面に残る）。
 // 送信は全カードで 1 本の列に並べ、前の turbo:submit-end を待ってから次を送る
 let submissions = Promise.resolve()
+// 最後に「読む」を押した印。応答は送った順に届くので、待つ間に押し直した行を後の応答で負かさないよう、開くのはこの印を持つ行だけにする
+let latestTap = 0
 
 export default class extends Controller {
   static targets = ["card", "rail", "saveRail", "form", "saveForm", "read", "detail"]
@@ -212,6 +214,7 @@ export default class extends Controller {
       submissions = submissions.then(() => Turbo.visit(href))
       return
     }
+    this.tap = ++latestTap
     if (this.loaded()) return this.expand(this.detailTarget.hidden)
 
     this.opening = true
@@ -223,18 +226,17 @@ export default class extends Controller {
   }
 
   // 中身の入った欄が繋がるのは、応答の差し替えか、Turbo のキャッシュから戻ったとき。
-  // 開くのは自分が待っていた応答のときと、ボタンが開いた印を持っているとき（キャッシュの状態を保つ）だけ。
-  // 待つ間に別の行を開いていたら、遅れて届いた応答では開かない（最後に開いた行を勝たせる）
+  // 開くのは自分が待っていた応答で、待つ間に他の行が押されていないときと、ボタンが開いた印を持っているとき（キャッシュの状態を保つ）だけ。
+  // 最後に押した行を勝たせる（遅れて届いた応答が、後から開いた行を畳まない）
   detailTargetConnected() {
     if (!this.loaded()) return
 
-    const open = this.awaiting || this.readTarget.getAttribute("aria-expanded") === "true"
+    const open = (this.awaiting && this.tap === latestTap) || this.readTarget.getAttribute("aria-expanded") === "true"
     this.awaiting = false
     this.expand(open)
   }
 
   collapse() {
-    this.awaiting = false
     if (this.hasDetailTarget) this.expand(false)
   }
 
