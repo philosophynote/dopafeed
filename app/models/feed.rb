@@ -12,7 +12,7 @@ class Feed < ApplicationRecord
   validates :url, presence: true, uniqueness: true
 
   # 購読ごとに数えると SQL が増えるため、記事を読み込まずにまとめて集計する。
-  # 一つの購読だけ数えるときも同じ式を通し、行を差し替えた後と一覧とで数をずらさない
+  # 一つの購読だけを数えるときも articles を絞ってこの式を通し、件数と未読の数え方を一か所に保つ
   def self.article_counts(articles = Article.all)
     [ articles.group(:feed_id).count, articles.unread.group(:feed_id).count ]
   end
