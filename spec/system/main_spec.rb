@@ -12,7 +12,7 @@ RSpec.describe "Main", type: :system do
       sign_in
 
       expect(page).to have_css("article", count: 3)
-      expect(page).to have_text("今日のゴール 3 / #{goal_articles}")
+      expect(find("section[aria-label='今日の進み']")).to have_text("今日のゴール 3 / #{goal_articles}", normalize_ws: true)
       expect(page).to have_text("1日連続")
 
       # CSS が当たっていないと以下の寸法検査が全部落ちて原因が読めないので、先に 1 つのユーティリティで確かめる
@@ -58,6 +58,56 @@ RSpec.describe "Main", type: :system do
     row.find_button("読む").click
     expect(page).to have_css("[role='dialog'][aria-label='ルーレット']")
     expect(Article.where("title LIKE ?", "%その 3 本目%").sole.reading).to be_present
+  end
+
+  it "ステータスは 1 行に収まり、大きな数でも横にはみ出さない。画像つきの行が 6 本目まで画面に入る" do
+    feed = create(:feed, title: "Zenn")
+    6.times do |i|
+      create(:article, feed: feed, title: "見出しが三行に折り返されるくらいに長い記事の題名をここに書いておく、その #{i + 1} 本目の記事",
+                       image_url: "/icon.png", published_at: 1.hour.ago - i.minutes)
+    end
+    travel_to noon do
+      goal_articles.times { |i| create(:reading, :completed, opened_at: noon - (i + 1).minutes, xp: 2469) }
+      create(:reading, :completed, opened_at: noon - 1.day, xp: 10)
+      sign_in
+
+      status = find("section[aria-label='今日の進み']")
+      expect(status).to have_text("累計 12,355 XP", normalize_ws: true)
+      expect(status).to have_text("コンボ ×", normalize_ws: true)
+      expect(status.evaluate_script("this.getBoundingClientRect().height")).to be <= 56
+      expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "横スクロールが出ている"
+      overflow = status.evaluate_script("Array.from(this.querySelectorAll('*')).some(el => el.getBoundingClientRect().right > this.getBoundingClientRect().right + 0.5)")
+      expect(overflow).to be(false), "ステータスの中身が右にはみ出している"
+
+      tab_top = page.evaluate_script("document.querySelector(\"nav[aria-label='タブバー']\").getBoundingClientRect().top")
+      # iPhone のホーム画面アプリは上下のセーフエリア（上 47px・下 34px）の分だけ狭いので、それを引いても 6 本目の見出しの頭が見える
+      sixth = page.evaluate_script("document.querySelectorAll('article')[5].querySelector('h2').getBoundingClientRect().top")
+      expect(sixth + 47).to be < tab_top - 34, "セーフエリアを引くと 6 本目の見出しが隠れる"
+      screenshot!
+    end
+  end
+
+  it "ストリーク 3 桁・ゴール超え・XP 6 桁でもステータスは 1 行のまま横にはみ出さない（累計 XP の末尾を省く）" do
+    allow(ReadingStreak).to receive(:days).and_return(365)
+    travel_to noon do
+      (goal_articles * 2 + 2).times { |i| create(:reading, :completed, opened_at: noon - (i + 1).minutes, xp: 123_456) }
+      sign_in
+
+      status = find("section[aria-label='今日の進み']")
+      expect(status).to have_text("365日連続")
+      expect(status).to have_text("#{goal_articles * 2 + 2} / #{goal_articles}")
+      expect(status.evaluate_script("this.getBoundingClientRect().height")).to be <= 56
+      expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "横スクロールが出ている"
+      overflow = status.evaluate_script(<<~JS)
+        (() => {
+          const link = this.querySelector("a").getBoundingClientRect()
+          return Array.from(this.querySelectorAll("a > span:not(.sr-only)")).filter(el => !el.classList.contains("truncate"))
+            .some(el => el.getBoundingClientRect().right > link.right + 0.5)
+        })()
+      JS
+      expect(overflow).to be(false), "ステータスの中身がカードの外にはみ出している"
+      screenshot!
+    end
   end
 
   it "OGP 画像のある記事は行の右に横長のサムネイルで出し、無い記事・読めない画像は枠ごと出さない" do

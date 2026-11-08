@@ -50,7 +50,7 @@ RSpec.describe "Main", type: :request do
 
       expect(page).to have_css("article h2", text: "残る記事")
       expect(page).to have_no_text("興味なしの記事")
-      expect(page).to have_text("未読 1 件")
+      expect(page.find("nav[aria-label='タブバー']")).to have_css("[data-unread-badge]", text: "1")
       expect(page.find("article")).to have_no_button("削除")
       expect(page.find("article")).to have_css("form[hidden][action='#{article_dismissal_path(article)}'][data-swipe-target='form']", visible: :all)
     end
@@ -107,7 +107,7 @@ RSpec.describe "Main", type: :request do
       end
     end
 
-    it "ストリーク・未読数・読了累計・累計 XP が出る" do
+    it "ストリーク・累計 XP が出て、未読数と読了累計はステータスに出さない（未読はタブバーのバッジ）" do
       travel_to noon do
         3.times { |i| create(:reading, :completed, opened_at: noon - (i + 1).days, xp: 10) }
         2.times { create(:article) }
@@ -115,9 +115,11 @@ RSpec.describe "Main", type: :request do
         get root_path
 
         expect(page).to have_text("3日連続")
-        expect(page).to have_text("未読 2 件")
-        expect(page).to have_text("読了 3")
         expect(page).to have_text("累計 30 XP")
+        expect(page).to have_no_text("読了")
+        expect(page).to have_no_css("#unread-count")
+        expect(page.find("section[aria-label='今日の進み']")).to have_no_text("未読")
+        expect(page.find("nav[aria-label='タブバー']")).to have_css("[data-unread-badge]", text: "2")
       end
     end
 
@@ -149,10 +151,11 @@ RSpec.describe "Main", type: :request do
       expect(nav).to have_css("[aria-disabled=true]", count: 2)
     end
 
-    it "今日のゴールの行は DailyGoal へのリンク" do
+    it "ステータスは 1 本のリンクで、行ごと DailyGoal へ（ストリーク・ゴール・累計 XP を含む）" do
       get root_path
 
-      expect(page).to have_link(href: daily_goal_path, text: /今日のゴール 0 \/ #{goal_articles}/)
+      link = page.find("section[aria-label='今日の進み'] a[href='#{daily_goal_path}']")
+      expect(link).to have_text(/0日連続.*今日のゴール 0 \/ #{goal_articles}.*累計 0 XP/m, normalize_ws: true)
     end
 
     it "累計 XP には宝箱のボーナスも乗る" do
