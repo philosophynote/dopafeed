@@ -307,4 +307,28 @@ RSpec.describe FeedFetcher do
       expect { described_class.new(feed).call }.to raise_error(NoMethodError)
     end
   end
+
+  # 取得はフィードの名前を書かない。書き始めると、利用者が付けた名前が定期取得のたびに RSS の名前へ戻る
+  describe "利用者が付けた名前" do
+    before { feed.update!(title: "手で付けた名前") }
+
+    it "200 で取っても変わらない" do
+      stub_feed
+      described_class.new(feed).call
+      expect(feed.reload.title).to eq("手で付けた名前")
+    end
+
+    it "304 でも変わらない" do
+      stub_feed(status: 304, body: "")
+      described_class.new(feed).call
+      expect(feed.reload.title).to eq("手で付けた名前")
+    end
+
+    it "恒久移転で url が替わっても変わらない" do
+      stub_feed(status: 301, body: "", headers: { "Location" => "https://feeds.example.com/rss.xml" })
+      stub_request(:get, "https://feeds.example.com/rss.xml").to_return(status: 200, body: rss)
+      described_class.new(feed).call
+      expect(feed.reload).to have_attributes(title: "手で付けた名前", url: "https://feeds.example.com/rss.xml")
+    end
+  end
 end

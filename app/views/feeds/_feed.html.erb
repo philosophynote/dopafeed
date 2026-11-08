@@ -1,0 +1,22 @@
+<%# Feeds の 1 行。名前の変更（feeds#update）の Turbo Stream もこの行ごと差し替える（削除の確認文が名前を含むため） %>
+<li id="<%= dom_id(feed) %>" class="touch-pan-y rounded-2xl bg-white p-4 shadow-sm" data-feed data-controller="feed-swipe"
+    data-feed-swipe-ratio-value="<%= Dopamine.settings.dig(:swipe, :dismiss_threshold_ratio) %>"
+    data-action="pointerdown->feed-swipe#start pointermove->feed-swipe#move pointerup->feed-swipe#end pointercancel->feed-swipe#cancel lostpointercapture->feed-swipe#cancel">
+  <%= render "feeds/title", feed: feed %>
+  <p class="break-all text-xs text-gray-500"><%= feed.url %></p>
+  <p class="mt-2 text-sm"><%= article_count %>件・未読 <%= unread_count %></p>
+  <div class="flex items-center justify-between gap-3">
+    <p class="text-xs text-gray-500">
+      <% if feed.last_fetched_at %>
+        最終取得 <time datetime="<%= feed.last_fetched_at.iso8601 %>"><%= time_ago_in_words(feed.last_fetched_at, locale: :ja) %>前</time>
+      <% else %>
+        未取得
+      <% end %>
+    </p>
+    <%= button_to "削除", feed_path(feed), method: :delete, class: "min-h-11 min-w-11 text-sm text-red-600",
+                  data: { feed_swipe_target: "delete" }, form: { data: { turbo_confirm: "「#{feed.title}」を削除しますか？記事・保存・読了記録も削除され、累計 XP・読了数・連続日数が変わります。達成済みの宝箱は残ります。" } } %>
+  </div>
+  <% if feed.last_error.present? %>
+    <p class="break-all text-sm text-red-600"><%= feed.last_error %></p>
+  <% end %>
+</li>

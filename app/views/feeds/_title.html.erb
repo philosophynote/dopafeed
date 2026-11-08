@@ -1,0 +1,7 @@
+<%# 行の名前。「名前を変更」でこの Frame だけが入力欄（feeds/edit）に替わる %>
+<%= turbo_frame_tag dom_id(feed, :title) do %>
+  <div class="flex items-center justify-between gap-3">
+    <h2 class="min-w-0 break-all text-lg font-bold"><%= feed.title %></h2>
+    <%= link_to "名前を変更", edit_feed_path(feed), class: "flex min-h-11 min-w-11 shrink-0 items-center justify-center text-sm text-orange-600" %>
+  </div>
+<% end %>

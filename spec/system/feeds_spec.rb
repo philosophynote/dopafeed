@@ -1,9 +1,10 @@
 RSpec.describe "Feeds", type: :system do
-  def swipe(dx, dy = 0, ending = "pointerup")
-    page.execute_script(<<~JS, find("[data-feed]").native, dx, dy, ending)
-      const [row, dx, dy, ending] = arguments, r = row.getBoundingClientRect()
+  # on を渡すと、その要素の上で始めた触りになる（イベントは行まで bubbling する）
+  def swipe(dx, dy = 0, ending = "pointerup", on: nil)
+    page.execute_script(<<~JS, find("[data-feed]").native, on&.native, dx, dy, ending)
+      const [row, origin, dx, dy, ending] = arguments, r = row.getBoundingClientRect()
       for (const [type, x, y] of [["pointerdown", 0, 0], ["pointermove", 0, 0], ["pointermove", 0, 1], ["pointermove", dx, dy], [ending, dx, dy]]) {
-        row.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 7, isPrimary: true,
+        (origin || row).dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 7, isPrimary: true,
           button: 0, clientX: r.left + r.width / 2 + x, clientY: r.top + 20 + y }))
       }
     JS
@@ -52,5 +53,57 @@ RSpec.describe "Feeds", type: :system do
     expect(Feed.exists?(feed.id)).to be(true)
     accept_confirm { swipe(-180) }
     expect(page).to have_text("購読中のフィードはありません")
+  end
+
+  it "名前を変更すると行と Main の名前が替わる。「やめる」では替わらず、空白だけなら赤字で残す" do
+    feed = create(:feed, title: "Zenn のトレンド", url: "https://example.com/" + "long-path/" * 15)
+    create(:article, feed: feed, title: "記事 A")
+    sign_in
+    click_on "購読"
+
+    click_on "名前を変更"
+    expect(page).to have_field("名前", with: "Zenn のトレンド")
+    screenshot!("rename-editing")
+    fill_in "名前", with: "途中"
+    click_on "やめる"
+    expect(page).to have_css("h2", exact_text: "Zenn のトレンド")
+    expect(page).to have_no_field("名前")
+
+    click_on "名前を変更"
+    # 空欄はブラウザが送らせない（required）。空白だけは送れてしまうので、サーバーが断る
+    fill_in "名前", with: "   "
+    click_on "保存"
+    expect(page).to have_css(".text-red-600", text: "名前を入力してください")
+    expect(feed.reload.title).to eq("Zenn のトレンド")
+    screenshot!("rename-error")
+
+    fill_in "名前", with: "Zenn"
+    expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true)
+    expect(page.evaluate_script("Array.from(document.querySelectorAll('a, button, input:not([type=hidden])')).every(e => { const r = e.getBoundingClientRect(); return r.width >= 44 && r.height >= 44 })")).to be(true)
+    click_on "保存"
+
+    expect(page).to have_css("h2", exact_text: "Zenn")
+    expect(page).to have_no_field("名前")
+    expect(page).to have_text("1件・未読 1")
+    expect(feed.reload.title).to eq("Zenn")
+    screenshot!("renamed")
+    dismiss_confirm(/「Zenn」を削除しますか？/) { click_on "削除" }
+
+    find("nav").find_link(href: root_path).click
+    expect(page).to have_css("article", text: "記事 A")
+    expect(find("article", text: "記事 A")).to have_text("Zenn")
+    expect(find("article", text: "記事 A")).to have_no_text("トレンド")
+  end
+
+  it "入力欄の上で横に指を動かしても削除が始まらない" do
+    feed = create(:feed, title: "残す購読")
+    sign_in
+    click_on "購読"
+    click_on "名前を変更"
+
+    swipe(-180, on: find_field("名前"))
+
+    expect(page).to have_field("名前", with: "残す購読")
+    expect(Feed.exists?(feed.id)).to be(true)
   end
 end
