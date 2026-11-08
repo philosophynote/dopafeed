@@ -26,6 +26,11 @@ export default class extends Controller {
     window.addEventListener("focus", this.returned)
   }
 
+  // 未完の区切りの後ろに置き直された「読み終えた」も、開くまでは隠す（JS が無いときの置き直しは無い）
+  finishTargetConnected(form) {
+    form.hidden = !this.opened
+  }
+
   disconnect() {
     document.removeEventListener("visibilitychange", this.visibility)
     window.removeEventListener("focus", this.returned)
@@ -45,11 +50,19 @@ export default class extends Controller {
     this.finishTargets.forEach((form) => { form.hidden = false })
   }
 
+  // 畳まれて見えない欄では送らない。開いたまま合図が来なかった欄が、別の欄の戻りの合図で判定されてしまうため（読んでいない記事に XP が付く）。
+  // 送信は finish の出来事で周りに預ける。一覧では行の送信の列（swipe）が受け取り、他の送信と応答を捨て合わないよう 1 本ずつ送る。受け取り手が無ければ自分で送る
   returned() {
     if (!this.opened || !this.away || !this.hasFinishTarget) return
 
     this.opened = false
+    this.away = false
+    if (this.element.closest("[hidden]")) return
+
     // ボタンを submitter にすると、Turbo が応答まで無効にする（自動送信の直後の手押しで二重に送らない）
-    this.finishTarget.requestSubmit(this.finishTarget.querySelector("button[type=submit]"))
+    const form = this.finishTarget
+    const submitter = form.querySelector("button[type=submit]")
+    const handed = this.dispatch("finish", { detail: { form, submitter }, cancelable: true })
+    if (!handed.defaultPrevented) form.requestSubmit(submitter)
   }
 }

@@ -251,6 +251,13 @@ export default class extends Controller {
     if (open) this.dispatch("expanded")
   }
 
+  // 行の下の欄が戻りの「読み終えた」を預けてきた。興味なし・保存・読むと同じ列に並べ、送信中の応答を捨てさせない
+  finish(event) {
+    event.preventDefault()
+    const { form, submitter } = event.detail
+    this.enqueue(form, submitter, () => {})
+  }
+
   restore() {
     this.settle(0, () => { this.flying = false })
   }

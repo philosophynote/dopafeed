@@ -94,6 +94,11 @@
   100% { box-shadow: 0 0 0 0.75rem rgb(251 191 36 / 0); transform: scale(1); }
 }
 
+/* 広げた欄の「読み終えた」は開くまで隠れる。隠れている間は枠の余白も畳み、欄の下の余白を上と揃える */
+.detail-end:has(> form[hidden]) {
+  margin-top: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .tier-glow { animation: none; }
   .roulette-strip { animation-duration: 1ms; }

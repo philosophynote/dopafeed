@@ -220,6 +220,112 @@ RSpec.describe "Main", type: :system do
       expect(expanded?("最初の記事")).to be(true)
     end
 
+    it "「記事に遷移」で元記事を別窓に開いて戻ると、広げた欄に区切りが出て、上の 1 行の本数と XP が増える。画面は移らない" do
+      threshold = Dopamine.settings.dig(:read, :complete_after_seconds)
+      goal = Dopamine.settings.dig(:daily_goal, :articles)
+      allow(XpRoulette).to receive(:draw).and_return(common)
+      article = create(:article, title: "読む記事", summary: "・要約", url: "#{Capybara.current_session.server.base_url}/up?main")
+      create(:article, title: "残る記事", published_at: 1.day.ago)
+      sign_in
+      expect(find("section[aria-label='今日の進み']")).to have_text("今日のゴール 0 / #{goal}", normalize_ws: true)
+
+      expand("読む記事")
+      expect(page).to have_link("記事に遷移")
+      expect(page).to have_no_button("読み終えた") # 開くまでは隠す
+      reading = article.reload.reading
+      since = reading.opened_at
+      main = current_window
+      source = window_opened_by { click_on "記事に遷移" }
+      within_window(source) do
+        expect(page).to have_current_path("/up", ignore_query: true)
+        Timeout.timeout(Capybara.default_max_wait_time) { sleep 0.05 until reading.reload.opened_at > since }
+        reading.update_columns(opened_at: Time.current - threshold - 5)
+      end
+      source.close
+      switch_to_window(main)
+
+      expect(page).to have_css("section[aria-label='判定']", text: "読了！ +#{base} XP")
+      expect(find("section[aria-label='今日の進み']")).to have_text("今日のゴール 1 / #{goal}", normalize_ws: true)
+      expect(find("section[aria-label='今日の進み']")).to have_text("#{base} XP")
+      expect(page).to have_current_path(root_path)
+      expect(page).to have_css("article", text: "残る記事")
+      expect(reading.reload).to be_completed
+      expect(Reading.count).to eq(1) # 次の記事は開かない
+      expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "横スクロールが出ている"
+      screenshot!("judged")
+    end
+
+    # 別窓を開かせず、隠れる・見える合図を手で出す（iPhone のシートの開閉の代わり。reader_spec と同じ手）
+    def fake_sheet!
+      page.execute_script(<<~JS)
+        document.addEventListener("click", (event) => { if (event.target.closest("a[target=_blank]")) event.preventDefault() }, true)
+        window.__visibility = "visible"
+        Object.defineProperty(document, "visibilityState", { configurable: true, get: () => window.__visibility })
+        window.__setVisibility = (state) => { window.__visibility = state; document.dispatchEvent(new Event("visibilitychange")) }
+      JS
+    end
+
+    def open_link(title)
+      link = find("li", text: title).find_link("記事に遷移")
+      reading = Article.find_by!(title: title).reading
+      since = reading.reload.opened_at
+      link.click
+      Timeout.timeout(Capybara.default_max_wait_time) { sleep 0.05 until reading.reload.opened_at > since }
+      reading
+    end
+
+    def leave_and_return(dwell: nil, reading: nil)
+      page.execute_script('window.__setVisibility("hidden")')
+      reading.update_columns(opened_at: Time.current - dwell) if dwell
+      page.execute_script('window.__setVisibility("visible")')
+    end
+
+    it "未完の後も同じ欄で読み直せて、2 度目は開いた後に出る「読み終えた」でも判定できる。未読数は完読で 1 減る" do
+      threshold = Dopamine.settings.dig(:read, :complete_after_seconds)
+      create(:article, title: "読み直す記事", summary: "・要約")
+      create(:article, title: "残る記事", published_at: 1.day.ago)
+      sign_in
+      fake_sheet!
+      expect(find("[data-unread-badge]")).to have_text("2")
+
+      expand("読み直す記事")
+      reading = open_link("読み直す記事")
+      leave_and_return
+      expect(page).to have_css("section[aria-label='判定']", text: "未完 ・ +0 XP")
+      expect(page).to have_no_button("読み終えた")
+      expect(find("[data-unread-badge]")).to have_text("2")
+
+      open_link("読み直す記事")
+      expect(reading.reload.returned_at).to be_nil
+      reading.update_columns(opened_at: Time.current - threshold - 5)
+      click_on "読み終えた"
+
+      expect(page).to have_css("section[aria-label='判定']", text: "読了！")
+      expect(page).to have_css("section[aria-label='判定']", count: 1)
+      expect(find("[data-unread-badge]")).to have_text("1")
+      expect(reading.reload).to be_completed
+    end
+
+    it "畳んだ行は戻りの合図で判定しない（開いたまま合図が来なかった行が、別の行の戻りで判定されない）" do
+      threshold = Dopamine.settings.dig(:read, :complete_after_seconds)
+      create(:article, title: "最初の記事", summary: "・一行目", published_at: 1.hour.ago)
+      create(:article, title: "次の記事", summary: "・次の要約", published_at: 2.hours.ago)
+      sign_in
+      fake_sheet!
+
+      expand("最初の記事")
+      first = open_link("最初の記事") # 隠れる合図が来ないまま戻った
+      expand("次の記事")
+      expect(expanded?("最初の記事")).to be(false)
+      second = open_link("次の記事")
+      leave_and_return(dwell: threshold + 5, reading: second)
+
+      expect(page).to have_css("section[aria-label='判定']", text: "読了！", count: 1)
+      expect(second.reload).to be_completed
+      expect(first.reload.returned_at).to be_nil
+      expect(find("section[aria-label='今日の進み']")).to have_text("今日のゴール 1 /", normalize_ws: true)
+    end
+
     it "要約がまだなら「作成中」、Job が書き終えると広げた欄の要約だけ差し替わる" do
       summarizer = instance_double(Claude::Summarizer, call: "・できた要約\n・二\n・三")
       allow(Claude::Summarizer).to receive(:new).and_return(summarizer)
