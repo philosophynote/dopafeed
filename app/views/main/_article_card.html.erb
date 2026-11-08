@@ -1,4 +1,4 @@
-<%# 一覧の 1 行。要約は出さない（「読む」の後に作るので読む前はほぼ空。Reader で読む）。サムネイルを右に小さく置くのは一画面に並ぶ本数を減らさないため。
+<%# 一覧の 1 行（中身は articles/_row_body）。
     行全体を「読む」のボタンが覆い、どこを押してもルーレット → Reader に進む（JS が無くても form の POST で進む）。
     「興味なし」（画面の呼び名は「削除」。記録は残り「元に戻す」で戻せる）は見えるボタンを置かず、左へ引くと Stimulus swipe が隠れた form を送る。
     引いた幅だけ右から丸型の背景とゴミ箱のアイコンが伸び、送る閾値を越えると赤くなる。
@@ -16,17 +16,7 @@
   </div>
   <article class="swipe-card relative flex items-start gap-3 bg-white px-4 py-3" data-swipe-target="card"
            data-action="pointerdown->swipe#start pointermove->swipe#move pointerup->swipe#end pointercancel->swipe#cancel">
-    <div class="min-w-0 flex-1">
-      <h2 class="line-clamp-3 text-base font-bold leading-snug"><%= article.title %></h2>
-      <p class="mt-1 flex min-w-0 items-center gap-1 text-xs text-gray-500">
-        <span class="truncate"><%= article.feed.title %></span>
-        <% if article.published_at %>
-          <span class="shrink-0">・</span>
-          <time class="shrink-0" datetime="<%= article.published_at.iso8601 %>"><%= time_ago_in_words(article.published_at, locale: :ja) %>前</time>
-        <% end %>
-      </p>
-    </div>
-    <%= render "articles/image", article: article, thumbnail: true %>
+    <%= render "articles/row_body", article: article %>
     <%# form は flex の項目として場所を取らない（contents）。ボタンは article を基準に行全体を覆う %>
     <%= button_to article_reading_path(article), form: { class: "contents" },
                   class: "absolute inset-0 w-full [-webkit-tap-highlight-color:transparent] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-orange-500 active:bg-black/5",
@@ -34,5 +24,7 @@
       <span class="sr-only">「<%= article.title %>」を読む</span>
     <% end %>
     <%= button_to "削除", article_dismissal_path(article), form: { hidden: true, data: { swipe_target: "form" } } %>
+    <%# 「保存」（あとで読む）も見えるボタンを置かず、右へ引く操作が送る %>
+    <%= button_to "保存", article_bookmark_path(article), form: { hidden: true, data: { swipe_target: "saveForm" } } %>
   </article>
 </li>

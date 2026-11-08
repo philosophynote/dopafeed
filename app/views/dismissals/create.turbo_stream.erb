@@ -2,4 +2,4 @@
 <%= turbo_stream.replace dom_id(@article) do %>
   <%= render "main/dismissed_card", article: @article %>
 <% end %>
-<%= render "dismissals/unread_count", unread_count: @unread_count %>
+<%= render "shared/unread_count_streams", unread_count: @unread_count %>

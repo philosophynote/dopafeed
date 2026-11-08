@@ -20,6 +20,8 @@ Rails.application.routes.draw do
   resource :push_subscription, only: [ :create, :destroy ]
   # 今日のゴール（宝箱）。描くだけで書き込まない
   resource :daily_goal, only: :show
+  # 取り置いた記事の一覧
+  resource :saved, only: :show, controller: :saved
   resources :articles, only: [] do
     resource :reading, only: :create
     # アプリ内のリーダー。描くだけで書き込まない（行は「読む」と advance が作る）
@@ -28,6 +30,8 @@ Rails.application.routes.draw do
     get :summary, on: :member
     # 読まずに片付ける（POST）と、その取り消し（DELETE）
     resource :dismissal, only: %i[create destroy]
+    # あとで読むに取り置く（POST）と、その取り消し（DELETE）
+    resource :bookmark, only: %i[create destroy]
   end
   resources :readings, only: [] do
     # 「記事を開く」を押した。滞在を数え始める時刻を記録するだけ

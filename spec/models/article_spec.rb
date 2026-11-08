@@ -45,12 +45,13 @@ RSpec.describe Article, type: :model do
     let!(:opened) { create(:article, :opened) }
     let!(:untouched) { create(:article) }
     let!(:dismissed) { create(:article, :dismissed) }
+    let!(:bookmarked) { create(:article, :bookmarked) }
 
-    it "unread は完読した記事と興味なしの記事を除く。開いただけの記事は未読のまま（出目は Reading に残る）" do
+    it "unread は完読した記事・興味なしの記事・保存した記事を除く。開いただけの記事は未読のまま（出目は Reading に残る）" do
       expect(Article.unread).to contain_exactly(opened, untouched)
     end
 
-    it "read は完読した記事だけ（興味なしは読んでいない）" do
+    it "read は完読した記事だけ（興味なしと保存は読んでいない）" do
       expect(Article.read).to contain_exactly(read)
     end
   end
@@ -88,6 +89,57 @@ RSpec.describe Article, type: :model do
       expect(article.reading.xp).to eq(0)
       expect(Article.unread).not_to include(article)
     end
+  end
+
+  describe "bookmark! / unbookmark!" do
+    let(:at) { Time.zone.local(2026, 10, 20, 12) }
+
+    it "bookmark! は時刻を残して未読から外し、unbookmark! で未読に戻る" do
+      article = create(:article)
+
+      article.bookmark!(at: at)
+      expect(article.reload).to be_bookmarked
+      expect(article.bookmarked_at).to eq(at)
+      expect(Article.unread).not_to include(article)
+
+      article.unbookmark!
+      expect(article.reload).not_to be_bookmarked
+      expect(Article.unread).to include(article)
+    end
+
+    it "二度目の bookmark! は最初の時刻を保つ（二重送信で並び順を動かさない）" do
+      article = create(:article, :bookmarked)
+      first = article.bookmarked_at
+
+      article.bookmark!(at: at)
+
+      expect(article.reload.bookmarked_at).to eq(first)
+    end
+
+    it "開いたが未完の記事を保存しても Reading（出目と滞在）は残り、読了にも XP にもならない" do
+      article = create(:article, :opened)
+
+      expect { article.bookmark!(at: at) }.not_to change(Reading, :count)
+      expect(article.reading.reload).not_to be_completed
+      expect(Article.read).not_to include(article)
+    end
+
+    it "完読した記事を保存しても読了のまま（保存は読んだかどうかを変えない）" do
+      article = create(:article, :read)
+
+      article.bookmark!(at: at)
+
+      expect(Article.read).to include(article)
+    end
+  end
+
+  it "bookmarked は保存した記事だけを、保存した新しい順に並べる（いいねだけの記事は入らない）" do
+    older = create(:article, bookmarked_at: Time.zone.local(2026, 10, 1, 9), published_at: Time.zone.local(2026, 10, 5, 9))
+    newer = create(:article, bookmarked_at: Time.zone.local(2026, 10, 3, 9), published_at: Time.zone.local(2026, 9, 1, 9))
+    create(:article, :liked)
+    create(:article)
+
+    expect(Article.bookmarked.to_a).to eq([ newer, older ])
   end
 
   it "awaiting_summary は「読む」で行（Reading）ができ、要約も失敗も無く、本文取得を試した記事だけ（取得に失敗した記事は含む）" do
@@ -128,11 +180,12 @@ RSpec.describe Article, type: :model do
   describe "next_unread_after" do
     let(:at) { Time.zone.local(2026, 10, 20, 12) }
 
-    it "published_at が古い方の未読を 1 本返し、完読と興味なしは飛ばす" do
+    it "published_at が古い方の未読を 1 本返し、完読・興味なし・保存は飛ばす" do
       current = create(:article, published_at: at)
       older = create(:article, published_at: at - 1.hour)
       create(:article, :read, published_at: at - 30.minutes)
       create(:article, :dismissed, published_at: at - 15.minutes)
+      create(:article, :bookmarked, published_at: at - 10.minutes)
       create(:article, published_at: at + 1.hour)
 
       expect(Article.next_unread_after(current)).to eq(older)
