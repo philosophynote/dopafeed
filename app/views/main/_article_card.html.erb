@@ -14,7 +14,7 @@
       削除
     </span>
   </div>
-  <article class="swipe-card relative flex items-start gap-3 bg-white px-4 py-3" data-swipe-target="card"
+  <article class="swipe-card relative flex items-start gap-3 bg-white px-4 py-2.5" data-swipe-target="card"
            data-action="pointerdown->swipe#start pointermove->swipe#move pointerup->swipe#end pointercancel->swipe#cancel">
     <%= render "articles/row_body", article: article %>
     <%# form は flex の項目として場所を取らない（contents）。ボタンは article を基準に行全体を覆う %>

@@ -52,7 +52,7 @@ RSpec.describe "Swipe", type: :system do
     sign_in
     width = card_width("関心の無い記事")
 
-    expect(page).to have_text("未読 2 件")
+    expect(page).to have_css("[data-unread-badge]", text: "2")
     expect(page).to have_no_button("削除")
     drag_card("関心の無い記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 1.3, 40 ])
 
@@ -61,7 +61,6 @@ RSpec.describe "Swipe", type: :system do
     expect(strip).to have_text("関心の無い記事")
     expect(strip).to have_button("元に戻す")
     expect(page).to have_css("article", count: 1)
-    expect(page).to have_text("未読 1 件")
     expect(page).to have_css("[data-unread-badge]", text: "1")
     expect(Article.find_by(title: "関心の無い記事")).to be_dismissed
     screenshot!("dismissed")
@@ -70,7 +69,7 @@ RSpec.describe "Swipe", type: :system do
 
     expect(page).to have_css("article", count: 2)
     expect(page).to have_no_text("を削除した")
-    expect(page).to have_text("未読 2 件")
+    expect(page).to have_css("[data-unread-badge]", text: "2")
     expect(Article.find_by(title: "関心の無い記事")).not_to be_dismissed
   end
 
@@ -100,7 +99,7 @@ RSpec.describe "Swipe", type: :system do
     drag_card("飛ばす記事", from: [ width / 2 - width * dismiss_ratio * 1.1, 40 ], to: [ width / 2 - width * dismiss_ratio * 1.3, 40 ])
     expect(page).to have_text("を削除した")
     expect(page).to have_css("article", count: 1)
-    expect(page).to have_text("未読 1 件")
+    expect(page).to have_css("[data-unread-badge]", text: "1")
     expect(Article.find_by(title: "飛ばす記事")).to be_dismissed
     expect(Article.find_by(title: "残す記事")).not_to be_dismissed
 
@@ -159,7 +158,7 @@ RSpec.describe "Swipe", type: :system do
 
     expect(page).to have_css("li", text: "を削除した", count: 2)
     expect(page).to have_no_css("article")
-    expect(page).to have_text("未読 0 件")
+    expect(page).to have_no_css("[data-unread-badge]")
     expect(Article.where.not(dismissed_at: nil).count).to eq(2)
   end
 

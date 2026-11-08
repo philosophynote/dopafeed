@@ -37,7 +37,7 @@ RSpec.describe "Dismissals", type: :request do
         expect(card).to have_text("「関心の無い記事」を削除した")
         expect(card).to have_button("元に戻す")
         expect(card).to have_no_button("読む")
-        expect(page.find("turbo-stream[action='update'][target='unread-count']")).to have_text("1")
+        expect(page).to have_no_css("turbo-stream[target='unread-count']")
         expect(page.find("turbo-stream[action='replace'][target='unread-badge']")).to have_css("[data-unread-badge]", text: "1")
         expect(page).to have_css("turbo-stream[action='replace'][target='app-badge'] #app-badge[data-badge-count-value='1']", visible: :all)
       end
@@ -73,7 +73,7 @@ RSpec.describe "Dismissals", type: :request do
 
         post article_dismissal_path(article), headers: turbo
 
-        expect(page.find("turbo-stream[action='update'][target='unread-count']")).to have_text("0")
+        expect(page).to have_no_css("turbo-stream[target='unread-count']")
         expect(page.find("turbo-stream[action='replace'][target='unread-badge']")).to have_no_css("[data-unread-badge]")
       end
 
@@ -99,7 +99,7 @@ RSpec.describe "Dismissals", type: :request do
         expect(card).to have_button("「戻す記事」を読む")
         expect(card).to have_css("form[hidden][action='#{article_dismissal_path(article)}']", visible: :all)
         expect(card).to have_no_button("元に戻す")
-        expect(page.find("turbo-stream[action='update'][target='unread-count']")).to have_text("1")
+        expect(page).to have_no_css("turbo-stream[target='unread-count']")
         expect(page.find("turbo-stream[action='replace'][target='unread-badge']")).to have_css("[data-unread-badge]", text: "1")
         expect(page).to have_css("turbo-stream[action='replace'][target='app-badge'] #app-badge[data-badge-count-value='1']", visible: :all)
       end
@@ -112,7 +112,7 @@ RSpec.describe "Dismissals", type: :request do
         expect(read.reload).not_to be_dismissed
         expect(page).to have_css("turbo-stream[action='remove'][target='#{dom_id(read)}']")
         expect(page).to have_no_css("turbo-stream[action='replace'][target='#{dom_id(read)}']")
-        expect(page.find("turbo-stream[action='update'][target='unread-count']")).to have_text("0")
+        expect(page).to have_no_css("turbo-stream[target='unread-count']")
       end
 
       it "JS が無ければ Main へ戻る" do

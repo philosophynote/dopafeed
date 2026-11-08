@@ -37,7 +37,7 @@ RSpec.describe "Bookmarks", type: :request do
         expect(band).to have_text("「あとで読む記事」を保存した")
         expect(band).to have_button("元に戻す")
         expect(band).to have_no_button("読む")
-        expect(page.find("turbo-stream[action='update'][target='unread-count']")).to have_text("1")
+        expect(page).to have_no_css("turbo-stream[target='unread-count']")
         expect(page.find("turbo-stream[action='replace'][target='unread-badge']")).to have_css("[data-unread-badge]", text: "1")
         expect(page).to have_css("turbo-stream[action='replace'][target='app-badge'] #app-badge[data-badge-count-value='1']", visible: :all)
       end
@@ -79,7 +79,7 @@ RSpec.describe "Bookmarks", type: :request do
         expect(card).to have_css("article h2", text: "戻す記事")
         expect(card).to have_button("「戻す記事」を読む")
         expect(card).to have_no_button("元に戻す")
-        expect(page.find("turbo-stream[action='update'][target='unread-count']")).to have_text("1")
+        expect(page.find("turbo-stream[action='replace'][target='unread-badge']")).to have_css("[data-unread-badge]", text: "1")
       end
 
       it "保存した後に読み終えていた記事は、行を戻さず帯だけ消す（未読ではない）" do

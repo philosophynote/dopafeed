@@ -31,7 +31,7 @@ RSpec.describe "DailyGoal", type: :system do
     (goal_articles - 1).times { create(:reading, :completed, opened_at: Time.current - 1.hour) }
     article = create(:article, title: "今日の最後の 1 本", url: "#{Capybara.current_session.server.base_url}/up?last", summary: "・一")
     sign_in
-    expect(page).to have_text("今日のゴール #{goal_articles - 1} / #{goal_articles}")
+    expect(page).to have_text("今日のゴール #{goal_articles - 1} / #{goal_articles}", normalize_ws: true)
 
     click_on "読む"
     expect(page).to have_current_path(read_article_path(article))

@@ -4,7 +4,6 @@ class MainController < ApplicationController
   def show
     @articles = Article.unread.newest_first.includes(:feed).load
     @unread_count = @articles.size
-    @read_count = Reading.completed.count
     @total_xp = Reading.completed.sum(:xp) + DailyGoal.bonus_total
     summary = DailySummary.new
     @today_count = summary.count
