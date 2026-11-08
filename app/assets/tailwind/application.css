@@ -49,7 +49,7 @@
   to { transform: translateY(110vh) rotate(720deg); }
 }
 
-/* 一覧の行の左スワイプ（swipe_controller）。縦はブラウザがスクロールし、横だけ JS が追従させる。
+/* 一覧の行の左右のスワイプ（swipe_controller）。縦はブラウザがスクロールし、横だけ JS が追従させる。
    引いている間は transition 無しで指に付け、離した後だけ .swipe-settling で戻るか流れ出す（長さは JS が読む）。
    引いている間は文字の選択と長押しメニューを出さない。引いている行は隣の行の上に出す（.swipe-active） */
 .swipe-card {
@@ -64,7 +64,7 @@
 .swipe-active {
   z-index: 10;
 }
-/* 引いた幅だけ右から伸びる丸型の背景（幅は JS が書く。カードの外へは出さない）。閾値の手前は灰、越えたら赤（.swipe-armed） */
+/* 引いた幅だけ伸びる丸型の背景（幅は JS が書く。カードの外へは出さない）。閾値の手前は灰、越えたら赤（.swipe-armed） */
 .swipe-rail {
   opacity: 0;
   max-width: calc(100% - 0.5rem);
@@ -72,6 +72,13 @@
 }
 .swipe-rail.swipe-armed {
   background-color: var(--color-red-500);
+}
+/* 右へ引くと左から伸びる保存の背景は、越えたら橙（アプリのアクセント）。保存を外す背景は、越えたら濃い灰（消すのではなく戻すだけなので赤にしない） */
+.swipe-rail.swipe-save-rail.swipe-armed {
+  background-color: var(--color-orange-500);
+}
+.swipe-rail.swipe-unsave-rail.swipe-armed {
+  background-color: var(--color-gray-700);
 }
 .swipe-rail.swipe-settling {
   transition: width 200ms ease-out, opacity 200ms ease-out;

@@ -1,5 +1,6 @@
-<%# 保存した行の場所に「元に戻す」の帯を置き、未読数（タブバーとアイコンのバッジ）を合わせる %>
+<%# Main: 保存した行の場所に「元に戻す」の帯を置く。Saved（保存を外した帯の「元に戻す」）: 帯を行に戻し、保存数を合わせる。どちらも未読数（タブバーとアイコンのバッジ）を合わせる %>
 <%= turbo_stream.replace dom_id(@article) do %>
-  <%= render "main/bookmarked_card", article: @article %>
+  <%= render(@from_saved ? "saved/row" : "main/bookmarked_card", article: @article) %>
 <% end %>
+<%= turbo_stream.update("saved-count", @saved_count.to_s) if @from_saved %>
 <%= render "shared/unread_count_streams", unread_count: @unread_count %>

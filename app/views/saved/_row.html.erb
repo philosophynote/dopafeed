@@ -1,18 +1,27 @@
 <%# Saved の 1 行。見た目は Main の行（articles/_row_body）と同じで、行全体を覆うボタンかリンクから開く。
-    未読なら Main と同じ「読む」の POST（ルーレット → Reader。XP も普段どおり）。読み終えた記事は抽選し直さず、XP の付かない Reader を開くだけ %>
-<li id="<%= dom_id(article) %>" class="relative">
-  <article class="relative flex items-start gap-3 bg-white px-4 py-3">
-    <% read = article.reading&.completed? %>
-    <%= render "articles/row_body", article: article, read_mark: read %>
-    <% cover = "absolute inset-0 w-full [-webkit-tap-highlight-color:transparent] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-orange-500 active:bg-black/5" %>
-    <% if read %>
-      <%= link_to read_article_path(article), class: cover do %>
-        <span class="sr-only">「<%= article.title %>」を開く</span>
+    未読なら Main と同じ「読む」の POST（ルーレット → Reader。XP も普段どおり）。読み終えた記事は抽選し直さず、XP の付かない Reader を開くだけ。
+    左へ引くと Stimulus swipe が隠れた「保存を外す」の form を送る（右に充てる動作は無い）。from=saved は応答を Saved の帯と行で返させるため %>
+<% swipe = Dopamine.settings[:swipe] %>
+<li id="<%= dom_id(article) %>" class="relative" data-controller="swipe"
+    data-swipe-dismiss-ratio-value="<%= swipe[:dismiss_threshold_ratio] %>" data-swipe-submit-timeout-seconds-value="<%= swipe[:submit_timeout_seconds] %>">
+  <div class="relative">
+    <%= render "articles/swipe_rail", target: "rail", modifier: "swipe-unsave-rail", icon: :unbookmark, label: "外す" %>
+    <article class="swipe-card relative flex items-start gap-3 bg-white px-4 py-3" data-swipe-target="card"
+             data-action="pointerdown->swipe#start pointermove->swipe#move pointerup->swipe#end pointercancel->swipe#cancel">
+      <% read = article.reading&.completed? %>
+      <%= render "articles/row_body", article: article, read_mark: read %>
+      <% cover = "absolute inset-0 w-full [-webkit-tap-highlight-color:transparent] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-orange-500 active:bg-black/5" %>
+      <% if read %>
+        <%# draggable="false": リンクのドラッグ＆ドロップが始まると pointercancel が来て、マウスで引けない %>
+        <%= link_to read_article_path(article), class: cover, draggable: "false", data: { swipe_target: "read", action: "click->swipe#open" } do %>
+          <span class="sr-only">「<%= article.title %>」を開く</span>
+        <% end %>
+      <% else %>
+        <%= button_to article_reading_path(article), form: { class: "contents" }, class: cover, data: { swipe_target: "read", action: "click->swipe#open" } do %>
+          <span class="sr-only">「<%= article.title %>」を読む</span>
+        <% end %>
       <% end %>
-    <% else %>
-      <%= button_to article_reading_path(article), form: { class: "contents" }, class: cover do %>
-        <span class="sr-only">「<%= article.title %>」を読む</span>
-      <% end %>
-    <% end %>
-  </article>
+      <%= button_to "保存を外す", article_bookmark_path(article, from: "saved"), method: :delete, form: { hidden: true, data: { swipe_target: "form" } } %>
+    </article>
+  </div>
 </li>

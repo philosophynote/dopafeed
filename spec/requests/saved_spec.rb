@@ -45,6 +45,16 @@ RSpec.describe "Saved", type: :request do
       expect(row).to have_no_css("form[action='#{article_reading_path(article)}']")
     end
 
+    it "行は引いて保存を外せる。保存を外す form は見えるボタンにせず、スワイプが送る" do
+      article = create(:article, :bookmarked)
+
+      get saved_path
+
+      row = page.find("li##{ActionView::RecordIdentifier.dom_id(article)}[data-controller='swipe']")
+      expect(row).to have_css("form[hidden][action='#{article_bookmark_path(article, from: "saved")}'][data-swipe-target='form']", visible: :all)
+      expect(row).to have_no_css("[data-swipe-target='saveForm']", visible: :all)
+    end
+
     it "保存が 0 本なら空状態の文言" do
       create(:article)
 

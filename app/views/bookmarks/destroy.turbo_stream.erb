@@ -1,5 +1,12 @@
-<%# 帯を行に戻し、未読数を合わせる。保存した後に読み終えていた記事など、未読に戻らない記事は行を描かず帯だけ消す（判定は Article.unread に任せる） %>
-<% if Article.unread.exists?(@article.id) %>
+<%# Saved: 行を「保存を外した ・ 元に戻す」の帯に替え、保存数を合わせる。
+    Main（保存した帯の「元に戻す」）: 帯を行に戻す。保存した後に読み終えていた記事など、未読に戻らない記事は行を描かず帯だけ消す（判定は Article.unread に任せる）。
+    どちらも未読数を合わせる %>
+<% if @from_saved %>
+  <%= turbo_stream.replace dom_id(@article) do %>
+    <%= render "saved/unbookmarked_card", article: @article %>
+  <% end %>
+  <%= turbo_stream.update "saved-count", @saved_count.to_s %>
+<% elsif Article.unread.exists?(@article.id) %>
   <%= turbo_stream.replace dom_id(@article) do %>
     <%= render "main/article_card", article: @article %>
   <% end %>
