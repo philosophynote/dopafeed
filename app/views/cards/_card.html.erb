@@ -2,13 +2,14 @@
     表は OGP 画像、無ければ（読めなければ）フィードの色地。見出しとフィード名を下に重ね、枠の色が希少度。
     画像が読めなかったら image-fallback が figure ごと外し、下の色地が出る。
     リンクは元記事を別窓（iPhone のホーム画面アプリではシート）で開く。読み直しても抽選し直さない（1 記事 1 行）。link: false で開かない面だけにする。
-    reveal_order: 束の中の順番（0 から）を渡すと、裏（ロゴ）から表へめくれて現れる。長さは yml の cards.reveal_duration_ms、順番ぶん遅らせる。
+    reveal_order: 束の中の順番（0 から）を渡すと、裏（ロゴ）から表へめくれて現れる。長さは yml の cards.reveal_duration_ms。
+    順番ぶん遅らせる幅は cards.reveal_stagger_ms で、鍵が無ければ遅らせない（束が一斉にめくれる）。
     図鑑のように並べて見るだけの場所では渡さない（毎回めくると慣れる）。
     枠（li）は回る箱で、切り抜き（overflow）は面に持たせる。箱で切り抜くと 3D が平らに潰れて裏面が出ない。
     id: 同じカードを 1 つの文書に 2 度描くとき（全画面の開封）は nil で外す %>
 <% article = card.article %>
 <% reveal_order = local_assigns[:reveal_order] %>
-<% style = "--reveal-duration: #{Dopamine.settings.dig(:cards, :reveal_duration_ms)}ms; --i: #{Integer(reveal_order)}" if reveal_order %>
+<% style = "--reveal-duration: #{Dopamine.settings.dig(:cards, :reveal_duration_ms)}ms; --reveal-stagger: #{Dopamine.settings.dig(:cards, :reveal_stagger_ms).to_i}ms; --i: #{Integer(reveal_order)}" if reveal_order %>
 <% face = local_assigns.fetch(:link, true) ? :a : :div %>
 <li class="relative aspect-[3/4] rounded-xl border-2 <%= rarity_frame(card.tier) %> <%= "card-reveal" if reveal_order %>"
     data-tier="<%= card.tier %>" <%= tag.attributes(id: local_assigns.fetch(:id, dom_id(card, :card)), style: style) %>>

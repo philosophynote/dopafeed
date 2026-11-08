@@ -11,7 +11,7 @@
     <p class="text-xs font-semibold opacity-90">読了</p>
     <p class="text-2xl font-black"><%= card_name(reading.tier) %>を手に入れた！</p>
     <%# 束は Turbo がスナップショットを取る前にめくりの印を落とす（履歴で戻ってもめくり直さない） %>
-    <ul class="card-deck mx-auto mt-3 w-32" data-controller="reveal" data-action="turbo:before-cache@document->reveal#settle"><%= render "cards/card", card: reading, reveal_order: (0 if reveal) %></ul>
+    <ul class="card-deck mx-auto mt-3 w-32" data-controller="card-deck" data-action="turbo:before-cache@document->card-deck#settle"><%= render "cards/card", card: reading, reveal_order: (0 if reveal) %></ul>
     <p class="mt-3 text-sm">滞在 <%= dwell_in_words(reading.dwell_seconds) %> ・ <%= reading.combo_count %> 本連続</p>
   <% else %>
     <p class="text-2xl font-black">カードにならなかった</p>

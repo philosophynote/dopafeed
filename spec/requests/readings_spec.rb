@@ -443,7 +443,7 @@ RSpec.describe "Readings", type: :request do
         travel_to(noon + threshold) { post_turbo(reading) }
 
         divider = page.find("turbo-stream[action='replace'][target='end_reading_#{reading.id}']")
-        card = divider.find("ul.card-deck li.card-reveal[data-tier='#{common}']")
+        card = divider.find("ul.card-deck[data-controller='card-deck'] li.card-reveal[data-tier='#{common}']")
         expect(card["style"]).to include("--reveal-duration: #{duration_ms}ms")
         expect(card).to have_css("h3", text: "今の記事")
         expect(card).to have_css(".card-back", text: "DopaFeed")

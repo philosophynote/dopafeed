@@ -38,7 +38,7 @@
       </dl>
       <%# 今日のカードを順にめくって見せる（宝箱の中身。開くたびにめくれるのは、宝箱を開ける瞬間そのものが止まり所の報酬だから）。
           履歴で戻ってきたときはめくり直さない（Turbo がスナップショットを取る前に印を落とす） %>
-      <ul class="card-deck mt-3 grid grid-cols-3 gap-2" aria-label="カードの一覧" data-controller="reveal" data-action="turbo:before-cache@document->reveal#settle">
+      <ul class="card-deck mt-3 grid grid-cols-3 gap-2" aria-label="カードの一覧" data-controller="card-deck" data-action="turbo:before-cache@document->card-deck#settle">
         <% @summary.cards.each_with_index do |card, i| %>
           <%= render "cards/card", card: card, reveal_order: i %>
         <% end %>

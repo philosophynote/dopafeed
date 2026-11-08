@@ -95,13 +95,12 @@
 }
 
 /* カードの開封（cards/_card に reveal_order を渡したとき）。裏（.card-back）を向いた状態から表へめくる。
-   長さ（--reveal-duration）は yml から。束の中の順番（--i）ぶん遅らせる幅だけは yml に鍵が無く、ここに置く。
+   長さ（--reveal-duration）と、束の中の順番（--i）ぶん遅らせる幅（--reveal-stagger）は yml から style に出る。
    奥行きは束（.card-deck）に持たせる。回る箱（li）に overflow や clip-path を付けると 3D が平らに潰れて裏面が出ないので、切り抜きは面がする */
 .card-deck {
   perspective: 800px;
 }
 .card-reveal {
-  --reveal-stagger: 120ms;
   transform-style: preserve-3d;
   transform: rotateY(180deg);
   animation: card-flip var(--reveal-duration) cubic-bezier(0.2, 0.8, 0.3, 1.1) calc(var(--i) * var(--reveal-stagger)) forwards;
