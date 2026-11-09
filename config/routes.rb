@@ -22,6 +22,8 @@ Rails.application.routes.draw do
   resource :daily_goal, only: :show
   # 取り置いた記事の一覧
   resource :saved, only: :show, controller: :saved
+  # 手に入れたカードの図鑑。描くだけで書き込まない
+  resource :collection, only: :show, controller: :collection
   resources :articles, only: [] do
     resource :reading, only: :create
     # アプリ内のリーダー。描くだけで書き込まない（行は「読む」と advance が作る）
