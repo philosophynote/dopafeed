@@ -1,5 +1,5 @@
 # ADR 0006: ドメインモデルは一人用。読了は 1 記事 1 行、日付は reset_hour で切る
-日付: 2026-10-31 状態: 採用（Unit 2 で実装）。4 の「表示は `Article.saved` に束ねる」は ADR 0018 が改めた（保存の一覧は `bookmarked_at` だけ）
+日付: 2026-10-31 状態: 採用（Unit 2 で実装）。4 の「表示は `Article.saved` に束ねる」は ADR 0018 が改めた（保存の一覧は `bookmarked_at` だけ）。2・3 の「確定した xp を保存する」は ADR 0020 が改めた（保存するのは tier だけ。完読した行がカード）
 
 1. **user_id を持たない。** ADR 0005「ユーザーは 1 人」の帰結として、いいね（`articles.liked_at`）・保存（`articles.bookmarked_at`）・読了（`readings`）は記事側に直接残す。多人数化するときは列を足す migration を書く
 2. **読了は `readings` 1 記事 1 行（article_id unique）。**「読む」のタップで行を作り（`opened_at` + 抽選結果 `tier`）、戻ってきたら `returned_at` / `completed_at` / `xp` を埋める。同じ記事を二度開いても行は 1 つなので、「XP は 1 記事 1 回」「再抽選しない」が一意制約で守られる。開いたが `read.complete_after_seconds` 未満で戻った記事は `completed_at` が nil のまま未読に残り、次に「読む」を押しても前回の tier を使い回す

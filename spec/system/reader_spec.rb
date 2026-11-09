@@ -4,16 +4,15 @@
 RSpec.describe "Reader", type: :system do
   let(:settings) { Dopamine.settings }
   let(:threshold) { settings.dig(:read, :complete_after_seconds) }
-  let(:base) { settings.dig(:xp, :base) }
   let(:goal_articles) { settings.dig(:daily_goal, :articles) }
-  let(:common) { Dopamine.tier_names.first }
+  let(:common) { Dopamine.rarity_names.first }
   let(:now) { Time.current }
   # 元サイトの代わり。外へは出ないので、このアプリの /up（ヘルスチェック）を開く。url は記事ごとに一意なので問い合わせ文字列で分ける
   def source_url(name)
     "#{Capybara.current_session.server.base_url}/up?#{name}"
   end
 
-  before { allow(XpRoulette).to receive(:draw).and_return(common) }
+  before { allow(RarityDraw).to receive(:draw).and_return(common) }
 
   def no_horizontal_scroll?
     page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
@@ -56,7 +55,7 @@ RSpec.describe "Reader", type: :system do
 
     open_source_and_return(first.reading) { make_dwell(first.reading, threshold + 5) }
 
-    expect(page).to have_css("section[aria-label='判定']", text: "読了！ +#{base} XP")
+    expect(page).to have_css("section[aria-label='判定']", text: "通常カードを手に入れた！")
     expect(page).to have_text("今日のゴール 1 / #{goal_articles}")
     expect(page).to have_css("h1", text: "次の記事")
     expect(page).to have_current_path(read_article_path(first))
@@ -66,7 +65,7 @@ RSpec.describe "Reader", type: :system do
 
     # 次の記事はすぐ戻ると未完。未読が尽きたら「全部読んだ」
     open_source_and_return(second.reload.reading)
-    expect(page).to have_css("section[aria-label='判定']", text: "未完 ・ +0 XP")
+    expect(page).to have_css("section[aria-label='判定']", text: "カードにならなかった")
     expect(page).to have_text("全部読んだ")
     expect(second.reading.reload).not_to be_completed
     expect(no_horizontal_scroll?).to be(true)
@@ -116,7 +115,7 @@ RSpec.describe "Reader", type: :system do
 
     click_on "読み終えた"
 
-    expect(page).to have_css("section[aria-label='判定']", text: "読了！")
+    expect(page).to have_css("section[aria-label='判定']", text: "カードを手に入れた！")
     expect(page).to have_text("全部読んだ")
     expect(article.reading.reload).to be_completed
   end
@@ -147,7 +146,7 @@ RSpec.describe "Reader", type: :system do
     make_dwell(article.reading, threshold + 5)
     page.execute_script('window.__setVisibility("visible"); window.dispatchEvent(new Event("focus"))')
 
-    expect(page).to have_css("section[aria-label='判定']", text: "読了！")
+    expect(page).to have_css("section[aria-label='判定']", text: "カードを手に入れた！")
     expect(article.reading.reload).to be_completed
   end
 

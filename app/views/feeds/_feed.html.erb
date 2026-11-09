@@ -14,7 +14,7 @@
       <% end %>
     </p>
     <%= button_to "削除", feed_path(feed), method: :delete, class: "min-h-11 min-w-11 text-sm text-red-600",
-                  data: { feed_swipe_target: "delete" }, form: { data: { turbo_confirm: "「#{feed.title}」を削除しますか？記事・保存・読了記録も削除され、累計 XP・読了数・連続日数が変わります。達成済みの宝箱は残ります。" } } %>
+                  data: { feed_swipe_target: "delete" }, form: { data: { turbo_confirm: "「#{feed.title}」を削除しますか？記事・保存・読了記録も削除され、図鑑のカード・読了数・連続日数が変わります。達成済みの宝箱は残ります。" } } %>
   </div>
   <% if feed.last_error.present? %>
     <p class="break-all text-sm text-red-600"><%= feed.last_error %></p>

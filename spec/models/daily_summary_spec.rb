@@ -1,4 +1,4 @@
-# 読書日 1 日ぶんの数（本数・滞在・XP・ゴールまでの残り）。Main・判定の区切り・DailyGoal が同じ数を見る
+# 読書日 1 日ぶんの数（本数・滞在・ゴールまでの残り）とその日のカード。Main・判定の区切り・DailyGoal が同じ数を見る
 RSpec.describe DailySummary do
   let(:settings) { Dopamine.settings }
   let(:goal_articles) { settings.dig(:daily_goal, :articles) }
@@ -6,17 +6,26 @@ RSpec.describe DailySummary do
   let(:noon) { Time.zone.local(2026, 10, 20, reset_hour) + 8.hours }
   let(:today) { ReadingDay.of(noon) }
 
-  it "その日の完読の本数・滞在の合計・XP の合計を数え、他の日と未完は数えない" do
-    create(:reading, :completed, opened_at: noon - 1.hour, xp: 30)
-    create(:reading, :completed, opened_at: noon - 2.hours, xp: 12)
-    create(:reading, :completed, opened_at: noon - 1.day, xp: 100)
+  it "その日の完読の本数と滞在の合計を数え、他の日と未完は数えない" do
+    create(:reading, :completed, opened_at: noon - 1.hour)
+    create(:reading, :completed, opened_at: noon - 2.hours)
+    create(:reading, :completed, opened_at: noon - 1.day)
     create(:reading, opened_at: noon - 10.minutes, returned_at: noon - 9.minutes)
 
     summary = DailySummary.new(today)
 
     expect(summary.count).to eq(2)
     expect(summary.dwell_seconds).to eq(2 * (4 * 60 + 12))
-    expect(summary.xp).to eq(42)
+    expect(summary).not_to respond_to(:xp)
+  end
+
+  it "cards はその日の完読を開封の順（古い完読が先）で、他の日と未完は入れない" do
+    later = create(:reading, :completed, :rare, opened_at: noon - 1.hour)
+    earlier = create(:reading, :completed, opened_at: noon - 2.hours)
+    create(:reading, :completed, opened_at: noon - 1.day)
+    create(:reading, opened_at: noon - 10.minutes, returned_at: noon - 9.minutes)
+
+    expect(DailySummary.new(today).cards).to eq([ earlier, later ])
   end
 
   it "ゴールまでの残りと到達。超えても残りは 0" do

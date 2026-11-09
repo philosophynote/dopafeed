@@ -81,12 +81,11 @@ RSpec.describe Article, type: :model do
       expect(article.reload.dismissed_at).to eq(first)
     end
 
-    it "開いたが未完の記事を興味なしにしても、Reading（出目と滞在）は残り XP は付かない" do
+    it "開いたが未完の記事を興味なしにしても、Reading（出目と滞在）は残りカードにはならない" do
       article = create(:article, :opened)
 
       expect { article.dismiss!(at: at) }.not_to change(Reading, :count)
       expect(article.reading.reload).not_to be_completed
-      expect(article.reading.xp).to eq(0)
       expect(Article.unread).not_to include(article)
     end
   end
@@ -116,7 +115,7 @@ RSpec.describe Article, type: :model do
       expect(article.reload.bookmarked_at).to eq(first)
     end
 
-    it "開いたが未完の記事を保存しても Reading（出目と滞在）は残り、読了にも XP にもならない" do
+    it "開いたが未完の記事を保存しても Reading（出目と滞在）は残り、読了にもカードにもならない" do
       article = create(:article, :opened)
 
       expect { article.bookmark!(at: at) }.not_to change(Reading, :count)

@@ -62,9 +62,8 @@ RSpec.describe "Main", type: :system do
   end
 
   describe "行をタップすると下に広がる（ADR 0019）" do
-    let(:base) { Dopamine.settings.dig(:xp, :base) }
-    let(:common) { Dopamine.tier_names.first }
-    let(:rare) { Dopamine.settings.dig(:xp, :tiers).find { |tier| tier[:multiplier] > 1 && tier != Dopamine.jackpot_tier } }
+    let(:common) { Dopamine.rarity_names.first }
+    let(:rare) { Dopamine.rarity(Dopamine.rarity_names.second) }
 
     def expand(title)
       find("article", text: title).find_button("読む").click
@@ -75,7 +74,7 @@ RSpec.describe "Main", type: :system do
     end
 
     it "画面を移らずに出目の帯・3 行要約・「記事に遷移」が出て、もう一度タップで畳む。別の行を広げると前の行は畳む" do
-      allow(XpRoulette).to receive(:draw).and_return(common)
+      allow(RarityDraw).to receive(:draw).and_return(common)
       first = create(:article, title: "最初の記事", url: "https://example.com/first", summary: "・一行目\n・二行目\n・三行目", image_url: "/icon.png", published_at: 1.hour.ago)
       create(:article, title: "次の記事", summary: "・次の要約", published_at: 2.hours.ago)
       create(:article, title: "三本目の記事", published_at: 3.hours.ago)
@@ -83,7 +82,7 @@ RSpec.describe "Main", type: :system do
 
       expand("最初の記事")
       detail = find("##{ActionView::RecordIdentifier.dom_id(first, :detail)}")
-      expect(detail).to have_text("出目 通常 ×1 ・ 完読で +#{base} XP")
+      expect(detail).to have_text("出目 通常 ・ 完読で通常カード")
       expect(detail).to have_css("section[aria-label='要約']", text: "・一行目")
       link = detail.find_link("記事に遷移", href: first.url)
       expect(link[:target]).to eq("_blank")
@@ -220,10 +219,10 @@ RSpec.describe "Main", type: :system do
       expect(expanded?("最初の記事")).to be(true)
     end
 
-    it "「記事に遷移」で元記事を別窓に開いて戻ると、広げた欄に区切りが出て、上の 1 行の本数と XP が増える。画面は移らない" do
+    it "「記事に遷移」で元記事を別窓に開いて戻ると、広げた欄に区切りが出て、上の 1 行の本数と枚数が増える。画面は移らない" do
       threshold = Dopamine.settings.dig(:read, :complete_after_seconds)
       goal = Dopamine.settings.dig(:daily_goal, :articles)
-      allow(XpRoulette).to receive(:draw).and_return(common)
+      allow(RarityDraw).to receive(:draw).and_return(common)
       article = create(:article, title: "読む記事", summary: "・要約", url: "#{Capybara.current_session.server.base_url}/up?main")
       create(:article, title: "残る記事", published_at: 1.day.ago)
       sign_in
@@ -244,9 +243,9 @@ RSpec.describe "Main", type: :system do
       source.close
       switch_to_window(main)
 
-      expect(page).to have_css("section[aria-label='判定']", text: "読了！ +#{base} XP")
+      expect(page).to have_css("section[aria-label='判定']", text: "通常カードを手に入れた！")
       expect(find("section[aria-label='今日の進み']")).to have_text("今日のゴール 1 / #{goal}", normalize_ws: true)
-      expect(find("section[aria-label='今日の進み']")).to have_text("#{base} XP")
+      expect(find("section[aria-label='今日の進み']")).to have_text("図鑑 1 枚", normalize_ws: true)
       expect(page).to have_current_path(root_path)
       expect(page).to have_css("article", text: "残る記事")
       expect(reading.reload).to be_completed
@@ -291,7 +290,7 @@ RSpec.describe "Main", type: :system do
       expand("読み直す記事")
       reading = open_link("読み直す記事")
       leave_and_return
-      expect(page).to have_css("section[aria-label='判定']", text: "未完 ・ +0 XP")
+      expect(page).to have_css("section[aria-label='判定']", text: "カードにならなかった")
       expect(page).to have_no_button("読み終えた")
       expect(find("[data-unread-badge]")).to have_text("2")
 
@@ -300,7 +299,7 @@ RSpec.describe "Main", type: :system do
       reading.update_columns(opened_at: Time.current - threshold - 5)
       click_on "読み終えた"
 
-      expect(page).to have_css("section[aria-label='判定']", text: "読了！")
+      expect(page).to have_css("section[aria-label='判定']", text: "を手に入れた！")
       expect(page).to have_css("section[aria-label='判定']", count: 1)
       expect(find("[data-unread-badge]")).to have_text("1")
       expect(reading.reload).to be_completed
@@ -325,7 +324,7 @@ RSpec.describe "Main", type: :system do
       expect(page).to have_no_css("section[aria-label='判定']")
 
       page.execute_script("window.__releaseStart()")
-      expect(page).to have_css("section[aria-label='判定']", text: "未完")
+      expect(page).to have_css("section[aria-label='判定']", text: "カードにならなかった")
       expect(Article.find_by!(title: "遅れる記事").reading.reload.returned_at).to be_present
     end
 
@@ -338,7 +337,7 @@ RSpec.describe "Main", type: :system do
       reading = open_link("手で送る記事")
       click_on "読み終えた" # 戻りの合図が来ない端末
 
-      expect(page).to have_css("section[aria-label='判定']", text: "未完")
+      expect(page).to have_css("section[aria-label='判定']", text: "カードにならなかった")
       expect(page).to have_no_button("読み終えた")
       expect(reading.reload.returned_at).to be_present
 
@@ -366,7 +365,7 @@ RSpec.describe "Main", type: :system do
       JS
       click_on "読み終えた"
 
-      expect(page).to have_css("section[aria-label='判定']", text: "未完")
+      expect(page).to have_css("section[aria-label='判定']", text: "カードにならなかった")
       expect(find("li", text: "を削除した")).to have_text("消す記事")
       expect(Article.find_by!(title: "消す記事")).to be_dismissed
     end
@@ -390,7 +389,7 @@ RSpec.describe "Main", type: :system do
       leave_and_return # 自動送信は興味なしの後ろで待つ
       click_on "読み終えた"
 
-      expect(page).to have_css("section[aria-label='判定']", text: "未完")
+      expect(page).to have_css("section[aria-label='判定']", text: "カードにならなかった")
       expect(find("li", text: "を削除した")).to have_text("消す記事")
     end
 
@@ -408,7 +407,7 @@ RSpec.describe "Main", type: :system do
       second = open_link("次の記事")
       leave_and_return(dwell: threshold + 5, reading: second)
 
-      expect(page).to have_css("section[aria-label='判定']", text: "読了！", count: 1)
+      expect(page).to have_css("section[aria-label='判定']", text: "を手に入れた！", count: 1)
       expect(second.reload).to be_completed
       expect(first.reload.returned_at).to be_nil
       expect(find("section[aria-label='今日の進み']")).to have_text("今日のゴール 1 /", normalize_ws: true)
@@ -433,26 +432,26 @@ RSpec.describe "Main", type: :system do
       expect(page).to have_current_path(root_path)
     end
 
-    it "掘り出し物の出目は帯が橙で光り、モーダルは出ない" do
-      allow(XpRoulette).to receive(:draw).and_return(rare[:name])
+    it "レアの出目は帯が橙で光り、モーダルは出ない" do
+      allow(RarityDraw).to receive(:draw).and_return(rare[:name])
       create(:article, title: "当たりの記事", summary: "・当たり")
       sign_in
 
       expand("当たりの記事")
-      band = find("[data-tier='#{rare[:name]}']", text: "×#{rare[:multiplier]} ・ 完読で +#{base * rare[:multiplier]} XP")
+      band = find("[data-tier='#{rare[:name]}']", text: "出目 レア ・ 完読でレアカード")
       expect(band[:class]).to include("tier-glow", "bg-orange-500")
       expect(page).to have_no_css("[role='dialog']")
       screenshot!("rare")
     end
 
     it "頂点の出目でも全画面へは進まず、帯が金で光る" do
-      jackpot = Dopamine.jackpot_tier
-      allow(XpRoulette).to receive(:draw).and_return(jackpot[:name])
+      jackpot = Dopamine.top_rarity
+      allow(RarityDraw).to receive(:draw).and_return(jackpot[:name])
       create(:article, title: "大当たりの記事", summary: "・大当たり")
       sign_in
 
       expand("大当たりの記事")
-      band = find("[data-tier='#{jackpot[:name]}']", text: "×#{jackpot[:multiplier]} ・ 完読で +#{base * jackpot[:multiplier]} XP")
+      band = find("[data-tier='#{jackpot[:name]}']", text: "出目 金 ・ 完読で金のカード")
       expect(band[:class]).to include("tier-glow", "bg-amber-400")
       expect(page).to have_current_path(root_path)
       expect(page).to have_no_text("JACKPOT")
@@ -467,13 +466,13 @@ RSpec.describe "Main", type: :system do
                        image_url: "/icon.png", published_at: 1.hour.ago - i.minutes)
     end
     travel_to noon do
-      goal_articles.times { |i| create(:reading, :completed, opened_at: noon - (i + 1).minutes, xp: 2469) }
-      create(:reading, :completed, opened_at: noon - 1.day, xp: 10)
+      goal_articles.times { |i| create(:reading, :completed, opened_at: noon - (i + 1).hours) }
+      allow(Reading).to receive(:card_count).and_return(1239)
       sign_in
 
       status = find("section[aria-label='今日の進み']")
-      expect(status).to have_text("累計 12,355 XP", normalize_ws: true)
-      expect(status).to have_text("コンボ ×", normalize_ws: true)
+      expect(status).to have_text("1,239 枚", normalize_ws: true)
+      expect(status).to have_text("#{goal_articles} 連続", normalize_ws: true)
       expect(status.evaluate_script("this.getBoundingClientRect().height")).to be <= 56
       expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "横スクロールが出ている"
       overflow = status.evaluate_script("Array.from(this.querySelectorAll('*')).some(el => el.getBoundingClientRect().right > this.getBoundingClientRect().right + 0.5)")
@@ -487,10 +486,11 @@ RSpec.describe "Main", type: :system do
     end
   end
 
-  it "ストリーク 3 桁・ゴール超え・XP 6 桁でもステータスは 1 行のまま横にはみ出さない（累計 XP の末尾を省く）" do
+  it "ストリーク 3 桁・ゴール超え・枚数 6 桁でもステータスは 1 行のまま横にはみ出さない（枚数の末尾を省く）" do
     allow(ReadingStreak).to receive(:days).and_return(365)
     travel_to noon do
-      (goal_articles * 2 + 2).times { |i| create(:reading, :completed, opened_at: noon - (i + 1).minutes, xp: 123_456) }
+      (goal_articles * 2 + 2).times { |i| create(:reading, :completed, opened_at: noon - (i + 1).minutes) }
+      allow(Reading).to receive(:card_count).and_return(123_456)
       sign_in
 
       status = find("section[aria-label='今日の進み']")

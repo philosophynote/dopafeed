@@ -1,4 +1,4 @@
-# 読書日（{ReadingDay}）1 日ぶんの数。完読の本数・滞在の合計・XP の合計と、今日のゴール（daily_goal.articles）までの残り。
+# 読書日（{ReadingDay}）1 日ぶんの数。完読の本数・滞在の合計と、今日のゴール（daily_goal.articles）までの残り。
 # 同じ数を何か所でも見せるので、数え方をここに 1 つだけ置く。読むだけで書かない。
 # 達成の記録（行）は {DailyGoal}、連続した日数は {ReadingStreak}
 class DailySummary
@@ -13,13 +13,14 @@ class DailySummary
     @count ||= readings.count
   end
 
-  # 完読した記事を開いてから読み終えるまでの秒の和。未完は数えない（XP も付いていない）
+  # 完読した記事を開いてから読み終えるまでの秒の和。未完は数えない（カードになっていない）
   def dwell_seconds
     @dwell_seconds ||= readings.pluck(:opened_at, :returned_at).sum { |opened, returned| (returned - opened).to_i }
   end
 
-  def xp
-    @xp ||= readings.sum(:xp)
+  # その日に手に入れたカード。開封の順（古い完読が先）
+  def cards
+    readings.includes(:article).order(:completed_at, :id)
   end
 
   def goal

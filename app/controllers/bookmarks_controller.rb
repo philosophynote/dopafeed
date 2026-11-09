@@ -1,4 +1,4 @@
-# 記事を「あとで読む」に取り置く保存と、その取り消し。{DismissalsController} と同じく {Reading} は作らず（抽選も XP も無い）、
+# 記事を「あとで読む」に取り置く保存と、その取り消し。{DismissalsController} と同じく {Reading} は作らず（抽選もカードも無い）、
 # 違いは捨てずに取り置くこと（{Article.bookmarked} に入る）。Turbo の要求には行の差し替えと数だけを返し、JS が無ければ一覧へ戻す。
 # 取り置いた記事の一覧から外したときは from=saved が付き、行の差し替え先と戻り先がその一覧になる
 class BookmarksController < ApplicationController

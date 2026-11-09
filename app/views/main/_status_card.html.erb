@@ -1,6 +1,6 @@
 <%# 一画面に並ぶ記事を減らさないよう 1 行に詰め、行ごと宝箱（DailyGoal）への入口にする（達成前でも開ける）。
-    未読数と読了累計は出さない（未読はタブバーのバッジにある）。見出しの語（今日のゴール・累計・コンボ）と区切りは読み上げにだけ残す。
-    数が大きくなって 1 行に収まらないときは累計 XP の末尾を省く（他の数は今日の行動に効くので切らない）。数字はコントローラが集め、本数の上限は dopamine.yml %>
+    未読数と読了累計は出さない（未読はタブバーのバッジにある）。見出しの語（今日のゴール・図鑑）と区切りは読み上げにだけ残す。
+    数が大きくなって 1 行に収まらないときは図鑑の枚数の末尾を省く（他の数は今日の行動に効くので切らない）。数字はコントローラが集め、本数の上限は dopamine.yml %>
 <%# id は、広げた欄で読み終えた応答（Turbo Stream）がこの行だけを書き直すため %>
 <section id="status-card" class="mt-3" aria-label="今日の進み">
   <%= link_to daily_goal_path, class: "flex min-h-12 items-center gap-3 overflow-hidden whitespace-nowrap rounded-2xl bg-white px-4 text-sm shadow-sm active:bg-gray-50" do %>
@@ -13,9 +13,9 @@
       </ol>
       <span class="font-semibold"><span class="sr-only">今日のゴール </span><%= @today_count %> / <%= @goal_articles %><span class="sr-only">、</span></span>
     </span>
-    <span class="ml-auto min-w-0 truncate font-semibold text-gray-700"><span class="sr-only">累計 </span><%= number_with_delimiter(@total_xp) %> XP</span>
-    <% if @combo_multiplier > 1 %>
-      <span class="shrink-0 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-700"><span class="sr-only">、コンボ </span>×<%= number_with_precision(@combo_multiplier, precision: 1) %></span>
+    <span class="ml-auto min-w-0 truncate font-semibold text-gray-700"><span class="sr-only">図鑑 </span><%= number_with_delimiter(@cards_count) %> 枚</span>
+    <% if @combo_count > 1 %>
+      <span class="shrink-0 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-700"><span class="sr-only">、</span><%= @combo_count %> 連続</span>
     <% end %>
     <span class="sr-only">。宝箱を見る</span>
   <% end %>

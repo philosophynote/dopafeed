@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_07_091928) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_08_150000) do
   create_table "articles", force: :cascade do |t|
     t.integer "feed_id", null: false
     t.string "title", null: false
@@ -49,7 +49,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_07_091928) do
   create_table "daily_goals", force: :cascade do |t|
     t.date "day", null: false
     t.datetime "achieved_at"
-    t.integer "bonus_xp", default: 0, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["day"], name: "index_daily_goals_on_day", unique: true
@@ -86,8 +85,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_07_091928) do
     t.datetime "returned_at"
     t.datetime "completed_at"
     t.string "tier", null: false
-    t.decimal "combo_multiplier", precision: 3, scale: 1
-    t.integer "xp", default: 0, null: false
     t.text "note"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false

@@ -35,7 +35,7 @@ class ReadingsController < ApplicationController
   # 一覧の広げた欄から（from=main）なら次の記事は開かず（読まない記事の抽選と要約を作らない。ADR 0019）、区切りと一覧の上の 1 行・未読数だけ返す
   def advance
     @reading = Reading.includes(article: :feed).find(params[:id])
-    # 判定を 1 回にするため、読み直しと判定を同じ書き込みトランザクションに入れる（同時に 2 本届くとコンボと XP が二重に数わる）
+    # 判定を 1 回にするため、読み直しと判定を同じ書き込みトランザクションに入れる（同時に 2 本届くと連続数と宝箱が二重に数える）
     judged = @reading.with_lock do
       next true if @reading.returned_at.present?
 

@@ -5,7 +5,7 @@ import { Controller } from "@hotwired/stimulus"
 // 出たと見なすのは画面が隠れた（visibilitychange で hidden）ときだけ。blur は使わない。
 // iPhone では押した瞬間に blur → focus が続けて来て、シートが開く前に戻ったと取り違えるため。
 // 戻りは hidden の後の visible か focus。合図が来ない端末のために、「読み終えた」は開いた後に出して手でも押せるようにする。
-// 開く前は隠す。開かずに押して XP を取れないように（JS が無いときは隠さないので、ボタンで送れる）
+// 開く前は隠す。開かずに押してカードを取れないように（JS が無いときは隠さないので、ボタンで送れる）
 export default class extends Controller {
   static targets = ["finish"]
   static values = { startUrl: String }
@@ -50,7 +50,7 @@ export default class extends Controller {
     this.finishTargets.forEach((form) => { form.hidden = false })
   }
 
-  // 畳まれて見えない欄では送らない。開いたまま合図が来なかった欄が、別の欄の戻りの合図で判定されてしまうため（読んでいない記事に XP が付く）。
+  // 畳まれて見えない欄では送らない。開いたまま合図が来なかった欄が、別の欄の戻りの合図で判定されてしまうため（読んでいない記事がカードになる）。
   // 開いた知らせの応答を待ってから送る。iOS で凍って知らせが戻りの後に届くと、一覧では開き直しが判定を消してしまうため
   async returned() {
     if (!this.opened || !this.away || !this.hasFinishTarget) return
