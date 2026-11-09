@@ -113,6 +113,11 @@ RSpec.describe "Reader", type: :system do
     expect(overlay).to have_text("金のカードを手に入れた！")
     expect(page.evaluate_script("document.activeElement.textContent")).to eq("閉じる")
     expect(overlay).to have_no_link # 全画面の中のカードは押しても元記事へ飛ばない
+    # Tab でも後ろの Reader へ焦点が抜けない
+    page.send_keys(:tab)
+    expect(page.evaluate_script("document.activeElement.textContent")).to eq("閉じる")
+    page.send_keys([ :shift, :tab ])
+    expect(page.evaluate_script("document.activeElement.textContent")).to eq("閉じる")
 
     page.send_keys(:escape)
 
