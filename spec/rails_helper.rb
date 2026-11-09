@@ -1,5 +1,3 @@
-# Rails を読む側の設定。.rspec が --require rails_helper で読むので、各 spec に require は要らない。
-# fixtures は使わない（ADR 0007）。レコードは spec/factories の FactoryBot で作る。
 ENV["RAILS_ENV"] ||= "test"
 require "spec_helper"
 require_relative "../config/environment"
@@ -32,6 +30,5 @@ RSpec.configure do |config|
   config.include ActiveSupport::Testing::TimeHelpers
   config.include ActiveJob::TestHelper, type: :job
   config.include ActiveJob::TestHelper, type: :request
-  # サービス（spec/services）は Job を積むので、例ごとに enqueued_jobs を空にする TestHelper を入れる
   config.include ActiveJob::TestHelper, file_path: %r{spec/services/}
 end

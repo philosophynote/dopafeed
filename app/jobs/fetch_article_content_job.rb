@@ -1,11 +1,5 @@
-# 記事ページの本文を取る Job。記事 1 本につき 1 本。
-# 取得を試し終えたら、もう「読む」で行ができていた記事の要約を積む（要約は本文取得を待つので、読む時点では積めなかった分）。
-# 取得済み（content_fetched_at あり）なら何もしない。4xx・HTML 以外・本文なしは {ArticleContentFetcher} が content_error に残す。
-# 待てば通るかもしれない失敗（{HttpGet::TransientError}）は ActiveJob の既定の回数・間隔で
-# やり直し、尽きたら失敗として記録する。同じホストへは 1 本ずつ（新しいフィードの初回に 20〜30 本を同時に叩いて 429 にならないため。
-# 待ち時間は Solid Queue の既定）。
-# 記事が見つからない（DeserializationError）のは 2 通り: 本番は queue が別 DB なので記事のコミットより先にワーカーが取ることがある
-# （少し待てば見つかる）か、積んだ後に記事が消された（見つからないまま）。既定の回数だけ待ってやり直し、尽きたら捨てる
+# 同じホストへ同時に 20〜30 本取りに行くと 429 になるため、1 本ずつ取得する。
+# queue は別 DB なので、記事が見つからない場合もコミット前の可能性がある。既定回数だけ待ち、削除済みなら捨てる。
 class FetchArticleContentJob < ApplicationJob
   queue_as :feeds
 
@@ -21,14 +15,12 @@ class FetchArticleContentJob < ApplicationJob
 
   limits_concurrency key: ->(article) { FetchArticleContentJob.host_of(article) }
 
-  # @return [String] 記事 URL のホスト。読めない URL ならその URL
   def self.host_of(article)
     URI(article.url).host.presence || article.url
   rescue URI::Error
     article.url
   end
 
-  # @return [ArticleContentFetcher::Result, nil] 取得済みなら nil
   def perform(article)
     return if article.content_fetched_at.present?
 

@@ -1,4 +1,3 @@
-# 登録前に購読先を検証する。記事の取り込みは {FetchFeedJob} に委ねる。
 class FeedRegistration
   Result = Data.define(:feed, :message)
 

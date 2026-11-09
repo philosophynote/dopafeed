@@ -1,4 +1,3 @@
-# VAPID の鍵は ENV（docs/decisions/0013）。無ければ購読を受け付けず、画面は「鍵が無い」を出す
 RSpec.describe Push::Vapid do
   let(:keys) { { "VAPID_PUBLIC_KEY" => "BPublic", "VAPID_PRIVATE_KEY" => "private", "VAPID_SUBJECT" => "mailto:nao@example.com" } }
 

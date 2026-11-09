@@ -1,6 +1,5 @@
 module Claude
-  # Claude を呼ぶ Job の親。
-  # 予算切れは業務上の「今日はもう呼ばない」なので再試行せず捨てる。
+  # 予算切れは時間を置いても同じ日には解消しないため、再試行しない。
   class BaseJob < ApplicationJob
     queue_as :claude
 

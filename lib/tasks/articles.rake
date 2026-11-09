@@ -1,7 +1,6 @@
 namespace :articles do
-  # 本文取得を済ませた記事の image_url を、本文取得をやり直して埋める。読む前の未読だけ取りに行く（読み終えた・興味なしの記事に通信を使わない）。
-  # 取得待ちの記事には Job がもう積まれているので積まない。og:image の無いページは何度打っても空のまま。
-  # 積めなかったら印を戻して上げる（印を外したまま Job が無いと、取得待ちに見えて誰も積み直さない）
+  # 取得待ちには Job が既にあるので積み直さない。og:image の無いページは再取得しても空のまま。
+  # 積めなかったら印を戻さないと、取得待ちに見えて誰も積み直せない。
   desc "画像の無い未読の記事の本文取得をやり直し、OGP 画像を拾い直す"
   task refetch_images: :environment do
     articles = Article.unread.where(image_url: nil).where.not(content_fetched_at: nil)

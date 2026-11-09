@@ -1,5 +1,3 @@
-# 記事を読まずに片付ける「興味なし」と、その取り消し。{Reading} は作らない（抽選も XP も無い）。
-# Turbo の要求にはカードの差し替えと未読数だけを返し、JS が無ければ一覧へ戻す
 class DismissalsController < ApplicationController
   before_action :set_article
 
@@ -19,7 +17,7 @@ class DismissalsController < ApplicationController
     @article = Article.includes(:feed).find(params[:article_id])
   end
 
-  # 未読数はカードを差し替えた後の値。一覧全体は描き直さない（スクロール位置を保つ）
+  # 一覧全体を描き直すとスクロール位置が失われる。
   def respond
     @unread_count = Article.unread.count
     respond_to do |format|

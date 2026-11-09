@@ -1,6 +1,4 @@
-# 記事。既定で 3 行要約つき、未読・未保存。
-# :unsummarized 要約前 / :awaiting_summary 本文取得を試した後・要約前（要約を積むには :opened も要る） / :summary_failed 要約に失敗 / :liked いいね / :bookmarked 保存 / :dismissed 興味なし / :opened 開いただけ / :read 完読
-# :opened / :read は after(:create) で Reading を作るので create 専用（build では Reading が付かない）
+# :opened / :read は after(:create) で Reading を作るため、build では使えない。
 FactoryBot.define do
   factory :article do
     feed

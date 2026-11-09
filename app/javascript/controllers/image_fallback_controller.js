@@ -1,8 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 
-// 配信元が画像を消した・直リンクを断ったときに、壊れた画像の印を残さず枠ごと外す。
-// 接続より先に読み込みが失敗していることがある（キャッシュ済みの 404）ので、接続時にも確かめる。
-// lazy でまだ読みに行っていない画像は complete が false なので、ここでは外れない
+// キャッシュ済みの 404 など、接続前に失敗した画像では error イベントを拾えない。
 export default class extends Controller {
   static targets = ["image"]
 

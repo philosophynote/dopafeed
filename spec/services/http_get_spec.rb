@@ -1,4 +1,3 @@
-# 外部通信は WebMock
 RSpec.describe HttpGet do
   let(:url) { "https://fixtures.example.com/page" }
 

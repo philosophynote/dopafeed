@@ -1,7 +1,5 @@
-# 購読先の URL とタイトルを検証する。保存と取得予約は {FeedRegistration} に委ねる。
 class FeedDiscovery
   Result = Data.define(:url, :title)
-  # 候補を探し終えた失敗と、直接入力されたフィードの解析失敗を分ける。
   class Error < StandardError; end
   # HttpGet の接続エラーとして握られず、探索全体を抜けるための例外。
   class Expired < StandardError; end

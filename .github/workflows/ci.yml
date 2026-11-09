@@ -1,4 +1,4 @@
-# ローカルの bin/ci と同じ段を同じ順で回す。段の定義は config/ci.rb にだけ置く（ここに個別の step を足さない）
+# 段を二重管理しないよう、実行内容は config/ci.rb に集約する。
 name: CI
 
 on:
@@ -36,7 +36,6 @@ jobs:
           restore-keys: |
             rubocop-${{ runner.os }}-${{ env.DEPENDENCIES_HASH }}-
 
-      # Chrome は ubuntu-latest に同梱。selenium-manager が chromedriver を取る
       - name: Run bin/ci (Setup → Style → Security → Structure → Tests → System 390x844 → Seeds)
         run: bin/ci
 

@@ -1,36 +1,35 @@
 # 殿（nao）だけが値を変える。エージェントは読むのみ（.claude/settings.json で deny）。
-# 画面モックの数字を初期値にした。本丸を触ってから調整する。
 shared:
   read:
-    complete_after_seconds: 20 # 滞在がこの秒数を超えたら完読
+    complete_after_seconds: 20
   xp:
-    base: 10 # 読了 1 本の基礎 XP
+    base: 10
     roulette_duration_ms: 500
-    combo_multiplier_step: 0.1 # 連続読了 1 本ごとに +0.1 倍
+    combo_multiplier_step: 0.1
     combo_max_multiplier: 2.0
-    tiers: # ルーレットの出目。probability の合計 = 1.0
+    tiers:
       - { name: common, multiplier: 1, probability: 0.70 }
       - { name: rare, multiplier: 3, probability: 0.25 }
       - { name: jackpot, multiplier: 10, probability: 0.05 }
   daily_goal:
     articles: 5
-    reset_hour: 4 # 午前 4 時に日付が変わる扱い
+    reset_hour: 4
     bonus_xp: 100
   fetch:
-    timeout_seconds: 10 # RSS・記事ページの HTTP 取得（HttpGet）。接続・読み取りとも
-    max_body_megabytes: 5 # 応答本文（解凍後）の上限。超えたら読むのをやめて失敗にする
+    timeout_seconds: 10
+    max_body_megabytes: 5
   swipe:
-    dismiss_threshold_ratio: 0.4 # カード幅に対して、ここまで左へ引いて離すと「興味なし」を送る。手前で離すと戻る
-    submit_timeout_seconds: 10 # 「興味なし」の送信の応答をこの秒数待っても来なければ、送れなかった扱いでカードを戻す
+    dismiss_threshold_ratio: 0.4
+    submit_timeout_seconds: 10
   claude:
     summary_model: claude-haiku-5-5
     curation_model: claude-sonnet-5-5
-    daily_call_limit: 200 # 超えたらジョブを落とす（久秀の指摘）
+    daily_call_limit: 200
     summary_max_tokens: 300
     summary_input_chars: 6000
-    timeout_seconds: 30 # Claude API への HTTP 要求 1 回の待ちの上限。超えたら Job の retry_on がやり直す
+    timeout_seconds: 30
   comments:
     personas_shown: 3
   push:
-    digest_at: "07:30" # 朝のダイジェスト（新着の未読 3 本）
-    streak_warning_at: "21:00" # ストリークの警告「N 日連続が切れます。4 時までに 1 本」
+    digest_at: "07:30"
+    streak_warning_at: "21:00"

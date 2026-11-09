@@ -1,6 +1,4 @@
-# 読む → Roulette → Reader のカード（Main の行は下に広がるので、入口は Saved の行。ADR 0019） → 「記事を開く」で元サイトを別窓に開く → 戻ると判定と次の記事が継ぎ足される、を 390×844 で通す。
-# iPhone のホーム画面アプリではシートで開くが、headless Chrome では別窓（タブ）になる。出た合図は visibilitychange の hidden、戻りは visible か focus。
-# 滞在は travel_to ではなく opened_at を書き換えて作る（ブラウザの時計とずれないように）
+# iPhone のシートは headless Chrome では別タブになる。滞在はブラウザの時計とずれないよう opened_at で作る。
 RSpec.describe "Reader", type: :system do
   let(:settings) { Dopamine.settings }
   let(:threshold) { settings.dig(:read, :complete_after_seconds) }
@@ -8,7 +6,6 @@ RSpec.describe "Reader", type: :system do
   let(:goal_articles) { settings.dig(:daily_goal, :articles) }
   let(:common) { Dopamine.tier_names.first }
   let(:now) { Time.current }
-  # 元サイトの代わり。外へは出ないので、このアプリの /up（ヘルスチェック）を開く。url は記事ごとに一意なので問い合わせ文字列で分ける
   def source_url(name)
     "#{Capybara.current_session.server.base_url}/up?#{name}"
   end
@@ -61,10 +58,9 @@ RSpec.describe "Reader", type: :system do
     expect(page).to have_css("h1", text: "次の記事")
     expect(page).to have_current_path(read_article_path(first))
     expect(first.reload.reading).to be_completed
-    expect(page).to have_no_button("読み終えた") # 継ぎ足された次のカードも、開くまでは隠す
+    expect(page).to have_no_button("読み終えた")
     screenshot!("divider")
 
-    # 次の記事はすぐ戻ると未完。未読が尽きたら「全部読んだ」
     open_source_and_return(second.reload.reading)
     expect(page).to have_css("section[aria-label='判定']", text: "未完 ・ +0 XP")
     expect(page).to have_text("全部読んだ")
@@ -174,7 +170,7 @@ RSpec.describe "Reader", type: :system do
 
       expect(page).to have_css("section[aria-label='要約']", text: "・できた要約")
       expect(page).to have_no_text("要約を作成中")
-      expect(page).to have_no_css("turbo-cable-stream-source", visible: :all) # 出来上がったら購読を残さない（継ぎ足すたびに溜まる）
+      expect(page).to have_no_css("turbo-cable-stream-source", visible: :all)
       screenshot!("ready")
     end
 
@@ -192,7 +188,7 @@ RSpec.describe "Reader", type: :system do
       JS
 
       expect(page).to have_css("section[aria-label='要約']", text: "・切れている間の要約")
-      expect(page).to have_no_css("turbo-cable-stream-source", visible: :all) # 取り直しで出来上がったら購読を外す
+      expect(page).to have_no_css("turbo-cable-stream-source", visible: :all)
     end
 
     it "失敗したら「要約できませんでした」。記事はそのまま開ける" do

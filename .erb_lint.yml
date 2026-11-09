@@ -1,4 +1,3 @@
-# bin/ci の「Style: ERB」段、bin/hooks/rubocop-file、lefthook が使う
 ---
 glob: "**/*.{html,text,js,css,json}{+*,}.erb"
 exclude:

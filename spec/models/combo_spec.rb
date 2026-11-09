@@ -1,4 +1,3 @@
-# コンボ = 同じ読書日の中で直前の完読が途切れずに続いた数。倍率は 1 + step × n、上限 combo_max_multiplier
 RSpec.describe Combo do
   let(:settings) { Dopamine.settings }
   let(:step) { settings.dig(:xp, :combo_multiplier_step) }

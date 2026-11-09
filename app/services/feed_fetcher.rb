@@ -1,28 +1,12 @@
-# 購読フィードを 1 本取りに行き、新しい記事を作る。
-# 条件付き GET（If-None-Match / If-Modified-Since）で変わっていなければ解析しない。
-# 取得・解析の失敗は例外にせず feeds.last_error に日本語で残す。再試行は次の定期実行に任せる。
-# last_fetched_at は失敗でも更新する（取得が止まっているのか、失敗し続けているのかを見分けるため）。
-# 既存の記事は更新しない（要約と読了を守る）。本文はまず feedjira の entry.content か summary を入れ、記事ごとに {FetchArticleContentJob} を積んで
-# 記事ページの本文で置き換える。HTTP は {HttpGet}。想定外の例外（バグ）はそのまま上げ、Solid Queue の失敗に残す。
-# 恒久移転（301 / 308）の先で取り込めたら feeds.url を移転先に直す（毎回 1 往復余計にかかるのを止める）。
-# 解析に失敗したら直さない（フィードをやめたサイトがトップページへ 301 で飛ばすことがあり、直すと元の URL が消える）
+# 既存の記事を更新すると要約と読了を失うため、新着だけ取り込む。
+# 解析失敗の移転先を保存すると、フィードを廃止してトップへ転送するサイトで元の URL を失う。
 class FeedFetcher
-  # 取得の結果
-  # @!attribute status [r]
-  #   @return [Symbol] :updated（解析した）/ :not_modified（304）/ :failed（last_error に残した）
-  # @!attribute created [r]
-  #   @return [Integer] 新しく作った記事の数
-  # @!attribute error [r]
-  #   @return [String, nil] 失敗の文言（feeds.last_error と同じ）
   Result = Data.define(:status, :created, :error)
 
   def initialize(feed)
     @feed = feed
   end
 
-  # 取得して記事を作り、feeds の取得状態を更新する
-  #
-  # @return [Result]
   def call
     response = HttpGet.call(feed.url, headers: conditional_headers)
     return not_modified(response.permanent_url) if response.is_a?(Net::HTTPNotModified)
@@ -41,7 +25,6 @@ class FeedFetcher
 
   attr_reader :feed
 
-  # @return [Hash{String => String}] Accept と、前回の ETag / Last-Modified があれば条件付きヘッダ
   def conditional_headers
     {
       "Accept" => "application/rss+xml, application/atom+xml, application/xml, text/xml",
@@ -50,13 +33,8 @@ class FeedFetcher
     }.compact
   end
 
-  # 解析した entry を記事にする。title か http(s) の url の無い entry は飛ばす。
-  # 重複は [feed_id, guid]（guid = entry_id、無ければ url）→ url（全フィードで一意）の順で見る。
-  # 同じフィードの Job が重なって先に入られたら（url の一意制約）その entry は飛ばす。作った記事ごとに本文取得 Job を積む。
-  # 記事の作成と Job の積み込みは 1 トランザクション: 本番は queue が別 DB なので、積めなければ記事ごと戻して次の取得でやり直す
-  # （enqueue_after_transaction_commit は false。コミット後に積む設定にするとこの戻しが効かなくなる）
-  #
-  # @return [Integer] 作った記事の数
+  # 本番は queue が別 DB なので、Job を積めなければ記事も戻さないと次の取得で拾い直せない。
+  # enqueue_after_transaction_commit を有効にすると、このロールバックが効かなくなる。
   def import(parsed)
     parsed.entries.count do |entry|
       title = entry.title.to_s.strip
@@ -85,7 +63,6 @@ class FeedFetcher
 
     feed.update!(url: url)
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
-    # 確かめた直後に他の購読が同じ URL になった
     feed.restore_attributes([ :url ])
     keep_url(url)
   end
@@ -94,14 +71,12 @@ class FeedFetcher
     Rails.logger.info("[feeds] feed #{feed.id} は #{url} へ移転したが、同じ URL の購読があるので URL を直さない")
   end
 
-  # @return [Result] 304。試行時刻だけ更新し、ETag / Last-Modified は前回のまま
   def not_modified(permanent_url)
     move_to(permanent_url)
     feed.update!(last_fetched_at: Time.current, last_error: nil)
     Result.new(status: :not_modified, created: 0, error: nil)
   end
 
-  # @return [Result] :failed
   def failed(message)
     feed.update!(last_fetched_at: Time.current, last_error: message)
     Result.new(status: :failed, created: 0, error: message)

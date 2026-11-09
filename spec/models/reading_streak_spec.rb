@@ -1,4 +1,3 @@
-# ストリーク = 1 本以上完読した読書日（ReadingDay）が途切れずに続いている数（docs/screens/daily_goal.md 未決 6）
 RSpec.describe ReadingStreak do
   let(:reset_hour) { Dopamine.settings.dig(:daily_goal, :reset_hour) }
   let(:today) { Date.new(2026, 10, 20) }

@@ -1,4 +1,3 @@
-<%# 帯をカードに戻し、未読数を合わせる。興味なしにした後に読み終えていた記事は未読ではないので、カードを描かず帯だけ消す %>
 <% if @article.reading&.completed? %>
   <%= turbo_stream.remove dom_id(@article) %>
 <% else %>

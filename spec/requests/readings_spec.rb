@@ -1,4 +1,3 @@
-# 「読む」→ Roulette / Jackpot → Reader で記事を開いて読み終える → 判定と次の記事（docs/screens/reader.md・roulette.md・jackpot.md）
 RSpec.describe "Readings", type: :request do
   let(:settings) { Dopamine.settings }
   let(:threshold) { settings.dig(:read, :complete_after_seconds) }
@@ -247,7 +246,6 @@ RSpec.describe "Readings", type: :request do
         expect(link[:rel]).to include("noopener")
         expect(article.reload.reading.tier).to eq(common)
         expect(article.reading.opened_at).to eq(noon)
-        # 戻りの判定は Reader と同じ部品。「記事に遷移」で開いた時刻を送り、戻ったら一覧向けの「読み終えた」を送る
         expect(box).to have_css("[data-controller='sheet'][data-sheet-start-url-value='#{start_reading_path(article.reading, from: "main")}']")
         expect(link["data-action"]).to eq("sheet#open")
         form = box.find("form##{dom_id(article.reading, :end)}[data-sheet-target='finish']")
@@ -418,7 +416,6 @@ RSpec.describe "Readings", type: :request do
 
         expect(response.media_type).to eq("text/vnd.turbo-stream.html")
         expect(reading.reload).to be_completed
-        # 完読で未読が 2 本（新しい記事・次の記事）になり、アイコンのバッジも書き直す
         expect(page).to have_css("turbo-stream[action='replace'][target='app-badge'] #app-badge[data-badge-count-value='2']", visible: :all)
         expect(reading.xp).to eq(base)
         divider = page.find("turbo-stream[action='replace'][target='end_reading_#{reading.id}']")

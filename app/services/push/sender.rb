@@ -1,23 +1,13 @@
 module Push
-  # 1 つの購読に 1 通を送る。web-push gem で本文を暗号化し（RFC 8291）、VAPID で署名する（RFC 8292）。
-  # endpoint は端末が申告した URL で信用しないので、送る直前に {HttpGet} と同じ内部ネットワークの判定を通す。
-  # 消すのは購読そのものが使えないと分かったときだけ: 失効・無効（410 / 404）、内部アドレス、暗号化に使えない p256dh / auth。
-  # 端末が許可し直せば行は作り直される。401 / 403 は消さない: VAPID 鍵の交換後の古い購読でも出るが、subject の不備や時計のずれなど
-  # サーバー側の原因でも出て、そのとき消すと全購読を失う（交換のときは runbook の手順で行を消す）。
-  # それ以外の失敗（5xx・429・413・接続エラー・DNS の不調・想定外の例外）もログに残して行は残し、次の回に送り直す。
-  # サーバー側の VAPID 鍵が鍵として読めない・subject が mailto: / https: でないときは購読のせいではないので、1 行も消さずに最初から止める。
-  # 何をいつ送るかは {DispatchJob} と {Notice} の責務
+  # 401 / 403 はサーバー側の subject や時計の不備でも起きるため、購読を削除すると全端末を失いうる。
   class Sender
-    # 購読の p256dh / auth が base64 でない、または楕円曲線の点でない。端末が作り直すまで送れない
     class BrokenKey < StandardError; end
-    # ENV の VAPID 鍵が鍵として読めない（打ち間違い、公開鍵と秘密鍵が別のペア）、subject が mailto: / https: でない
     class ConfigurationError < StandardError; end
 
     CURVE = "prime256v1".freeze
     # auth の生バイト数（RFC 8291 3.2）。web-push は長さを見ずに HKDF へ通すので、違う長さでも送れてしまい端末で復号できない
     AUTH_BYTES = 16
 
-    # @raise [ConfigurationError]
     def initialize
       @vapid = { subject: Vapid.subject, public_key: Vapid.public_key, private_key: Vapid.private_key }
       raise ConfigurationError, "VAPID の subject が mailto: か https: ではありません" unless self.class.valid_subject?(@vapid[:subject])
@@ -28,8 +18,6 @@ module Push
       raise ConfigurationError, "VAPID 鍵が読めません (#{e.class.name})"
     end
 
-    # @param payload [Hash] JSON にして送る内容
-    # @return [Boolean] 送れたか
     def deliver(subscription, payload)
       HttpGet.verify_external!(subscription.endpoint)
       check_keys!(subscription)
@@ -48,8 +36,7 @@ module Push
       keep(subscription, e)
     end
 
-    # Push サービスが VAPID の subject として受け付ける形（RFC 8292 2.1: 宛先のある mailto: か、ホストのある https:）。
-    # 外れると 401 / 403 が全購読に返る。正規表現では https:/// のようなホスト無しを通すので URI に解かせる
+    # 正規表現では https:/// のようなホスト無しを通すため、URI に解かせる。
     def self.valid_subject?(subject)
       case (uri = URI(subject.to_s))
       when URI::MailTo then uri.to.present?

@@ -1,4 +1,3 @@
-# Install（docs/screens/install.md）。描画で確かめられる受け入れ条件。standalone の分岐は system spec
 RSpec.describe "Install", type: :request do
   def page
     Capybara.string(response.body)

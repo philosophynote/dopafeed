@@ -1,4 +1,3 @@
-# Saved（GET /saved）。docs/screens/saved.md の受け入れ条件のうち、描画で確かめられるもの
 RSpec.describe "Saved", type: :request do
   def page
     Capybara.string(response.body)

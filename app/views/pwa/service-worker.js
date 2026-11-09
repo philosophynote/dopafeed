@@ -1,6 +1,5 @@
-// ホーム画面のアプリが動くための最小の service worker。
-// 取得（fetch）には触らない: 記事の一覧は毎回サーバーから出すので、キャッシュで古い未読を見せない。
-// 新しい版が来たら待たずに入れ替える（一人用なので、開いているタブの不整合より更新の速さを取る）
+// fetch をキャッシュすると古い未読を見せるため、取得には介入しない。
+// 一人用なので、開いたタブの不整合より更新の速さを優先して即時に入れ替える。
 self.addEventListener("install", () => {
   self.skipWaiting()
 })
@@ -9,9 +8,8 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim())
 })
 
-// Push の受信。サーバーが送る JSON（title / body / path / unread / tag）をそのまま通知にする。
-// iOS は受信のたびに通知を見せないと（黙って捨てると）許可を取り消すので、本文が読めなくても必ず 1 枚出す。
-// アイコンのバッジは OS が再起動で消すので、受信のたびに unread で書き直す
+// iOS は黙って Push を捨てると許可を取り消すため、本文が読めなくても通知を出す。
+// OS の再起動でバッジが消えるため、受信のたびに書き直す。
 self.addEventListener("push", (event) => {
   let data = {}
   try {
@@ -33,7 +31,6 @@ self.addEventListener("push", (event) => {
   event.waitUntil(Promise.all(tasks))
 })
 
-// 通知のタップ。開いているウィンドウがあればそれを前に出して移動し、無ければ開く（同じアプリを二つ開かない）
 self.addEventListener("notificationclick", (event) => {
   event.notification.close()
   const path = (event.notification.data && event.notification.data.path) || "/"

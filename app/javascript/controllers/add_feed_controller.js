@@ -1,6 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
 
-// ネイティブのモーダルで背景操作とフォーカスの移動を抑え、Escape でも閉じられるようにする。
 export default class extends Controller {
   static targets = ["close"]
   connect() { this.element.showModal() }

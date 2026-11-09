@@ -1,5 +1,3 @@
-# 一覧の上の 1 行（ストリーク・今日の本数・累計 XP・コンボ）に出す数字をビューへ渡す。
-# 数字の出し方は {DailySummary}・{ReadingStreak}・{Combo} が持ち、ここはそれらを 1 行分そろえるだけ（行を描き直す応答が数字を取りこぼさないよう、集め方を 1 か所にする）
 module TodayStatus
   extend ActiveSupport::Concern
 

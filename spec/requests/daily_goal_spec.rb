@@ -1,4 +1,3 @@
-# DailyGoal（GET /daily_goal）。docs/screens/daily_goal.md の受け入れ条件のうち、描画で確かめられるもの
 RSpec.describe "DailyGoal", type: :request do
   let(:settings) { Dopamine.settings }
   let(:goal_articles) { settings.dig(:daily_goal, :articles) }
@@ -32,7 +31,6 @@ RSpec.describe "DailyGoal", type: :request do
       expect(page).to have_text("今日の #{goal_articles} 本、読み切った！")
       expect(page).to have_css("[data-chest=open]")
       expect(page).to have_text("ストリーク 1 日目 確定")
-      # 滞在は factory の 4 分 12 秒 × 本数を分に切り下げる
       expect(page).to have_text("#{goal_articles} 本 ・ #{goal_articles * (4 * 60 + 12) / 60} 分 ・ #{goal_articles * 62} XP")
       expect(page).to have_link("今日はここまで", href: root_path)
       expect(page).to have_no_text("レア確率")
@@ -93,7 +91,7 @@ RSpec.describe "DailyGoal", type: :request do
       form = page.find("form[action='#{article_reading_path(newest)}']")
       expect(form).to have_button("もう 1 本だけ")
       expect(page).to have_no_text("ボーナス XP は半分")
-      expect(DailyGoal.count).to eq(0) # 描くだけで達成の行は作らない（作るのは判定）
+      expect(DailyGoal.count).to eq(0)
 
       Article.unread.each { |article| create(:reading, :completed, article: article, opened_at: noon - 3.hours) }
       travel_to(noon) { get daily_goal_path }

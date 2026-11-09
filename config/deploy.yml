@@ -1,98 +1,45 @@
-# Name of your application. Used to uniquely configure containers.
 service: dopafeed
 
-# Name of the container image (use your-user/app-name on external registries).
 image: dopafeed
 
-# Deploy to these servers.
 servers:
   web:
     - dopafeed.dev
-  # job:
-  #   hosts:
-  #     - 192.168.0.1
-  #   cmd: bin/jobs
 
-# Enable SSL auto certification via Let's Encrypt and allow for multiple apps on a single web server.
-# If used with Cloudflare, set encryption mode in SSL/TLS setting to "Full" to enable CF-to-app encryption.
-#
-# Using an SSL proxy like this requires turning on config.assume_ssl and config.force_ssl in production.rb!
-#
-# Don't use this when deploying to multiple web servers (then you have to terminate SSL at your load balancer).
-#
-# production.rb は force_ssl / assume_ssl が有効（docs/runbook.md §0 4-b）。TLS と HTTP→HTTPS 転送を
-# curl で確認するまでログイン画面にパスワードを入れない。
 proxy:
   ssl: true
   host: dopafeed.dev
 
-# Where you keep your container images.
 registry:
-  # Alternatives: hub.docker.com / registry.digitalocean.com / ghcr.io / ...
   server: localhost:5555
 
-  # Needed for authenticated registries.
-  # username: your-user
-
-  # Always use an access token rather than real password when possible.
-  # password:
-  #   - KAMAL_REGISTRY_PASSWORD
-
-# Inject ENV variables into containers (secrets come from .kamal/secrets).
 env:
   secret:
     - RAILS_MASTER_KEY
-    # 初回起動の db:prepare が seed を流すときに作る唯一のユーザー（db/seeds.rb）。無いと起動しない
     - DOPAFEED_USER_EMAIL
     - DOPAFEED_USER_PASSWORD
-    # Litestream（ADR 0004）の S3 鍵。.kamal/secrets に nao が足す（エージェントは触らない）
     - LITESTREAM_ACCESS_KEY_ID
     - LITESTREAM_SECRET_ACCESS_KEY
-    # Web Push の VAPID 鍵（docs/decisions/0013）。credentials に入れ、.kamal/secrets で credentials:fetch する（docs/runbook.md 2-h）。
-    # .kamal/secrets に 3 行が無いと kamal deploy が "Secret not found" で止まる。コンテナに届かなくても起動はし、通知の購読を受け付けないだけ
     - VAPID_PUBLIC_KEY
     - VAPID_PRIVATE_KEY
     - VAPID_SUBJECT
-    # 要約（app/services/claude/）の鍵。無いと要約の Job が全部 KeyError で落ちる。.kamal/secrets で credentials:fetch する（docs/runbook.md §0 手順 3）
     - ANTHROPIC_API_KEY
   clear:
-    # Litestream の複製先。バケットは nao が作って名前と region を埋める。未設定だと server は起動しない（bin/docker-entrypoint）
     LITESTREAM_BUCKET: dopafeed-litestream
     LITESTREAM_REGION: ap-northeast-1
 
-    # Run the Solid Queue Supervisor inside the web server's Puma process to do jobs.
-    # When you start using multiple servers, you should split out job processing to a dedicated machine.
     SOLID_QUEUE_IN_PUMA: true
 
-    # 512 MB のサーバーに載せるための二つ（docs/decisions/0003 の 2026-11-07 追記）。1 GB に上げた後も、測り直すまで残している。
-    # async は Solid Queue の worker・dispatcher・scheduler を Puma と同じプロセスのスレッドで動かし、Ruby のプロセスを 1 本にする。
-    # YJIT は機械語の置き場ぶんメモリを食う。一人用の負荷なら速さよりメモリを取る
+    # プロセス分割と YJIT はメモリを増やすため、一人用ではメモリを優先する（ADR 0003）。
     SOLID_QUEUE_MODE: async
     YJIT_ENABLED: false
 
-    # Set number of processes dedicated to Solid Queue (default: 1)
-    # JOB_CONCURRENCY: 3
-
-    # Set number of cores available to the application on each server (default: 1).
-    # WEB_CONCURRENCY: 2
-
-    # Match this to any external database server to configure Active Record correctly
-    # Use dopafeed-db for a db accessory server on same machine via local kamal docker network.
-    # DB_HOST: 192.168.0.2
-
-    # Log everything from Rails
-    # RAILS_LOG_LEVEL: debug
-
-# Aliases are triggered with "bin/kamal <alias>". You can overwrite arguments on invocation:
-# "bin/kamal logs -r job" will tail logs from the first server in the job section.
 aliases:
   console: app exec --interactive --reuse "bin/rails console"
   shell: app exec --interactive --reuse "bash"
   logs: app logs -f
   dbc: app exec --interactive --reuse "bin/rails dbconsole --include-password"
 
-# Use a persistent storage volume for sqlite database files and local Active Storage files.
-# Recommended to change this to a mounted volume path that is backed up off server.
 volumes:
   - "dopafeed_storage:/rails/storage"
 
@@ -100,49 +47,12 @@ volumes:
 # 30 秒（Kamal の既定）を超え、kamal-proxy が健康診断を諦めてコンテナを止めた。1 GB では測っていないので 120 のまま
 deploy_timeout: 120
 
-# Bridge fingerprinted assets, like JS and CSS, between versions to avoid
-# hitting 404 on in-flight requests. Combines all files from new and old
-# version inside the asset_path.
+# 更新中の要求で旧版のアセットが 404 にならないよう、両方の版を残す。
 asset_path: /rails/public/assets
 
-# Configure the image builder.
 builder:
   arch: amd64
-
-  # # Build image via remote server (useful for faster amd64 builds on arm64 computers)
-  # remote: ssh://docker@docker-builder-server
-  #
-  # # Pass arguments and secrets to the Docker build process
-  # args:
-  #   RUBY_VERSION: ruby-4.0.7
-  # secrets:
-  #   - GITHUB_TOKEN
-  #   - RAILS_MASTER_KEY
 
 # Lightsail の Ubuntu イメージは root で SSH できない（docs/runbook.md §0 4-a）
 ssh:
   user: ubuntu
-
-# Use accessory services (secrets come from .kamal/secrets).
-# accessories:
-#   db:
-#     image: mysql:8.0
-#     host: 192.168.0.2
-#     # Change to 3306 to expose port to the world instead of just local network.
-#     port: "127.0.0.1:3306:3306"
-#     env:
-#       clear:
-#         MYSQL_ROOT_HOST: '%'
-#       secret:
-#         - MYSQL_ROOT_PASSWORD
-#     files:
-#       - config/mysql/production.cnf:/etc/mysql/my.cnf
-#       - db/production.sql:/docker-entrypoint-initdb.d/setup.sql
-#     directories:
-#       - data:/var/lib/mysql
-#   redis:
-#     image: valkey/valkey:8
-#     host: 192.168.0.2
-#     port: 6379
-#     directories:
-#       - data:/data

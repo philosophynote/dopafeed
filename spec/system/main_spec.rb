@@ -1,4 +1,3 @@
-# Main を 390×844 で開く。見た目の崩れ（横スクロール・タップ領域）と、ログイン → Main → 設定 → サインアウトの動線
 RSpec.describe "Main", type: :system do
   let(:goal_articles) { Dopamine.settings.dig(:daily_goal, :articles) }
   let(:reset_hour) { Dopamine.settings.dig(:daily_goal, :reset_hour) }
@@ -41,12 +40,10 @@ RSpec.describe "Main", type: :system do
     expect(heights.max).to be <= 120, "行が高い（一画面に並ぶ本数が減る）: #{heights.inspect}"
     expect(page).to have_no_button("削除")
     expect(page).to have_no_text("興味なし")
-    # 「読む」はボタンの名前だけで、目に見える文字は出さない
     expect(page).to have_css("article button[data-swipe-target='read'] > span.sr-only", text: "を読む", visible: :all, count: 6)
     expect(page.evaluate_script("Array.from(document.querySelectorAll('article button[data-swipe-target=read]')).every(b => b.querySelector('.sr-only').getBoundingClientRect().width <= 1)")).to be(true)
     screenshot!("list")
 
-    # 見出しの上も画像の上も、指が触れるのは行を覆う「読む」のボタン
     row = find("article", text: "その 3 本目")
     receivers = row.evaluate_script(<<~JS)
       ["h2", "time", "figure"].map(selector => {
@@ -89,7 +86,6 @@ RSpec.describe "Main", type: :system do
       expect(link[:target]).to eq("_blank")
       expect(page).to have_current_path(root_path)
       expect(expanded?("最初の記事")).to be(true)
-      # 広げた欄は行の真下に出て、次の行はその下へ押し下がる
       row_bottom, box_top, box_bottom, next_top = page.evaluate_script(<<~JS)
         [document.querySelectorAll("article")[0].getBoundingClientRect().bottom,
          document.getElementById("#{detail[:id]}").getBoundingClientRect().top,
@@ -102,7 +98,6 @@ RSpec.describe "Main", type: :system do
       expect(link.evaluate_script("this.getBoundingClientRect().height")).to be >= 44
       screenshot!("expanded")
 
-      # 2 度目のタップは送らずに畳む。もう一度で開く
       page.execute_script("window.__submits = 0; document.addEventListener('turbo:submit-start', () => window.__submits++)")
       expand("最初の記事")
       expect(page).to have_no_link("記事に遷移")
@@ -111,7 +106,6 @@ RSpec.describe "Main", type: :system do
       expect(page).to have_link("記事に遷移", count: 1)
       expect(page.evaluate_script("window.__submits")).to eq(0)
 
-      # 別の行を広げると前の行は畳む
       expand("次の記事")
       expect(page).to have_text("・次の要約")
       expect(page).to have_link("記事に遷移", count: 1)
@@ -119,7 +113,6 @@ RSpec.describe "Main", type: :system do
       expect(expanded?("最初の記事")).to be(false)
       expect(Reading.count).to eq(2)
 
-      # 読み込み済みの行を送らずに開き直しても、開いていた行は畳む
       page.execute_script("window.__submits = 0")
       expand("最初の記事")
       expect(page).to have_text("・一行目")
@@ -147,7 +140,6 @@ RSpec.describe "Main", type: :system do
       JS
       expand("最初の記事")
       expand("次の記事")
-      # 応答を待つ間に、読み込み済みの行を送らずに開き、最後に押した行にする
       expand("三本目の記事")
       expand("三本目の記事")
       expect(expanded?("三本目の記事")).to be(true)
@@ -210,7 +202,6 @@ RSpec.describe "Main", type: :system do
       expect(expanded?("最初の記事")).to be(false)
       expect(expanded?("次の記事")).to be(false)
 
-      # 開いたまま離れると、戻っても開いたまま 1 行だけ
       expand("最初の記事")
       expect(page).to have_text("・一行目")
       find("section[aria-label='今日の進み']").click_link
@@ -522,7 +513,6 @@ RSpec.describe "Main", type: :system do
       expect(image[:referrerpolicy]).to eq("no-referrer")
       expect(image[:loading]).to eq("lazy")
       expect(image[:draggable]).to eq("false")
-      # 見出しの右に置く
       expect(page.evaluate_script("document.querySelector('article figure').getBoundingClientRect().left > document.querySelector('article h2').getBoundingClientRect().right")).to be(true)
     end
     within("article", text: "画像の無い記事") { expect(page).to have_no_css("figure") }
@@ -530,7 +520,6 @@ RSpec.describe "Main", type: :system do
     expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "横スクロールが出ている"
     screenshot!
 
-    # 画像の真ん中に触れて左へ引くと、画像ではなく行がポインタを受けて「興味なし」になる（iPhone で画像の上から引いても切れない）
     touched = page.evaluate_script(<<~JS)
       (() => {
       const rect = document.querySelector("article figure img").getBoundingClientRect()

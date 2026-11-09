@@ -1,20 +1,13 @@
-<%# 一覧の 1 行（中身は articles/_row_body）。
-    行全体を「読む」のボタンが覆い、どこを押しても画面を移らずに行の下へ出目・要約・「記事に遷移」が広がる（ADR 0019。JS が無ければ form の POST で Reader へ）。
-    広げる欄は空のまま隠して置く（抽選と要約の Job はタップした記事だけに払う。ADR 0015・0019）。
-    「興味なし」（画面の呼び名は「削除」。記録は残り「元に戻す」で戻せる）と「保存」（あとで読む）は見えるボタンを置かず、
-    左へ引くと削除、右へ引くと保存の隠れた form を Stimulus swipe が送る。引いた幅だけ丸型の背景とアイコンが伸び、送る閾値を越えると削除は赤、保存は橙になる。
-    li に id を持つのは、「興味なし」と「保存」の Turbo Stream がこの行を帯と差し替えるため %>
 <% swipe = Dopamine.settings[:swipe] %>
 <li id="<%= dom_id(article) %>" class="relative" data-controller="swipe" data-action="sheet:finish->swipe#finish"
     data-swipe-dismiss-ratio-value="<%= swipe[:dismiss_threshold_ratio] %>" data-swipe-submit-timeout-seconds-value="<%= swipe[:submit_timeout_seconds] %>">
-  <%# 背景と行を包む。li の高さが変わっても（行の下に何か足しても）背景は行の高さに留まる %>
+  <%# 背景を li 基準にすると、詳細欄を広げた高さまで伸びてしまう %>
   <div class="relative">
     <%= render "articles/swipe_rail", target: "rail", modifier: nil, icon: :trash, label: "削除" %>
     <%= render "articles/swipe_rail", target: "saveRail", modifier: "swipe-save-rail", icon: :bookmark, label: "保存" %>
     <article class="swipe-card relative flex items-start gap-3 bg-white px-4 py-2.5" data-swipe-target="card"
              data-action="pointerdown->swipe#start pointermove->swipe#move pointerup->swipe#end pointercancel->swipe#cancel">
       <%= render "articles/row_body", article: article %>
-      <%# form は flex の項目として場所を取らない（contents）。ボタンは article を基準に行全体を覆う %>
       <%= button_to article_reading_path(article), params: { expand: 1 }, form: { class: "contents" },
                     "aria-expanded": "false", "aria-controls": dom_id(article, :detail),
                     class: "absolute inset-0 w-full [-webkit-tap-highlight-color:transparent] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-orange-500 active:bg-black/5",

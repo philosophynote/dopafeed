@@ -1,12 +1,9 @@
-<%# Roulette（docs/screens/roulette.md）。抽選は済んでいる（reading.tier）。ここは出目の帯を回し、止まった瞬間にリンクを踏ませるだけ。
-    帯は tiers を何周か並べ、止まる行が中央（3 行窓の 2 行目）に来るよう CSS 変数で位置を渡す。
-    data-turbo-temporary: Jackpot へ Turbo で進んだ後に戻っても、スナップショットからモーダルが蘇って回り直さないように %>
+<%# data-turbo-temporary が無いと、戻ったときにモーダルがキャッシュから復活して回り直す %>
 <% xp = Dopamine.settings[:xp] %>
 <% tiers = xp[:tiers] %>
 <% laps = 3 %>
 <% stop = tiers.index { |tier| tier[:name] == reading.tier } + tiers.size * laps %>
 <% drawn = Dopamine.tier(reading.tier) %>
-<%# --roulette-duration は帯（.roulette-window）と結果の行（.roulette-result）の両方が読むので、共通の親であるここに置く %>
 <div class="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-label="ルーレット"
      style="--roulette-duration: <%= xp[:roulette_duration_ms] %>ms"
      data-controller="roulette" data-roulette-duration-value="<%= xp[:roulette_duration_ms] %>" data-tier="<%= reading.tier %>" data-turbo-temporary>
@@ -42,7 +39,6 @@
 
     <p class="mt-3 text-center text-xs text-gray-500">止まると記事のカードが開きます</p>
 
-    <%# 止まった瞬間に roulette が踏むリンク。どちらも Turbo で進む（元サイトは Reader のカードから開く） %>
     <% if reading.jackpot? %>
       <%= link_to "ジャックポットへ", jackpot_reading_path(reading), class: "sr-only", data: { roulette_target: "link" } %>
     <% else %>

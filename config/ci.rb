@@ -1,4 +1,3 @@
-# bin/ci が読む。Rails 8.1 の雛形に構造テストと seed 確認を足したもの
 CI.run do
   step "Setup", "bin/setup --skip-server"
   step "Style: Ruby", "bin/rubocop"

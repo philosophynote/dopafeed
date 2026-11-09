@@ -2,15 +2,6 @@ import { Controller } from "@hotwired/stimulus"
 import { Turbo } from "@hotwired/turbo-rails"
 import { EDGE_PX, LOCK_PX } from "controllers/swipe_thresholds"
 
-// 一覧の 1 行。左へ引いて離すと form（Main では「興味なし」、保存の一覧では「保存を外す」）を、右へ引いて離すと saveForm（「保存」）を送り、
-// 触れて離すと「読む」の form を送る（読み終えた行ではリンクを開く）。記録と差し替えはサーバー（Turbo Stream）の仕事で、ここは指の動きを form の送信に変えるだけ。
-// 行の下に広げる欄（detail）がある行では、欄は最初の「読む」の応答が埋め、それからは送らずに開閉だけする（抽選も要約の Job も 1 回で足りる）。
-// 行全体が「読む」のボタンなので、引く操作とタップを同じコントローラで見分ける（引いた後の click を読みにしない）。
-// Pointer Events を使うのは、iPhone の指も Mac のマウスも同じ道で扱い、touch 固有の API を持たないため。
-// 縦の動きはブラウザのスクロールに任せ（CSS の touch-action: pan-y）、横と決めてからカードを指に追従させる。
-// 送る form の無い向き（保存の一覧の右）へは動かさない
-
-// 送るときに流す先。カード幅より大きくして画面の外まで出す
 const FLY_OUT_RATIO = 1.2
 // transitionend を待つ上限に足す余裕。合図が来なくても止まった頃に次へ進むため
 const SETTLE_MARGIN_MS = 100
@@ -23,7 +14,6 @@ let latestTap = 0
 
 export default class extends Controller {
   static targets = ["card", "rail", "saveRail", "form", "saveForm", "read", "detail"]
-  // 送る閾値（カード幅に対する比）と、送信の応答を待つ上限（秒）。dopamine.yml の値を view が渡す
   static values = { dismissRatio: Number, submitTimeoutSeconds: Number }
 
   disconnect() {
@@ -34,7 +24,6 @@ export default class extends Controller {
   start(event) {
     this.swiped = false
     if (this.flying || this.opening || !event.isPrimary || event.button !== 0 || event.clientX < EDGE_PX) return
-    // 行を覆う「読む」以外のボタンやリンクの上から始まった触りはタップとして押させる（押しながら引く操作は要らない）
     const control = event.target.closest("a, button, input, select, textarea")
     if (control && control !== this.readTarget) return
 
@@ -66,7 +55,6 @@ export default class extends Controller {
       this.element.classList.add("swipe-active")
       this.capture()
     }
-    // 送る form の無い向きへは 0 で止める
     this.dx = Math.max(this.hasFormTarget ? -Infinity : 0, Math.min(this.hasSaveFormTarget ? Infinity : 0, dx))
     this.render(this.dx)
   }
@@ -91,12 +79,11 @@ export default class extends Controller {
     if (this.horizontal) this.settle(0)
   }
 
-  // 指がカードの外へ出ても pointermove を受け続ける。対応する実 pointer の無い合成イベントでは NotFoundError になるので無視する
   capture() {
     try {
       this.cardTarget.setPointerCapture(this.pointerId)
     } catch {
-      // 捕まえられなくても追従はできる
+      // 合成イベントには実 pointer が無いが、捕捉できなくても追従は続けられる。
     }
   }
 
@@ -108,7 +95,6 @@ export default class extends Controller {
     return this.hasSaveRailTarget ? [this.railTarget, this.saveRailTarget] : [this.railTarget]
   }
 
-  // 引いた向きの背景だけを引いた幅だけ伸ばし、閾値に届いたら色を変えて「離せば送る」と知らせる。反対の背景は畳む
   render(dx) {
     const progress = Math.min(1, Math.abs(dx) / this.threshold())
     const active = dx < 0 ? this.railTarget : dx > 0 && this.hasSaveRailTarget ? this.saveRailTarget : null
@@ -122,8 +108,7 @@ export default class extends Controller {
     })
   }
 
-  // 離した後の動き（戻る・流れ出す）は CSS の transition に任せ、止まってから done を呼ぶ。
-  // 長さは CSS から読む（reduced motion で 0 なら待たない）ので、CSS を変えてもここは変えない
+  // 長さを固定すると reduced motion や CSS の変更に追従しないため、CSS から読む。
   settle(dx, done = () => {}) {
     this.settleCleanup?.()
     const card = this.cardTarget
@@ -148,15 +133,12 @@ export default class extends Controller {
     }
   }
 
-  // 画面の外まで流してから送る。先に送ると Turbo の差し替えでカードが途中で消える。
-  // 流している間と送信中は次の触りを受けない
-  // direction は -1（左）か 1（右）
+  // 先に送ると Turbo の差し替えで、流れ出す途中のカードが消えてしまう。
   flyOut(direction) {
     this.flying = true
     this.settle(direction * this.cardTarget.offsetWidth * FLY_OUT_RATIO, () => this.submit(direction))
   }
 
-  // 送れなかったら（圏外など）行を戻して、もう一度引けるようにする
   submit(direction) {
     const form = direction > 0 ? this.saveFormTarget : this.formTarget
     this.enqueue(form, null, (success) => { if (!success) this.restore() })
@@ -197,12 +179,9 @@ export default class extends Controller {
     }))
   }
 
-  // 「読む」のボタンの click。横へ引いた触りの後に click が来る端末でも読まない（引いて戻した行が開いてしまう）。
-  // キーボードの Enter / Space（detail が 0）は指の動きと関係ないので通す。
-  // 送信は興味なしと同じ列に並べる（送信中の興味なしの応答を Turbo に捨てさせない）。二度押しで送信を重ねない。
-  // 応答を待つ印（awaiting）は欄が差し替わるまで持つ。Turbo は submit-end の後のフレームで差し替えるので、opening だけではその隙に 2 本目を送ってしまう
-  // 読み終えた行の「読む」はリンク（Reader を開くだけで送るものが無い）。それでも遷移は同じ列の後ろで始める。
-  // 遷移は送信中の form を止めるので、直前に引いた行の「保存を外す」が届く前に止まってしまう
+  // 引いた後にも click が来る端末があるため、タップと区別する。キーボード操作（detail: 0）は通す。
+  // 別の送信を重ねると、Turbo が直前の「興味なし」や「保存を外す」の応答を捨てる。
+  // 差し替えは submit-end の次のフレームなので、その間も awaiting を保たないと二重送信する。
   open(event) {
     const swiped = this.swiped && event.detail > 0
     this.swiped = false
@@ -225,9 +204,7 @@ export default class extends Controller {
     }, { stopOnTimeout: true })
   }
 
-  // 中身の入った欄が繋がるのは、応答の差し替えか、Turbo のキャッシュから戻ったとき。
-  // 開くのは自分が待っていた応答で、待つ間に他の行が押されていないときと、ボタンが開いた印を持っているとき（キャッシュの状態を保つ）だけ。
-  // 最後に押した行を勝たせる（遅れて届いた応答が、後から開いた行を畳まない）
+  // 遅れて届いた応答で、後から開いた行を畳まない。キャッシュ復元時は元の開閉状態を保つ。
   detailTargetConnected() {
     if (!this.loaded()) return
 
@@ -244,7 +221,6 @@ export default class extends Controller {
     return this.hasDetailTarget && this.detailTarget.childElementCount > 0
   }
 
-  // 開いたら知らせる。一度に開く行を 1 つにするのは受け取る側の仕事
   expand(open) {
     this.detailTarget.hidden = !open
     this.readTarget.setAttribute("aria-expanded", String(open))

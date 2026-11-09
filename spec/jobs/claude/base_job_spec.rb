@@ -1,5 +1,4 @@
 RSpec.describe Claude::BaseJob, type: :job do
-  # 予算切れを投げる Job。discard_on の挙動を見る
   let(:exhausting_job) do
     stub_const("ExhaustingJob", Class.new(described_class) do
       def perform
@@ -8,7 +7,6 @@ RSpec.describe Claude::BaseJob, type: :job do
     end)
   end
 
-  # 予算を 1 回使う Job。普通に走ることを見る
   let(:counting_job) do
     stub_const("CountingJob", Class.new(described_class) do
       def perform

@@ -1,5 +1,3 @@
-<%# Jackpot（docs/screens/jackpot.md）。画面全体を覆い、閉じる手段は「受け取って読む」だけ（背景タップも閉じるボタンも置かない）。
-    数字はすべて yml: 確率 = jackpot の probability、XP = base × multiplier。「約 N 分」とチェック 3 行は鍵が無いので出さない %>
 <% content_for :title, "JACKPOT" %>
 <% jackpot = Dopamine.jackpot_tier %>
 <% base = Dopamine.settings.dig(:xp, :base) %>

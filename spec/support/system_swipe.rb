@@ -1,9 +1,6 @@
-# 一覧の行を引くシステムテストの手。system spec は touch を切っている（spec/support/system_click.rb）ので、Pointer Events を JS から送って作る。
-# 本物の指との違いは座標の出どころだけで、横か縦かの判定・閾値・form の送信は同じ道を通る
+# touch エミュレーションは Chrome を固めるため、Pointer Events を JS から送る。
 module SystemSwipe
-  # カードの上で pointer を押し、動かし、離す。x / y はカードの左上からの CSS px、steps は途中の pointermove の数。
-  # on を渡すと、その要素の上で始めた触りになる（イベントはカードまで bubbling する）。
-  # down: false は離さずに止めた指をそのまま動かし続ける（pointerdown を送らない）。座標は動いた後のカードの左上から
+  # 座標はカード左上からの相対値なので、継続操作では移動後のカード位置を基準にする。
   def drag_card(title, from:, to:, steps: 4, release: true, on: nil, down: true)
     card = find("article", text: title)
     page.execute_script(<<~JS, card.native, on&.native, from, to, steps, release, down)
@@ -42,7 +39,6 @@ module SystemSwipe
     card_shift(title)
   end
 
-  # 行の中の背景（rail）。target は削除・保存を外すなら "rail"、保存なら "saveRail"
   def swipe_rail(title, target = "rail")
     find("article", text: title).find(:xpath, "..").find("[data-swipe-target='#{target}']", visible: :all)
   end

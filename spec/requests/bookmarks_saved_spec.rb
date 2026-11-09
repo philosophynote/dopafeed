@@ -1,4 +1,3 @@
-# Saved の行から保存を外す（DELETE /articles/:id/bookmark?from=saved）と、その「元に戻す」（POST ?from=saved）。Main からの保存は bookmarks_spec.rb
 RSpec.describe "Bookmarks from Saved", type: :request do
   include ActionView::RecordIdentifier
 

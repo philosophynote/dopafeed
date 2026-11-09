@@ -1,11 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
-// Reader の 1 枚のカード。「記事を開く」で元サイトを別窓（iPhone のホーム画面アプリではシート）に開き、
-// アプリに戻ってきたら「読み終えた」を 1 回だけ送る。
-// 出たと見なすのは画面が隠れた（visibilitychange で hidden）ときだけ。blur は使わない。
-// iPhone では押した瞬間に blur → focus が続けて来て、シートが開く前に戻ったと取り違えるため。
-// 戻りは hidden の後の visible か focus。合図が来ない端末のために、「読み終えた」は開いた後に出して手でも押せるようにする。
-// 開く前は隠す。開かずに押して XP を取れないように（JS が無いときは隠さないので、ボタンで送れる）
+// iPhone は押した瞬間に blur → focus が来るため、blur を「出た」合図にすると戻りを誤判定する。
+// 元記事を開く前に完了ボタンを見せると、開かずに XP を取れてしまう。
 export default class extends Controller {
   static targets = ["finish"]
   static values = { startUrl: String }
@@ -26,7 +22,6 @@ export default class extends Controller {
     window.addEventListener("focus", this.returned)
   }
 
-  // 未完の区切りの後ろに置き直された「読み終えた」も、開くまでは隠す（JS が無いときの置き直しは無い）
   finishTargetConnected(form) {
     form.hidden = !this.opened
   }
@@ -36,9 +31,8 @@ export default class extends Controller {
     window.removeEventListener("focus", this.returned)
   }
 
-  // 既定の遷移（target=_blank）は止めない。滞在は開いた時刻から数えるので、サーバーに知らせる。
-  // keepalive: 開いた直後にページが凍っても（iOS）送り切らせる。
-  // 届かなくても読むのは止めない（滞在が行を作った時刻から数えられ、長めに出るだけ）
+  // iOS は別窓を開いた直後にページを凍らせるため keepalive で送り切る。
+  // 送信失敗で読書を止めない。滞在が行の作成時刻からとなり、長めに出るだけ。
   open() {
     this.starting = fetch(this.startUrlValue, {
       method: "POST",
@@ -82,7 +76,6 @@ export default class extends Controller {
     Promise.resolve(this.starting).then(() => this.handOver(form, submitter))
   }
 
-  // 応答が来て置き換わらなかった（通信の失敗など）ときに、もう一度押せるようにする
   sent(event) {
     delete event.target.dataset.pending
   }

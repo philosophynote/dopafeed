@@ -1,21 +1,15 @@
-# ブラウザが応答しなくなると、以後の 1 操作ごとに Selenium の read timeout（既定 120 秒）まで待つ。
-# 例の数だけ積み上がって CI が数十分になるので、短い上限が driver に効いていることと、
-# 固まった後に新しい Chrome へ切り替わることを確かめる。
-# 固まる原因だった touch エミュレーションと、合成 click の代わりの JS click も、戻されたら落ちるようにここで見る
 RSpec.describe "Selenium driver", type: :system do
   it "read timeout は SystemScreen::DRIVER_READ_TIMEOUT_SECONDS" do
     http = page.driver.browser.send(:bridge).http
     expect(http.read_timeout).to eq(SystemScreen::DRIVER_READ_TIMEOUT_SECONDS)
   end
 
-  # touch をエミュレーションすると固まる（spec/support/system.rb）。切れたままであることを保つ
   it "touch エミュレーションは切る（navigator.maxTouchPoints が 0）" do
     visit new_session_path
     expect(page.evaluate_script("navigator.maxTouchPoints")).to eq(0)
   end
 
-  # chromedriver の合成 mouse click は届かないことがある（spec/support/system_click.rb）。JS の click() で送っていることを保つ。
-  # 見たいのは起きるイベントだけなので、click を止めて遷移させず、window を生かしたまま記録を読む
+  # 遷移すると記録を読む window が失われるため、click は止めてイベントだけを見る。
   it "click は要素の click() で送る（pointer イベントは起きない）" do
     # 正しいパスワードを入れておく。click が止まらず送信されたら Main へ進み、下の current_path で落ちる
     create(:user)
@@ -34,7 +28,6 @@ RSpec.describe "Selenium driver", type: :system do
     expect(page).to have_current_path(new_session_path)
   end
 
-  # 覆われた要素を JS click で押してしまわないよう、chromedriver に任せて従来どおり落とす
   it "覆われた要素の click は chromedriver に任せて落ちる" do
     visit new_session_path
     page.execute_script(<<~JS)

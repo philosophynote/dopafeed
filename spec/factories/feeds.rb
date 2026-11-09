@@ -1,4 +1,3 @@
-# 購読フィード。url は一意なので sequence。fixtures.example.com は実在しないホスト
 FactoryBot.define do
   factory :feed do
     sequence(:title) { |n| "Feed #{n}" }

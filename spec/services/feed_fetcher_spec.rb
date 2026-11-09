@@ -1,4 +1,3 @@
-# 外部通信は WebMock。本文は spec/fixtures/files/feeds/*.xml（手書き）
 RSpec.describe FeedFetcher do
   let(:feed) { create(:feed, url: "https://fixtures.example.com/rss/feed.xml") }
   let(:rss) { file_fixture("feeds/rss2.xml").read }
@@ -308,7 +307,6 @@ RSpec.describe FeedFetcher do
     end
   end
 
-  # 取得はフィードの名前を書かない。書き始めると、利用者が付けた名前が定期取得のたびに RSS の名前へ戻る
   describe "利用者が付けた名前" do
     before { feed.update!(title: "手で付けた名前") }
 

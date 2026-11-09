@@ -1,4 +1,3 @@
-# RSpec 本体の設定。Rails を読まない層。Rails が要る設定は spec/rails_helper.rb に置く。
 RSpec.configure do |config|
   config.expect_with :rspec do |expectations|
     expectations.include_chain_clauses_in_custom_matcher_descriptions = true

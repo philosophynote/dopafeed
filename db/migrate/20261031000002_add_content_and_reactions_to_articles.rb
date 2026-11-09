@@ -1,5 +1,3 @@
-# guid: feedjira の entry_id（url と合わせて重複排除）。content: readability の本文（要約の入力、推定読了時間の元）。
-# liked_at / bookmarked_at: 一人用なので記事に直接残す（ADR 0006）。
 class AddContentAndReactionsToArticles < ActiveRecord::Migration[8.1]
   def change
     change_table :articles, bulk: true do |t|

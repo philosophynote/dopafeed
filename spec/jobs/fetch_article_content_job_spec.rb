@@ -33,7 +33,6 @@ RSpec.describe FetchArticleContentJob, type: :job do
     expect(described_class).to have_been_enqueued.with(article)
     expect(fetcher).not_to have_received(:record_failure)
 
-    # 積んだ Job を待ち時間なしで続けて走らせると、既定の回数で尽きて記録する
     perform_enqueued_jobs { described_class.perform_later(article) }
     expect(fetcher).to have_received(:call).at_least(3).times
     expect(fetcher).to have_received(:record_failure).with("サーバーエラー (HTTP 503)").once

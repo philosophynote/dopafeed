@@ -1,4 +1,3 @@
-# 「読む」のタップ時の抽選。確率は dopamine.yml の xp.tiers、結果は tier の名前だけ
 RSpec.describe XpRoulette do
   let(:tiers) { Dopamine.settings.dig(:xp, :tiers) }
 

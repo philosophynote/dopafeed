@@ -1,4 +1,3 @@
-# 入口の一覧。未読の記事と、今日の進み（ゴール・ストリーク・累計）を一度に出す読み取り専用
 class MainController < ApplicationController
   include TodayStatus
 

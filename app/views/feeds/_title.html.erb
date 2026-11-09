@@ -1,4 +1,4 @@
-<%# 名前だけを Frame にするのは、入力中も件数・取得状態・削除ボタンを見せたままにするため %>
+<%# 行全体を Frame にすると、編集中に件数・取得状態・削除ボタンが消える %>
 <%= turbo_frame_tag dom_id(feed, :title) do %>
   <div class="flex items-center justify-between gap-3">
     <h2 class="min-w-0 break-all text-lg font-bold"><%= feed.title %></h2>

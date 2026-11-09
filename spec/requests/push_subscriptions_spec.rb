@@ -1,4 +1,3 @@
-# Push の購読の保存と削除（docs/screens/install.md「許可した Then PushSubscription がサーバーに保存され」「再購読しない」）
 RSpec.describe "PushSubscriptions", type: :request do
   let(:vapid) { { "VAPID_PUBLIC_KEY" => "BPublic", "VAPID_PRIVATE_KEY" => "private", "VAPID_SUBJECT" => "mailto:nao@example.com" } }
   let(:payload) { { endpoint: "https://push.example.com/sub/1", keys: { p256dh: "BKey", auth: "auth" } } }

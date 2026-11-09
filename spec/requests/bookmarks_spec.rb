@@ -1,4 +1,3 @@
-# 「保存」（POST /articles/:id/bookmark）と「元に戻す」（DELETE）。docs/screens/saved.md の受け入れ条件のうち、Main での記録と片付け
 RSpec.describe "Bookmarks", type: :request do
   include ActionView::RecordIdentifier
 

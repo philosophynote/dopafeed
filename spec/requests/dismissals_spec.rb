@@ -1,4 +1,3 @@
-# 「興味なし」（POST /articles/:id/dismissal）と「元に戻す」（DELETE）。docs/screens/swipe.md の受け入れ条件のうち、記録と片付け
 RSpec.describe "Dismissals", type: :request do
   include ActionView::RecordIdentifier
 

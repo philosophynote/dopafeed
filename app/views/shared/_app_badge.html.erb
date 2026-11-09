@@ -1,3 +1,2 @@
-<%# アイコンのバッジ（Badging API）に書く未読数。見えない 1 要素にしてあるのは、未読が変わる Turbo Stream が
-    この要素ごと差し替えて OS のバッジも追随させるため（body の属性では Stream から変えられない） %>
+<%# body の属性は Turbo Stream で変えられないため、未読数を差し替え可能な要素に置く %>
 <%= tag.span id: "app-badge", hidden: true, data: { controller: "badge", badge_count_value: unread_count } %>
