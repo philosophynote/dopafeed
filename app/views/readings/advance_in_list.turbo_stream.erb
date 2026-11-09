@@ -1,7 +1,8 @@
 <%# 未完なら区切りの後ろに「読み終えた」を置き直す（行と「記事に遷移」が残るので、同じ欄で読み直せるように）。前の区切りは消して 1 つにする %>
 <%= turbo_stream.remove dom_id(@reading, :result) %>
 <%= turbo_stream.replace dom_id(@reading, :end) do %>
-  <%= render "readings/divider", reading: @reading %>
+  <%# 一覧ではカードはめくるが、金でも全画面は出さない（ADR 0019） %>
+  <%= render "readings/divider", reading: @reading, reveal: true, fullscreen: false %>
   <% unless @reading.completed? %>
     <%= render "readings/advance_form", reading: @reading, from: "main" %>
   <% end %>

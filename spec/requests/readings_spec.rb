@@ -368,6 +368,8 @@ RSpec.describe "Readings", type: :request do
     end
 
     describe "読み終えた（POST /readings/:id/advance）" do
+      include ActionView::RecordIdentifier
+
       def post_turbo(reading)
         post advance_reading_path(reading), headers: { "Accept" => "text/vnd.turbo-stream.html, text/html" }
       end
@@ -378,6 +380,7 @@ RSpec.describe "Readings", type: :request do
 
       let(:current) { create(:article, title: "今の記事", published_at: noon) }
       let!(:reading) { create(:reading, article: current, tier: common, opened_at: noon) }
+      let(:duration_ms) { settings.dig(:cards, :reveal_duration_ms) }
 
       it "金の完読は区切りが金色" do
         gold = create(:reading, :jackpot, article: create(:article, published_at: noon - 1.hour), opened_at: noon)
@@ -434,6 +437,41 @@ RSpec.describe "Readings", type: :request do
         expect(reading.reload).to be_completed
         expect(current.reload).to be_bookmarked
         expect(page.find("turbo-stream[action='append'][target='reader']")).to have_css("h1", text: "Main の未読")
+      end
+
+      it "完読の区切りには手に入れたカードが裏からめくれて出る（長さは yml）。金でなければ全画面は出ない" do
+        travel_to(noon + threshold) { post_turbo(reading) }
+
+        divider = page.find("turbo-stream[action='replace'][target='end_reading_#{reading.id}']")
+        card = divider.find("ul.card-deck[data-controller='card-deck'] li.card-reveal[data-tier='#{common}']")
+        expect(card["style"]).to include("--reveal-duration: #{duration_ms}ms")
+        expect(card).to have_css("h3", text: "今の記事")
+        expect(card).to have_css(".card-back", text: "DopaFeed")
+        expect(page).to have_no_css("[role='dialog']")
+      end
+
+      it "金の完読は区切りのカードに加えて全画面の開封が出て、タップで閉じられる（閉じる手段がある）" do
+        gold = create(:reading, :jackpot, article: create(:article, title: "金の記事", published_at: noon - 1.hour), opened_at: noon)
+
+        travel_to(noon + threshold) { post_turbo(gold) }
+
+        overlay = page.find("[data-controller='reveal'][role='dialog']")
+        expect(overlay).to have_text("金のカードを手に入れた！")
+        expect(overlay).to have_css("li.card-reveal[data-tier='#{gold.tier}'] h3", text: "金の記事")
+        expect(overlay).to have_button("閉じる")
+        expect(overlay["data-action"]).to include("reveal#close")
+        expect(overlay["data-turbo-temporary"]).not_to be_nil # 画面を移って戻っても蘇らない
+        expect(overlay).to have_no_link # 全画面の中のカードは元記事へ飛ばない（押す = 閉じる）
+        expect(page).to have_css("##{dom_id(gold, :card)}", count: 1) # 区切りと全画面で同じカードを描くが id は 1 つ
+        expect(page.find("section[aria-label='判定']")).to have_link(href: gold.article.url)
+      end
+
+      it "未完の区切りにはカードが無い" do
+        travel_to(noon + 5.seconds) { post_turbo(reading) }
+
+        expect(page).to have_css("section[aria-label='判定']", text: "カードにならなかった")
+        expect(page).to have_no_css("li.card-reveal")
+        expect(page).to have_no_css("[role='dialog']")
       end
 
       it "complete_after_seconds 以上なら完読。「読み終えた」の form を判定で置き換え、古い方の次の未読を開いて継ぎ足す" do
@@ -594,6 +632,23 @@ RSpec.describe "Readings", type: :request do
 
       let(:current) { create(:article, title: "今の記事", published_at: noon) }
       let!(:reading) { create(:reading, article: current, tier: common, opened_at: noon) }
+
+      it "一覧の広げた欄の区切りにも、手に入れたカードがめくれて出る" do
+        travel_to(noon + threshold) { post_main(reading) }
+
+        divider = page.find("turbo-stream[action='replace'][target='#{dom_id(reading, :end)}']")
+        expect(divider).to have_css("ul.card-deck li.card-reveal[data-tier='#{common}'] h3", text: "今の記事")
+      end
+
+      it "金の完読でも一覧では全画面の開封は出さず、金のカードがめくれるだけ（ADR 0019）" do
+        gold = create(:reading, :jackpot, article: create(:article, title: "一覧の金", published_at: noon), opened_at: noon)
+
+        travel_to(noon + threshold) { post_main(gold) }
+
+        divider = page.find("turbo-stream[action='replace'][target='#{dom_id(gold, :end)}']")
+        expect(divider).to have_css("ul.card-deck li.card-reveal[data-tier='#{gold.tier}'] h3", text: "一覧の金")
+        expect(page).to have_no_css("[role='dialog']")
+      end
 
       it "判定して「読み終えた」を区切りに替え、ステータス行と未読数を書き直す。次の記事は開かず、その要約も積まない（ADR 0019）" do
         following = create(:article, :awaiting_summary, title: "次の記事", published_at: noon - 1.hour)

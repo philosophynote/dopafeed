@@ -78,6 +78,16 @@ RSpec.describe "Articles", type: :request do
       expect(page).to have_css("section[aria-label='判定']", text: "カードを手に入れた！")
     end
 
+    it "判定済みの区切りを描き直すときはカードを表のまま出し、めくり直さず全画面も出さない" do
+      reading = create(:reading, :completed, :jackpot, article: create(:article, title: "前に読んだ金"), opened_at: noon)
+
+      get read_article_path(reading.article)
+
+      expect(page).to have_css("section[aria-label='判定'] li[data-tier='#{reading.tier}'] h3", text: "前に読んだ金")
+      expect(page).to have_no_css("li.card-reveal")
+      expect(page).to have_no_css("[role='dialog']")
+    end
+
     it "「読む」を押していない記事は Main へ" do
       get read_article_path(create(:article))
       expect(response).to redirect_to(root_path)

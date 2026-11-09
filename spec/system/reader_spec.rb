@@ -56,6 +56,24 @@ RSpec.describe "Reader", type: :system do
     open_source_and_return(first.reading) { make_dwell(first.reading, threshold + 5) }
 
     expect(page).to have_css("section[aria-label='判定']", text: "通常カードを手に入れた！")
+    # カードは裏からめくれて表になる。めくりの頭では裏（ロゴ）が手前を向き、表は裏返しで隠れている。めくり終わるまで待ってから次へ
+    card = find("section[aria-label='判定'] li.card-reveal")
+    expect(card).to have_css("h3", text: "最初の記事")
+    expect(page.evaluate_script(<<~JS)).to eq("back"), "めくりの頭で裏面が手前を向いていない（3D が潰れている）"
+      (() => {
+        const li = document.querySelector("li.card-reveal")
+        li.scrollIntoView({ block: "center" })
+        const animations = li.getAnimations()
+        animations.forEach((a) => { a.pause(); a.currentTime = 0 })
+        const rect = li.getBoundingClientRect()
+        const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
+        animations.forEach((a) => a.play())
+        return hit?.closest(".card-back") ? "back" : (hit?.closest(".card-face") ? "face" : String(hit?.tagName))
+      })()
+    JS
+    page.evaluate_async_script("const done = arguments[0]; Promise.all(document.querySelector('li.card-reveal').getAnimations().map((a) => a.finished)).then(() => done(true))")
+    expect(page.evaluate_script("getComputedStyle(document.querySelector('li.card-reveal')).transform")).to eq("none").or eq("matrix(1, 0, 0, 1, 0, 0)")
+    expect(page).to have_no_css("[role='dialog']") # 通常は全画面にしない
     expect(page).to have_text("今日のゴール 1 / #{goal_articles}")
     expect(page).to have_css("h1", text: "次の記事")
     expect(page).to have_current_path(read_article_path(first))
@@ -74,6 +92,54 @@ RSpec.describe "Reader", type: :system do
     expect(page).to have_current_path(root_path)
     expect(page).to have_no_text("最初の記事")
     expect(page).to have_text("次の記事")
+
+    # 履歴で戻っても、区切りのカードは表のままでめくり直さない（スナップショットを取る前に印を落とす）
+    page.go_back
+    expect(page).to have_current_path(read_article_path(first))
+    expect(page).to have_css("section[aria-label='判定'] li[data-tier] h3", text: "最初の記事")
+    expect(page).to have_no_css("li.card-reveal")
+    expect(page).to have_no_css(".card-back", visible: :all)
+  end
+
+  it "金の全画面は開くと「閉じる」に焦点が移り、Escape で閉じると焦点は区切りへ戻り、金のカードは区切りに残る" do
+    article = create(:article, :opened, title: "金の記事", url: source_url("gold"), summary: "・一")
+    article.reading.update!(tier: Dopamine.top_rarity[:name])
+    sign_in
+
+    visit read_article_path(article)
+    open_source_and_return(article.reading) { make_dwell(article.reading, threshold + 5) }
+
+    overlay = find("[data-controller='reveal'][role='dialog']")
+    expect(overlay).to have_text("金のカードを手に入れた！")
+    expect(page.evaluate_script("document.activeElement.textContent")).to eq("閉じる")
+    expect(overlay).to have_no_link # 全画面の中のカードは押しても元記事へ飛ばない
+    # Tab でも後ろの Reader へ焦点が抜けない
+    page.send_keys(:tab)
+    expect(page.evaluate_script("document.activeElement.textContent")).to eq("閉じる")
+    page.send_keys([ :shift, :tab ])
+    expect(page.evaluate_script("document.activeElement.textContent")).to eq("閉じる")
+
+    page.send_keys(:escape)
+
+    expect(page).to have_no_css("[role='dialog']")
+    expect(page.evaluate_script("document.activeElement.getAttribute('aria-label')")).to eq("判定")
+    expect(page).to have_css("section[aria-label='判定'] li[data-tier='#{Dopamine.top_rarity[:name]}'] h3", text: "金の記事")
+  end
+
+  it "prefers-reduced-motion ならカードはめくらずに表で出る" do
+    article = create(:article, title: "動かさない記事", url: source_url("still"), summary: "・一")
+    sign_in
+    # エミュレーションはブラウザに残るので、この例を抜けるときに戻す（他の例の動きを止めない）
+    page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: [ { name: "prefers-reduced-motion", value: "reduce" } ])
+
+    read_from_saved(article)
+    open_source_and_return(article.reading) { make_dwell(article.reading, threshold + 5) }
+
+    expect(page).to have_css("section[aria-label='判定'] li.card-reveal h3", text: "動かさない記事")
+    expect(page.evaluate_script("getComputedStyle(document.querySelector('li.card-reveal')).animationName")).to eq("none")
+    expect(page.evaluate_script("getComputedStyle(document.querySelector('li.card-reveal')).transform")).to eq("none")
+  ensure
+    page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: [])
   end
 
   it "OGP 画像のある記事は Reader のカードの上端に出し、無い記事には枠を出さない" do

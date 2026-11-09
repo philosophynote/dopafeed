@@ -19,7 +19,7 @@
 ## 遷移
 - Roulette（jackpot）→ Jackpot（full page か Turbo Frame で全画面）
 - Jackpot → Reader（「読んで手に入れる」のみ。戻るボタン・背景タップで閉じない）
-- Reader で記事を開いて戻る → 区切り（通常の流れ。「金のカードを手に入れた！」）
+- Reader で記事を開いて戻る → 区切り（通常の流れ。「金のカードを手に入れた！」）の上に全画面の開封が重なる（reader.md 要素 4。こちらは閉じられる。#106 23c）
 
 ## 受け入れ条件（Given-When-Then）
 - Given Roulette で jackpot が出た When 画面が切り替わる Then 全画面で「金のカード」と確率が出て、XP の数字は出ない

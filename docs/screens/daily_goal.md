@@ -8,7 +8,7 @@ SNS には無い「止まり所」。今日の 5 本を読み切ったら宝箱�
 1. 「DAILY GOAL」「今日の 5 本、読み切った！」（`daily_goal.articles`）
 2. 宝箱（CSS / SVG。固定）
 3. 「宝箱の中身」
-   - ~~「ゴール達成ボーナス +100 XP」~~ → 「今日のカード N 枚」と、今日手に入れたカードの一覧（希少度のラベル＋見出し。DB: `DailySummary#cards`。#106。23c でカードの絵に）
+   - ~~「ゴール達成ボーナス +100 XP」~~ → 「今日のカード N 枚」と、今日手に入れたカード（`cards/_card`。3 列に並び、開くたびに順に裏からめくれる。DB: `DailySummary#cards`。#106）
    - 「ストリーク 4 日目 確定」（DB: ストリーク）
    - 「明日までレア確率 2 倍 P% → 2P%」（P = `cards.rarities` の rare.probability × 100。今の yml なら「25% → 50%」。モックの 16% は採らない。バフ自体と、2 倍にしたとき他の tier の確率をどう減らすかは未決 2。バフを入れないならこの行は出さない）
 4. 「今日の合計 5 本 ・ 23 分」（DB: 今日の読了数、滞在合計（完読した記事の開いた時刻と読み終えた時刻の差の和、分に切り下げ）。XP 合計は #106 で廃止。数えるのは `DailySummary`）
@@ -24,7 +24,7 @@ SNS には無い「止まり所」。今日の 5 本を読み切ったら宝箱�
 
 ## 受け入れ条件（Given-When-Then）
 - Given 今日 4 本完読 When 5 本目を完読 Then 区切りに「読み切った！」と「宝箱を開く」が出て、タップすると DailyGoal に「今日の 5 本、読み切った！」（自動では開かない。read_done.md 未決 6）
-- Given ゴール達成 When 宝箱を開く Then 「今日のカード 5 枚」と 5 枚の一覧（レア・金は色付きのラベル）が出て、XP の文字は無い（#106）
+- Given ゴール達成 When 宝箱を開く Then 「今日のカード 5 枚」と 5 枚のカード（レア・金は枠の色とラベル）が順にめくれて出て、XP の文字は無い（#106）
 - Given 昨日も 1 本以上完読 When 今日達成 Then ストリークが +1 で「N 日目 確定」（定義は未決 6）
 - Given 一昨日まで完読あり、昨日は 0 本 When 今日達成 Then ストリークは 1 日目
 - Given reset_hour = 4 When 午前 3:59 に完読 Then 前日分として数える
@@ -35,7 +35,7 @@ SNS には無い「止まり所」。今日の 5 本を読み切ったら宝箱�
 - Given ゴール未達 When Main のゴール表示をタップ Then 宝箱は閉じたまま「あと N 本」が出る
 
 ## 使う設定の鍵
-dopamine.yml: `daily_goal.articles`, `daily_goal.reset_hour`
+dopamine.yml: `daily_goal.articles`, `daily_goal.reset_hour`, `cards.reveal_duration_ms`（カードのめくり）, `cards.reveal_stagger_ms`（1 枚ずつずらす幅。鍵が無ければずらさず一斉にめくれる。#109 で提案）
 personas.yml: なし
 
 ## 外部 API

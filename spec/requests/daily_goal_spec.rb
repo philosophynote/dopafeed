@@ -37,16 +37,31 @@ RSpec.describe "DailyGoal", type: :request do
       # 滞在は factory の 4 分 12 秒 × 本数を分に切り下げる
       expect(page).to have_text("#{goal_articles} 本 ・ #{goal_articles * (4 * 60 + 12) / 60} 分")
       expect(page).to have_no_text("XP")
-      cards = page.find("ul[aria-label='カードの一覧']")
-      expect(cards).to have_css("li", count: goal_articles)
-      expect(cards).to have_css("li[data-tier='#{rare.tier}'] span.bg-orange-500", text: "レア")
-      expect(cards).to have_css("li[data-tier='#{rare.tier}']", text: "レア レアの記事", normalize_ws: true)
-      expect(cards).to have_css("li[data-tier='#{gold.tier}'] span.bg-amber-400", text: "金")
-      expect(cards).to have_css("li[data-tier='#{gold.tier}']", text: "金 金の記事", normalize_ws: true)
-      expect(cards).to have_css("li[data-tier='#{Dopamine.base_rarity[:name]}'] span.bg-gray-100", text: "通常", count: goal_articles - 2)
+      cards = page.find("ul.card-deck[aria-label='カードの一覧']")
+      expect(cards).to have_css("li.card-reveal[data-tier]", count: goal_articles)
+      expect(cards).to have_css("li[data-tier='#{rare.tier}'].border-orange-500 [data-rarity-label].bg-orange-500", text: "レア")
+      expect(cards).to have_css("li[data-tier='#{rare.tier}'] h3", text: "レアの記事")
+      expect(cards).to have_css("li[data-tier='#{gold.tier}'].border-amber-400 [data-rarity-label].bg-amber-400", text: "金")
+      expect(cards).to have_css("li[data-tier='#{gold.tier}'] h3", text: "金の記事")
+      expect(cards).to have_css("li[data-tier='#{Dopamine.base_rarity[:name]}']", count: goal_articles - 2)
+      expect(cards.find("li[data-tier='#{Dopamine.base_rarity[:name]}']", match: :first)).to have_no_css("[data-rarity-label]")
+      # 束の中で順にめくる（--i は 0 から）。ずらす幅は yml の鍵から。鍵が無ければ 0（一斉）
+      expect(cards.all("li").map { |li| li["style"][/--i: (\d+)/, 1] }).to eq((0...goal_articles).map(&:to_s))
+      expect(cards.first("li")["style"]).to include("--reveal-stagger: #{Dopamine.settings.dig(:cards, :reveal_stagger_ms).to_i}ms")
+      expect(cards["data-controller"]).to eq("card-deck") # 履歴で戻ったときにめくり直さない
       expect(page).to have_text("今日のカード #{goal_articles} 枚", normalize_ws: true)
       expect(page).to have_link("今日はここまで", href: root_path)
       expect(page).to have_no_text("レア確率")
+    end
+
+    it "yml に cards.reveal_stagger_ms があれば、その幅で 1 枚ずつずらしてめくる" do
+      allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.deep_merge(cards: { reveal_stagger_ms: 120 }))
+      complete(goal_articles)
+      create(:daily_goal, :achieved, day: today)
+
+      travel_to(noon) { get daily_goal_path }
+
+      expect(page.first("ul.card-deck li")["style"]).to include("--reveal-stagger: 120ms")
     end
 
     it "ゴール達成ボーナスの行は無い（宝箱の中身はカード。ADR 0020）" do
