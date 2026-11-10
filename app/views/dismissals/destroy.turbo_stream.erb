@@ -1,4 +1,4 @@
-<%# 帯をカードに戻し、未読数を合わせる。興味なしにした後に読み終えていた記事は未読ではないので、カードを描かず帯だけ消す %>
+<%# 隠した行を元の位置に戻し、トーストを消し、未読数を合わせる。興味なしにした後に読み終えていた記事は未読ではないので、行を描かず跡だけ消す %>
 <% if @article.reading&.completed? %>
   <%= turbo_stream.remove dom_id(@article) %>
 <% else %>
@@ -6,4 +6,5 @@
     <%= render "main/article_card", article: @article %>
   <% end %>
 <% end %>
+<%= turbo_stream.update "toast", "" %>
 <%= render "shared/unread_count_streams", unread_count: @unread_count %>

@@ -32,7 +32,7 @@
 - 第一の陣の導線: 設定ボタンは Learning の最小版（`/learning`。サインアウト + Install への導線だけ。Unit 5 で置いた）へ。フィード追加の「+」は出さない（5 フィードは seed と Unit 3 で入る。AddFeed は第二の陣）
 - 第二の陣（#77）: 「フィードを追加」から AddFeed のシートを開く。閉じると Main に戻る
 - Reader（Saved の行・JS 無しから開く）の「閉じる」で Main に戻ると、完読したカードは一覧から消え、ステータスカードが更新される（Reader が判定する。ADR 0010）
-- 行の左スワイプ（興味なし）→ Turbo Stream で行が「元に戻す」の帯に替わり、未読数が減る（swipe.md、ADR 0012）
+- 行の左スワイプ（興味なし）→ Turbo Stream で行が消えて画面下（タブバーの上）に「元に戻す」のトーストが出て、未読数が減る（swipe.md、ADR 0012、#112）
 
 ## 受け入れ条件（Given-When-Then）
 - Given 未読記事が 3 本ある When Main を開く Then 3 本が published_at の新しい順に並ぶ
@@ -50,7 +50,7 @@
 - Given 「記事に遷移」を押して合図が来ないまま別の行を広げた When その行の記事から戻る Then 畳んだ行は判定されない（#97）
 - Given 広げた行 When 「記事に遷移」を押していない Then 「読み終えた」は出ていない（#97）
 - Given 今日 goal − 1 本読んだ When 広げた欄で完読する Then 区切りに「宝箱を開く」（#97）
-- Given 広げた行 When 見出しの上から左へ引く Then 行だけが動いて広げた欄は動かず、離すと行ごと帯に替わる（#97）
+- Given 広げた行 When 見出しの上から左へ引く Then 行だけが動いて広げた欄は動かず、離すと行ごと消える（#97）
 - Given 未読の行 When 見る Then 「読む」「興味なし」の文字ボタンは無い（#91）
 - Given 画像つきで見出しが 3 行の行が 6 本、図鑑が 4 桁でコンボ中 When Main を開く Then ステータスは高さ 56px 以下の 1 行で横にはみ出さず、iPhone のセーフエリアを引いても 6 本目の見出しの頭が見える（#91）
 - Given ストリーク 3 桁・今日の本数がゴール超え・図鑑の枚数 6 桁 When Main を開く Then ステータスは 1 行のままで、収まらなければ枚数の末尾を省く（#91、#106）
@@ -68,7 +68,7 @@
 - Given 記事に OGP 画像が無い、または画像が読めない（404・直リンク拒否）When 行を見る Then 画像の枠ごと出ない
 
 ## 使う設定の鍵
-dopamine.yml: `daily_goal.articles`, `read.complete_after_seconds`（広げた欄の判定）, `cards.rarities`（広げた欄の帯）, `cards.reveal_duration_ms`（区切りのカードのめくり）, `swipe.dismiss_threshold_ratio`, `swipe.submit_timeout_seconds`（行のタップで送る「読む」の応答待ちにも使う。#91）
+dopamine.yml: `daily_goal.articles`, `read.complete_after_seconds`（広げた欄の判定）, `cards.rarities`（広げた欄の帯）, `cards.reveal_duration_ms`（区切りのカードのめくり）, `swipe.dismiss_threshold_ratio`, `swipe.submit_timeout_seconds`（行のタップで送る「読む」の応答待ちにも使う。#91）, `toast.visible_seconds`（取り消しのトーストが消えるまで。鍵が無ければ消えない。#112）
 personas.yml: なし
 
 ## 外部 API

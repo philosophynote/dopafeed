@@ -153,3 +153,31 @@
   [data-chest="open"] .chest-lid { animation-duration: 1ms; animation-delay: 0ms; }
   [data-chest="open"] .chest-sparkle { animation: none; }
 }
+
+/* 取り消しのトースト。下から少しせり上がって出る（行が消えたのと同時に、どこで戻せるかへ目を移すため） */
+.toast-enter {
+  animation: toast-enter 0.2s ease-out both;
+}
+@keyframes toast-enter {
+  from { opacity: 0; transform: translateY(0.75rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast-enter { animation: none; }
+}
+
+/* トーストが出ている間は一覧の下の余白を足し、最後の行と広げた欄のボタンがトーストの下に潜らないようにする */
+main:has(#toast > *) {
+  padding-bottom: calc(8.5rem + env(safe-area-inset-bottom));
+}
+
+/* 引いて片付けた行は中身の無い li[hidden] として残る（取り消しで元の位置に戻すため）。見える行が無くなったら一覧を畳み、空状態を出す */
+.swipe-list-empty {
+  display: none;
+}
+.swipe-list:not(:has(> li:not([hidden]))) {
+  display: none;
+}
+.swipe-list:not(:has(> li:not([hidden]))) + .swipe-list-empty {
+  display: block;
+}
