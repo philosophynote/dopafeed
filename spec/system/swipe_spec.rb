@@ -16,7 +16,7 @@ RSpec.describe "Swipe", type: :system do
     expect(page).to have_no_button("削除")
     drag_card("関心の無い記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 1.3, 40 ])
 
-    toast = find("#toast [role='status']", text: "1 件を削除しました")
+    toast = find("#toast [data-controller='toast']", text: "1 件を削除しました")
     expect(toast).to have_button("元に戻す")
     expect(page).to have_no_css("article", text: "関心の無い記事")
     expect(page).to have_css("article", count: 2)
@@ -30,14 +30,31 @@ RSpec.describe "Swipe", type: :system do
     expect(toast_rect["right"]).to be <= page.evaluate_script("document.documentElement.clientWidth")
     expect(toast.find_button("元に戻す").evaluate_script("this.getBoundingClientRect().height")).to be >= 44
     screenshot!("dismissed")
+    # yml に toast.visible_seconds が無ければ、トーストは消えずに残る
+    sleep 1.5
+    expect(page).to have_css("#toast [data-controller='toast']", wait: 0)
 
     click_on "元に戻す"
 
     expect(page).to have_css("article", count: 3)
     expect(all("article h2").map(&:text)).to eq(%w[上の記事 関心の無い記事 下の記事])
-    expect(page).to have_no_css("#toast [role='status']")
+    expect(page).to have_no_css("#toast [data-controller='toast']")
     expect(page).to have_css("[data-unread-badge]", text: "3")
     expect(Article.find_by(title: "関心の無い記事")).not_to be_dismissed
+  end
+
+  it "トーストが出ている間は、一覧をスクロールしきると最後の行がトーストの上に出る" do
+    create_list(:article, 12)
+    create(:article, title: "最後の記事", published_at: Time.zone.local(2026, 9, 1))
+    sign_in
+    width = card_width(Article.order(published_at: :desc).first.title)
+
+    drag_card(Article.order(published_at: :desc).first.title, from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 1.3, 40 ])
+    toast = find("#toast [data-controller='toast']")
+    page.execute_script("window.scrollTo(0, document.documentElement.scrollHeight)")
+
+    last_bottom = find("article", text: "最後の記事").evaluate_script("this.getBoundingClientRect().bottom")
+    expect(last_bottom).to be <= toast.evaluate_script("this.getBoundingClientRect().top")
   end
 
   it "トーストは yml の toast.visible_seconds が経つと消え、消えた後も記録は残る" do
@@ -47,9 +64,9 @@ RSpec.describe "Swipe", type: :system do
     width = card_width("消す記事")
 
     drag_card("消す記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 1.3, 40 ])
-    expect(page).to have_css("#toast [role='status']", text: "1 件を削除しました")
+    expect(page).to have_css("#toast [data-controller='toast']", text: "1 件を削除しました")
 
-    expect(page).to have_no_css("#toast [role='status']", wait: 5)
+    expect(page).to have_no_css("#toast [data-controller='toast']", wait: 5)
     expect(page).to have_no_css("article", text: "消す記事")
     expect(Article.find_by(title: "消す記事")).to be_dismissed
   end
@@ -131,10 +148,42 @@ RSpec.describe "Swipe", type: :system do
     drag_card("一枚目", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
     drag_card("二枚目", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
 
-    expect(page).to have_css("#toast [role='status']", text: "1 件を削除しました", count: 1)
     expect(page).to have_no_css("article")
     expect(page).to have_no_css("[data-unread-badge]")
     expect(Article.where.not(dismissed_at: nil).count).to eq(2)
+    # 残るトーストは 1 枚で、「元に戻す」は後に消した行を戻す
+    second = Article.find_by!(title: "二枚目")
+    expect(page).to have_css("#toast [data-controller='toast']", text: "1 件を削除しました", count: 1)
+    expect(page).to have_css("#toast form[action='#{article_dismissal_path(second)}']", count: 1)
+    # 見える行が無くなったら、開き直さなくても空状態が出る
+    expect(page).to have_text("全部読んだ。")
+  end
+
+  it "前の行の取り消しを、次に引いた行の応答待ちの間に押しても、次の行の送信は止まらない（送らずに次のトーストへ置き換わる）" do
+    create(:article, title: "一枚目", published_at: now - 1.hour)
+    create(:article, title: "二枚目", published_at: now - 2.hours)
+    allow_any_instance_of(DismissalsController).to receive(:create).and_wrap_original do |original, *args|
+      sleep 1
+      original.call(*args)
+    end
+    sign_in
+    width = card_width("一枚目")
+    far = width * dismiss_ratio * 1.3
+
+    drag_card("一枚目", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
+    first = Article.find_by!(title: "一枚目")
+    expect(page).to have_css("#toast form[action='#{article_dismissal_path(first)}']")
+    page.execute_script("window.__starts = 0; document.addEventListener('turbo:submit-start', () => window.__starts++)")
+    drag_card("二枚目", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
+    # 二枚目が流れ終わって送信が始まってから押す（流れている間に押せば、列の先に並ぶ一枚目の取り消しが先に届くのが正しい）
+    page.document.synchronize { raise Capybara::ElementNotFound, "二枚目の送信が始まらない" unless page.evaluate_script("window.__starts") >= 1 }
+    find("#toast").click_on("元に戻す")
+
+    second = Article.find_by!(title: "二枚目")
+    expect(page).to have_css("#toast form[action='#{article_dismissal_path(second)}']")
+    expect(page).to have_no_css("article")
+    expect(second.reload).to be_dismissed
+    expect(first.reload).to be_dismissed
   end
 
   it "送れなかったらカードが戻り、もう一度引ける" do

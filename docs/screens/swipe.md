@@ -30,7 +30,7 @@
 - Given 行全体は「読む」のボタン When その上から左へ引いて閾値に届かずに離す Then 行は戻り、読みにも進まない（引いた後の click を読みにしない。#91）
 
 ## 使う設定の鍵
-dopamine.yml: `swipe.dismiss_threshold_ratio`、`swipe.submit_timeout_seconds`。一掃の閾値（本数・日数）は鍵が無い（未決 1, 2）
+dopamine.yml: `swipe.dismiss_threshold_ratio`、`swipe.submit_timeout_seconds`、`toast.visible_seconds`（取り消しのトーストが消えるまで。#112）。一掃の閾値（本数・日数）は鍵が無い（未決 1, 2）
 personas.yml: なし
 
 ## 外部 API

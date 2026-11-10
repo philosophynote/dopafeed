@@ -7,16 +7,15 @@
 
 <section class="mt-4" aria-label="保存した記事">
   <% if @articles.empty? %>
-    <div class="rounded-2xl bg-white px-4 py-10 text-center shadow-sm">
-      <p class="text-lg font-bold">まだ保存した記事はありません。</p>
-      <p class="mt-1 text-sm text-gray-500">フィードで記事を右へ引くと、ここに取り置けます。</p>
-    </div>
+    <%= render "saved/empty" %>
   <% else %>
-    <ul class="divide-y divide-gray-100 overflow-hidden rounded-2xl bg-white shadow-sm">
+    <ul class="swipe-list divide-y divide-gray-100 overflow-hidden rounded-2xl bg-white shadow-sm">
       <% @articles.each do |article| %>
         <%= render "saved/row", article: article %>
       <% end %>
     </ul>
+    <%# 保存を全部外すと一覧は隠した跡だけになる。そのときだけ CSS が空状態を出す %>
+    <div class="swipe-list-empty"><%= render "saved/empty" %></div>
   <% end %>
 </section>
 

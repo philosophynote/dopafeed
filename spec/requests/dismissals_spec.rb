@@ -37,7 +37,7 @@ RSpec.describe "Dismissals", type: :request do
         expect(row).to have_css("li##{dom_id(article)}[hidden]", visible: :all)
         expect(row).to have_no_button("読む", visible: :all)
         toast = page.find("turbo-stream[action='update'][target='toast']")
-        expect(toast).to have_css("[role='status']", text: "1 件を削除しました")
+        expect(toast).to have_css("[data-controller='toast']", text: "1 件を削除しました")
         expect(toast.find("form[action='#{article_dismissal_path(article)}']")).to have_css("input[name='_method'][value='delete']", visible: :all)
         expect(toast).to have_button("元に戻す")
         expect(page).to have_no_css("turbo-stream[target='unread-count']")

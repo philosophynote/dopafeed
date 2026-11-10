@@ -20,7 +20,7 @@ RSpec.describe "Bookmarks from Saved", type: :request do
     row = page.find("turbo-stream[action='replace'][target='#{dom_id(article)}']", visible: :all)
     expect(row).to have_css("li##{dom_id(article)}[hidden]", visible: :all)
     toast = page.find("turbo-stream[action='update'][target='toast']")
-    expect(toast).to have_css("[role='status']", text: "1 件の保存を外しました")
+    expect(toast).to have_css("[data-controller='toast']", text: "1 件の保存を外しました")
     expect(toast.find("form[action='#{article_bookmark_path(article, from: "saved")}']")).to have_button("元に戻す")
     expect(page.find("turbo-stream[action='update'][target='saved-count']")).to have_text("1")
     expect(page.find("turbo-stream[action='replace'][target='unread-badge']")).to have_css("[data-unread-badge]", text: "1")

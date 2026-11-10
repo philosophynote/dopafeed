@@ -1,6 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 import { Turbo } from "@hotwired/turbo-rails"
 import { EDGE_PX, LOCK_PX } from "controllers/swipe_thresholds"
+import { enqueue as enqueueSubmission } from "controllers/submission_queue"
 
 // 一覧の 1 行。左へ引いて離すと form（Main では「興味なし」、保存の一覧では「保存を外す」）を、右へ引いて離すと saveForm（「保存」）を送り、
 // 触れて離すと「読む」の form を送る（読み終えた行ではリンクを開く）。記録と差し替えはサーバー（Turbo Stream）の仕事で、ここは指の動きを form の送信に変えるだけ。
@@ -15,9 +16,6 @@ const FLY_OUT_RATIO = 1.2
 // transitionend を待つ上限に足す余裕。合図が来なくても止まった頃に次へ進むため
 const SETTLE_MARGIN_MS = 100
 
-// Turbo は form の送信中に別の form が送られると先の送信を止めて応答を捨てる（先のカードが画面に残る）。
-// 送信は全カードで 1 本の列に並べ、前の turbo:submit-end を待ってから次を送る
-let submissions = Promise.resolve()
 // 最後に「読む」を押した印。応答は送った順に届くので、待つ間に押し直した行を後の応答で負かさないよう、開くのはこの印を持つ行だけにする
 let latestTap = 0
 
@@ -163,7 +161,7 @@ export default class extends Controller {
   }
 
   enqueue(form, submitter, done, { stopOnTimeout = false, send = () => form.requestSubmit(submitter) } = {}) {
-    submissions = submissions.then(() => new Promise((resolve) => {
+    enqueueSubmission(() => new Promise((resolve) => {
       if (!form.isConnected) return resolve()
 
       let submission
@@ -211,7 +209,7 @@ export default class extends Controller {
 
     if (this.readTarget.tagName === "A") {
       const href = this.readTarget.href
-      submissions = submissions.then(() => Turbo.visit(href))
+      enqueueSubmission(() => Turbo.visit(href))
       return
     }
     this.tap = ++latestTap

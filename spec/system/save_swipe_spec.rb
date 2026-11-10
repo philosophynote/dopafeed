@@ -31,7 +31,7 @@ RSpec.describe "Save swipe", type: :system do
     screenshot!("armed")
     drag_card("あとで読む記事", from: [ width / 2, 40 ], to: [ width / 2 + width * ratio * 0.2, 40 ], down: false)
 
-    expect(find("#toast [role='status']", text: "1 件を保存しました")).to have_button("元に戻す")
+    expect(find("#toast [data-controller='toast']", text: "1 件を保存しました")).to have_button("元に戻す")
     expect(page).to have_css("article", count: 1)
     expect(page).to have_css("[data-unread-badge]", text: "1")
     expect(Article.find_by(title: "あとで読む記事")).to be_bookmarked
@@ -42,7 +42,7 @@ RSpec.describe "Save swipe", type: :system do
 
     expect(page).to have_css("article", count: 2)
     expect(all("article h2").map(&:text)).to eq(%w[あとで読む記事 今読む記事])
-    expect(page).to have_no_css("#toast [role='status']")
+    expect(page).to have_no_css("#toast [data-controller='toast']")
     expect(page).to have_css("[data-unread-badge]", text: "2")
     expect(Article.find_by(title: "あとで読む記事")).not_to be_bookmarked
   end
@@ -82,7 +82,7 @@ RSpec.describe "Save swipe", type: :system do
     screenshot!("pulling")
     drag_card("取り置いた記事", from: [ width / 2, 40 ], to: [ width / 2 - width * ratio * 0.7, 40 ], down: false)
 
-    expect(find("#toast [role='status']", text: "1 件の保存を外しました")).to have_button("元に戻す")
+    expect(find("#toast [data-controller='toast']", text: "1 件の保存を外しました")).to have_button("元に戻す")
     expect(page).to have_no_css("article", text: "取り置いた記事")
     expect(page).to have_css("h1", text: "保存 (1)")
     expect(page).to have_css("[data-unread-badge]", text: "1")
@@ -93,14 +93,14 @@ RSpec.describe "Save swipe", type: :system do
 
     expect(page).to have_css("article", count: 2)
     expect(all("article h2").map(&:text)).to eq(%w[取り置いた記事 読み終えた記事])
-    expect(page).to have_no_css("#toast [role='status']")
+    expect(page).to have_no_css("#toast [data-controller='toast']")
     expect(page).to have_css("h1", text: "保存 (2)")
     expect(page).to have_no_css("[data-unread-badge]")
     expect(Article.find_by(title: "取り置いた記事")).to be_bookmarked
 
     # 読んだ行（Reader へのリンク）も引いて外せる。引いた後の click で Reader へ移らない
     drag_card("読み終えた記事", from: [ width / 2, 40 ], to: [ width / 2 - width * ratio * 1.3, 40 ])
-    expect(page).to have_css("#toast [role='status']", text: "1 件の保存を外しました", count: 1)
+    expect(page).to have_css("#toast [data-controller='toast']", text: "1 件の保存を外しました", count: 1)
     expect(page).to have_current_path(saved_path)
     expect(page).to have_css("h1", text: "保存 (1)")
     expect(Article.find_by(title: "読み終えた記事")).not_to be_bookmarked
