@@ -199,6 +199,13 @@ RSpec.describe "Swipe", type: :system do
     drag_card("二枚目", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
     # 二枚目が流れ終わって送信が始まってから押す（流れている間に押せば、列の先に並ぶ一枚目の取り消しが先に届くのが正しい）
     page.document.synchronize { raise Capybara::ElementNotFound, "二枚目の送信が始まらない" unless page.evaluate_script("window.__starts") >= 1 }
+    # 応答が描かれる時刻は submit-end より後で決まらない（CI では取り消しの順番が先に来た）。描くのを遅らせて、その遅い側を毎回通す
+    page.execute_script(<<~JS)
+      document.addEventListener("turbo:before-stream-render", (event) => {
+        const render = event.detail.render
+        event.detail.render = (stream) => new Promise((resolve) => setTimeout(() => resolve(render(stream)), 300))
+      })
+    JS
     find("#toast").click_on("元に戻す")
 
     second = Article.find_by!(title: "二枚目")

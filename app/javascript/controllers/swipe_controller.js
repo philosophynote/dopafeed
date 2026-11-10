@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 import { Turbo } from "@hotwired/turbo-rails"
 import { EDGE_PX, LOCK_PX } from "controllers/swipe_thresholds"
-import { enqueue as enqueueSubmission } from "controllers/submission_queue"
+import { enqueue as enqueueSubmission, noteSwipeSent } from "controllers/submission_queue"
 
 // 一覧の 1 行。左へ引いて離すと form（Main では「興味なし」、保存の一覧では「保存を外す」）を、右へ引いて離すと saveForm（「保存」）を送り、
 // 触れて離すと「読む」の form を送る（読み終えた行ではリンクを開く）。記録と差し替えはサーバー（Turbo Stream）の仕事で、ここは指の動きを form の送信に変えるだけ。
@@ -157,7 +157,7 @@ export default class extends Controller {
   // 送れなかったら（圏外など）行を戻して、もう一度引けるようにする
   submit(direction) {
     const form = direction > 0 ? this.saveFormTarget : this.formTarget
-    this.enqueue(form, null, (success) => { if (!success) this.restore() })
+    this.enqueue(form, null, (success) => { if (!success) this.restore() }, { send: () => { noteSwipeSent(); form.requestSubmit() } })
   }
 
   enqueue(form, submitter, done, { stopOnTimeout = false, send = () => form.requestSubmit(submitter) } = {}) {
