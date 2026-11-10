@@ -18,17 +18,15 @@ import { enqueue as enqueueSubmission, noteSwipeFailed, noteSwipeSent } from "co
 const FLY_OUT_RATIO = 1.2
 // transitionend を待つ上限に足す余裕。合図が来なくても止まった頃に次へ進むため
 const SETTLE_MARGIN_MS = 100
-// 払う速さは離す直前のこの長さの動きで測る（離した時刻までの平均）。それより前の動きを混ぜると、速く引いてから止めて離した指まで払いになる
-const FLICK_WINDOW_MS = 100
 
 // 最後に「読む」を押した印。応答は送った順に届くので、待つ間に押し直した行を後の応答で負かさないよう、開くのはこの印を持つ行だけにする
 let latestTap = 0
 
 export default class extends Controller {
   static targets = ["card", "rail", "saveRail", "form", "saveForm", "read", "detail"]
-  // 送る閾値（カード幅に対する比）、払いと見なす速さ（px/ms。0 なら払いでは送らない）と払いでも要る引いた幅（px。少し滑ったタップを払いにしない）、
-  // 送信の応答を待つ上限（秒）。dopamine.yml の値を view が渡す
-  static values = { dismissRatio: Number, flickVelocity: Number, flickMinPx: Number, submitTimeoutSeconds: Number }
+  // 送る閾値（カード幅に対する比）、払いと見なす速さ（px/ms）、速さを測る離す直前の長さ（ms。それより前の動きを混ぜると、速く引いてから止めて離した指まで払いになる）、
+  // 払いでも要る引いた幅（px。少し滑ったタップを払いにしない）、送信の応答を待つ上限（秒）。dopamine.yml の値を view が渡す。速さか長さが 0 なら払いでは送らない
+  static values = { dismissRatio: Number, flickVelocity: Number, flickWindowMs: Number, flickMinPx: Number, submitTimeoutSeconds: Number }
 
   disconnect() {
     this.settleCleanup?.()
@@ -60,7 +58,7 @@ export default class extends Controller {
     const dx = event.clientX - this.startX
     const dy = event.clientY - this.startY
     this.samples.push({ t: event.timeStamp, x: event.clientX })
-    this.samples = this.samples.filter((sample) => sample.t >= event.timeStamp - FLICK_WINDOW_MS)
+    this.samples = this.samples.filter((sample) => sample.t >= event.timeStamp - this.flickWindowMsValue)
     if (!this.horizontal) {
       if (Math.abs(dy) > LOCK_PX && Math.abs(dy) >= Math.abs(dx)) {
         this.tracking = false
@@ -94,14 +92,18 @@ export default class extends Controller {
 
   // 離す直前に、引いた向きへ速く動いていたか。指を止めると pointermove は来ないので、時間は離した時刻まで数える
   flicked(now) {
-    if (!(this.flickVelocityValue > 0) || Math.abs(this.dx) < this.flickMinPxValue) return false
+    if (!(this.flickVelocityValue > 0) || !(this.flickWindowMsValue > 0) || Math.abs(this.dx) < this.flickMinPxValue) return false
 
-    const recent = this.samples.filter((sample) => sample.t >= now - FLICK_WINDOW_MS)
+    const recent = this.samples.filter((sample) => sample.t >= now - this.flickWindowMsValue)
     const first = recent[0]
     const last = recent[recent.length - 1]
     const elapsed = now - first?.t
     // 時刻の差が無い動きは測れない（一度の跳びを払いにしない）
     if (recent.length < 2 || !(elapsed > 0)) return false
+
+    // 離す直前に戻していたら払いではない（平均はまだ引いた向きでも、指は戻ろうとしている）
+    const lastStep = last.x - recent[recent.length - 2].x
+    if (Math.sign(lastStep) === -Math.sign(this.dx)) return false
 
     const velocity = (last.x - first.x) / elapsed
     return Math.sign(velocity) === Math.sign(this.dx) && Math.abs(velocity) >= this.flickVelocityValue

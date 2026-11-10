@@ -107,7 +107,7 @@ RSpec.describe "Save swipe", type: :system do
   end
 
   it "yml に払いの鍵があれば、Saved の行も閾値の手前で左へ払えば保存が外れる" do
-    allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.deep_merge(swipe: { flick_velocity: 0.5, flick_min_px: 30 }))
+    allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.deep_merge(swipe: { flick_velocity: 0.5, flick_window_ms: 100, flick_min_px: 30 }))
     create(:article, title: "払って外す記事", bookmarked_at: now - 1.hour)
     sign_in
     visit saved_path

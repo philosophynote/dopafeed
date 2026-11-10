@@ -3,7 +3,7 @@
     左へ引くと Stimulus swipe が隠れた「保存を外す」の form を送る（右に充てる動作は無い）。from=saved は応答を Saved の行とトーストで返させるため %>
 <% swipe = Dopamine.settings[:swipe] %>
 <li id="<%= dom_id(article) %>" class="relative" data-controller="swipe"
-    data-swipe-dismiss-ratio-value="<%= swipe[:dismiss_threshold_ratio] %>" data-swipe-flick-velocity-value="<%= swipe[:flick_velocity] %>" data-swipe-flick-min-px-value="<%= swipe[:flick_min_px] %>" data-swipe-submit-timeout-seconds-value="<%= swipe[:submit_timeout_seconds] %>">
+    data-swipe-dismiss-ratio-value="<%= swipe[:dismiss_threshold_ratio] %>" data-swipe-flick-velocity-value="<%= swipe[:flick_velocity] %>" data-swipe-flick-window-ms-value="<%= swipe[:flick_window_ms] %>" data-swipe-flick-min-px-value="<%= swipe[:flick_min_px] %>" data-swipe-submit-timeout-seconds-value="<%= swipe[:submit_timeout_seconds] %>">
   <div class="relative">
     <%= render "articles/swipe_rail", target: "rail", modifier: "swipe-unsave-rail", icon: :unbookmark, label: "外す" %>
     <article class="swipe-card relative flex items-start gap-3 bg-white px-4 py-3" data-swipe-target="card"

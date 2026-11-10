@@ -6,7 +6,7 @@
     li に id を持つのは、「興味なし」と「保存」の Turbo Stream がこの行を隠した跡と差し替え、「元に戻す」で同じ位置に戻すため %>
 <% swipe = Dopamine.settings[:swipe] %>
 <li id="<%= dom_id(article) %>" class="relative" data-controller="swipe" data-action="sheet:finish->swipe#finish"
-    data-swipe-dismiss-ratio-value="<%= swipe[:dismiss_threshold_ratio] %>" data-swipe-flick-velocity-value="<%= swipe[:flick_velocity] %>" data-swipe-flick-min-px-value="<%= swipe[:flick_min_px] %>" data-swipe-submit-timeout-seconds-value="<%= swipe[:submit_timeout_seconds] %>">
+    data-swipe-dismiss-ratio-value="<%= swipe[:dismiss_threshold_ratio] %>" data-swipe-flick-velocity-value="<%= swipe[:flick_velocity] %>" data-swipe-flick-window-ms-value="<%= swipe[:flick_window_ms] %>" data-swipe-flick-min-px-value="<%= swipe[:flick_min_px] %>" data-swipe-submit-timeout-seconds-value="<%= swipe[:submit_timeout_seconds] %>">
   <%# 背景と行を包む。li の高さが変わっても（行の下に何か足しても）背景は行の高さに留まる %>
   <div class="relative">
     <%= render "articles/swipe_rail", target: "rail", modifier: nil, icon: :trash, label: "削除" %>

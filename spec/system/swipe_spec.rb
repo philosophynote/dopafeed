@@ -186,12 +186,14 @@ RSpec.describe "Swipe", type: :system do
     expect(Article.find_by(title: "戻る記事")).not_to be_dismissed
   end
 
-  context "yml に swipe.flick_velocity と swipe.flick_min_px がある" do
+  context "yml に swipe.flick_velocity・swipe.flick_window_ms・swipe.flick_min_px がある" do
     let(:flick_velocity) { 0.5 }
     let(:flick_min_px) { 30 }
 
     before do
-      allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.deep_merge(swipe: { flick_velocity: flick_velocity, flick_min_px: flick_min_px }))
+      allow(Dopamine).to receive(:settings).and_return(
+        Dopamine.settings.deep_merge(swipe: { flick_velocity: flick_velocity, flick_window_ms: 100, flick_min_px: flick_min_px })
+      )
     end
 
     it "速く払えば閾値の手前で離しても流れて消える。ゆっくり引く・止めてから離す・払って戻す・少し滑らせる・取り上げられると戻る" do
@@ -222,6 +224,22 @@ RSpec.describe "Swipe", type: :system do
       drag_card("迷う記事", from: [ width / 2, 40 ], to: [ width / 2 + short / 2, 40 ], down: false, ms: 30, steps: 3)
       expect(settled_shift("迷う記事")).to eq(0)
 
+      # 左へ速く払ってから、離す直前に少し右へ戻す（直前の 100ms の平均はまだ左向き）
+      page.evaluate_async_script(<<~JS, find("article", text: "迷う記事").native, width / 2, short)
+        const [card, x, short, done] = arguments
+        const rect = card.getBoundingClientRect()
+        const fire = (type, dx) => card.dispatchEvent(new PointerEvent(type, {
+          bubbles: true, cancelable: true, pointerId: 7, pointerType: "touch", isPrimary: true, button: type === "pointermove" ? -1 : 0, buttons: 1,
+          clientX: rect.left + x + dx, clientY: rect.top + 40
+        }))
+        fire("pointerdown", 0)
+        setTimeout(() => fire("pointermove", -short / 2), 10)
+        setTimeout(() => fire("pointermove", -short), 20)
+        setTimeout(() => fire("pointermove", -short + 10), 30)
+        setTimeout(() => { fire("pointerup", -short + 10); done() }, 35)
+      JS
+      expect(settled_shift("迷う記事")).to eq(0)
+
       # 横と決まる幅は越えたが flick_min_px に届かない速い滑り（タップのつもりの指）
       drag_card("迷う記事", from: [ width / 2, 40 ], to: [ width / 2 - (flick_min_px - 8), 40 ], ms: 20, steps: 2)
       expect(settled_shift("迷う記事")).to eq(0)
@@ -244,8 +262,8 @@ RSpec.describe "Swipe", type: :system do
     end
   end
 
-  it "yml に swipe.flick_velocity が無ければ、速く払っても閾値の手前では戻る" do
-    allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.deep_merge(swipe: { flick_velocity: nil }))
+  it "yml に swipe.flick_velocity か swipe.flick_window_ms が無ければ、速く払っても閾値の手前では戻る" do
+    allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.deep_merge(swipe: { flick_velocity: 0.5, flick_window_ms: nil }))
     create(:article, title: "戻る記事", published_at: now - 1.hour)
     sign_in
     width = card_width("戻る記事")
