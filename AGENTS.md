@@ -55,16 +55,6 @@
 - GitHub の自動レビューはサービス側の出力仕様に従う。公式案内では P0・P1 が対象であり、この規則で P2 の投稿や毎回の完了コメントを保証できない。コメントが無いだけで完了・安全と判断せず、実行状況と検査対象の版を確認する
 - 修正後は元の発生条件と正常系を再検証し、最後のコミットに対する CI とレビューを確認する。人が指摘の妥当性と残るリスクを判断し、マージ・デプロイを行う
 
-### 参照した公式資料
-
-以下の公開資料を参考に、このリポジトリ向けの規則を定めた。両社の社内規程の転載や、公式認定を示すものではない。
-
-- [OpenAI：AI を前提にした開発工程の分担](https://learn.chatgpt.com/docs/guides/build-ai-native-engineering-team) — 仕様、実装、テスト、レビュー、運用を通じた検証と人の最終責任
-- [OpenAI：リポジトリ固有のレビュー規則](https://developers.openai.com/blog/custom-code-review-rules-for-codex) — 重要な制約、例外、安全な修正方法を短く具体的に記述する
-- [OpenAI：GitHub レビューの設定と出力範囲](https://learn.chatgpt.com/docs/third-party/github) — リポジトリの規則とサービス側の出力仕様の区別
-- [Anthropic：2026 年のエージェント開発動向](https://resources.anthropic.com/hubfs/2026%20Agentic%20Coding%20Trends%20Report.pdf) — 開発工程、人による監督、設計段階からの安全性（第 1・4・8 節）
-- [Anthropic：Claude Code の実践指針](https://code.claude.com/docs/en/best-practices) — 仕様との照合、実行できる検証、指示文と権限制御の役割分担
-
 ## 禁止
 - `kamal deploy`、本番 DB、secrets（config/master.key, .env*）に触るな。人が打つ
 - config/dopamine.yml の値を変えるな。変えたいなら PR 本文で提案せよ
