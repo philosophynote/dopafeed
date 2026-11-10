@@ -8,13 +8,17 @@ export function enqueue(run) {
   return tail
 }
 
-// 行を片付ける送信（応答が取り消しのトーストを置き換える）を送った回数。
+// 行を片付ける送信（応答が取り消しのトーストを置き換える）を送った回数。送れなかった分は引く（トーストは置き換わらない）。
 // トーストは出た時の回数を覚え、増えていたら自分はもう置き換わる側だと分かる。
 // 応答が画面に描かれるのは submit-end より後で、その時刻は決まらないので、画面からではなくこの回数で見る
 let swipesSent = 0
 
 export function noteSwipeSent() {
   swipesSent += 1
+}
+
+export function noteSwipeFailed() {
+  swipesSent -= 1
 }
 
 export function swipeCount() {

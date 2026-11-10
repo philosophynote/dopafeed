@@ -29,7 +29,7 @@ export default class extends Controller {
     this.queued = true
     const form = event.target
     enqueue(() => new Promise((resolve) => {
-      if (!form.isConnected || swipeCount() !== this.swipesAtShow) {
+      if (!form.isConnected || swipeCount() > this.swipesAtShow) {
         this.queued = false
         return resolve()
       }

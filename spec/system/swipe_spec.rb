@@ -57,6 +57,31 @@ RSpec.describe "Swipe", type: :system do
     expect(last_bottom).to be <= toast.evaluate_script("this.getBoundingClientRect().top")
   end
 
+  it "前の行のトーストが出ている間に次の行が送れなかったら、前の行の「元に戻す」は押せる" do
+    create(:article, title: "一枚目", published_at: now - 1.hour)
+    create(:article, title: "二枚目", published_at: now - 2.hours)
+    calls = 0
+    allow_any_instance_of(DismissalsController).to receive(:create).and_wrap_original do |original, *args|
+      calls += 1
+      calls == 2 ? original.receiver.head(:service_unavailable) : original.call(*args)
+    end
+    sign_in
+    width = card_width("一枚目")
+    far = width * dismiss_ratio * 1.3
+
+    drag_card("一枚目", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
+    first = Article.find_by!(title: "一枚目")
+    expect(page).to have_css("#toast form[action='#{article_dismissal_path(first)}']")
+    drag_card("二枚目", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
+    expect(settled_shift("二枚目")).to eq(0)
+
+    find("#toast").click_on("元に戻す")
+    expect(page).to have_css("article", count: 2)
+    expect(page).to have_no_css("#toast [data-controller='toast']")
+    expect(first.reload).not_to be_dismissed
+    expect(Article.find_by!(title: "二枚目")).not_to be_dismissed
+  end
+
   it "「元に戻す」が送れなかったらトーストが残り、もう一度押せば戻る" do
     create(:article, title: "戻す記事", published_at: now - 1.hour)
     calls = 0
