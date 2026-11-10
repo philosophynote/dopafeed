@@ -9,20 +9,26 @@ import { enqueue as enqueueSubmission, noteSwipeFailed, noteSwipeSent } from "co
 // 行全体が「読む」のボタンなので、引く操作とタップを同じコントローラで見分ける（引いた後の click を読みにしない）。
 // Pointer Events を使うのは、iPhone の指も Mac のマウスも同じ道で扱い、touch 固有の API を持たないため。
 // 縦の動きはブラウザのスクロールに任せ（CSS の touch-action: pan-y）、横と決めてからカードを指に追従させる。
-// 送る form の無い向き（保存の一覧の右）へは動かさない
+// 送る form の無い向き（保存の一覧の右）へは動かさない。
+// 送るのは、閾値まで引いて離したときと、閾値の手前でも引いた向きへ速く払って離したとき（誤って消しても「元に戻す」で戻せるので、軽い払いで片付ける）。
+// iOS が途中で指を取り上げた（pointercancel）ときも、閾値を越えていれば送る。戻すと、引ききった行が理由も無く戻って見える。
+// 取り上げでは払いを見ない。取り上げは縦のスクロールや OS のジェスチャーなど、指が払うつもりでないときにも来る
 
 // 送るときに流す先。カード幅より大きくして画面の外まで出す
 const FLY_OUT_RATIO = 1.2
 // transitionend を待つ上限に足す余裕。合図が来なくても止まった頃に次へ進むため
 const SETTLE_MARGIN_MS = 100
+// 払う速さは離す直前のこの長さの動きで測る（離した時刻までの平均）。それより前の動きを混ぜると、速く引いてから止めて離した指まで払いになる
+const FLICK_WINDOW_MS = 100
 
 // 最後に「読む」を押した印。応答は送った順に届くので、待つ間に押し直した行を後の応答で負かさないよう、開くのはこの印を持つ行だけにする
 let latestTap = 0
 
 export default class extends Controller {
   static targets = ["card", "rail", "saveRail", "form", "saveForm", "read", "detail"]
-  // 送る閾値（カード幅に対する比）と、送信の応答を待つ上限（秒）。dopamine.yml の値を view が渡す
-  static values = { dismissRatio: Number, submitTimeoutSeconds: Number }
+  // 送る閾値（カード幅に対する比）、払いと見なす速さ（px/ms。0 なら払いでは送らない）と払いでも要る引いた幅（px。少し滑ったタップを払いにしない）、
+  // 送信の応答を待つ上限（秒）。dopamine.yml の値を view が渡す
+  static values = { dismissRatio: Number, flickVelocity: Number, flickMinPx: Number, submitTimeoutSeconds: Number }
 
   disconnect() {
     this.settleCleanup?.()
@@ -42,6 +48,7 @@ export default class extends Controller {
     this.tracking = true
     this.horizontal = false
     this.dx = 0
+    this.samples = [{ t: event.timeStamp, x: event.clientX }]
     this.settleCleanup?.()
     this.cardTarget.classList.remove("swipe-settling")
     this.rails().forEach((rail) => rail.classList.remove("swipe-settling"))
@@ -52,6 +59,8 @@ export default class extends Controller {
 
     const dx = event.clientX - this.startX
     const dy = event.clientY - this.startY
+    this.samples.push({ t: event.timeStamp, x: event.clientX })
+    this.samples = this.samples.filter((sample) => sample.t >= event.timeStamp - FLICK_WINDOW_MS)
     if (!this.horizontal) {
       if (Math.abs(dy) > LOCK_PX && Math.abs(dy) >= Math.abs(dx)) {
         this.tracking = false
@@ -75,18 +84,27 @@ export default class extends Controller {
     this.tracking = false
     if (!this.horizontal) return
 
-    if (this.dx !== 0 && Math.abs(this.dx) >= this.threshold()) {
+    const flicked = event.type === "pointerup" && this.flicked(event.timeStamp)
+    if (this.dx !== 0 && (Math.abs(this.dx) >= this.threshold() || flicked)) {
       this.flyOut(Math.sign(this.dx))
     } else {
       this.settle(0)
     }
   }
 
-  cancel(event) {
-    if (!this.tracking || event.pointerId !== this.pointerId) return
+  // 離す直前に、引いた向きへ速く動いていたか。指を止めると pointermove は来ないので、時間は離した時刻まで数える
+  flicked(now) {
+    if (!(this.flickVelocityValue > 0) || Math.abs(this.dx) < this.flickMinPxValue) return false
 
-    this.tracking = false
-    if (this.horizontal) this.settle(0)
+    const recent = this.samples.filter((sample) => sample.t >= now - FLICK_WINDOW_MS)
+    const first = recent[0]
+    const last = recent[recent.length - 1]
+    const elapsed = now - first?.t
+    // 時刻の差が無い動きは測れない（一度の跳びを払いにしない）
+    if (recent.length < 2 || !(elapsed > 0)) return false
+
+    const velocity = (last.x - first.x) / elapsed
+    return Math.sign(velocity) === Math.sign(this.dx) && Math.abs(velocity) >= this.flickVelocityValue
   }
 
   // 指がカードの外へ出ても pointermove を受け続ける。対応する実 pointer の無い合成イベントでは NotFoundError になるので無視する
