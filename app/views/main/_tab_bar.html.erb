@@ -1,4 +1,6 @@
 <%# フィード・保存・図鑑・購読の現在地を示す。図鑑はモックの「レポート」の枠（ADR 0020） %>
+<%# 引いて片付けた直後の「元に戻す」のトースト（shared/_undo_toast）を Turbo Stream が流し込む枠。タブバーの上に浮かべ、枠そのものは指を受けない %>
+<div id="toast" class="pointer-events-none fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom)+0.5rem)] z-20 px-3 *:pointer-events-auto" aria-live="polite"></div>
 <nav class="fixed inset-x-0 bottom-0 border-t border-gray-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur" aria-label="タブバー">
   <ul class="mx-auto grid max-w-md grid-cols-4">
     <li>

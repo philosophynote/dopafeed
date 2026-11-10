@@ -1,38 +1,60 @@
-# Main の行を読まずに片付ける（docs/screens/swipe.md）。左スワイプで帯に替わり、「元に戻す」で戻る、を 390×844 で通す。「興味なし」の見えるボタンは無い。
+# Main の行を読まずに片付ける（docs/screens/swipe.md）。左スワイプで行が消えて画面下に「元に戻す」のトーストが出て、押せば戻る、を 390×844 で通す。「興味なし」の見えるボタンは無い。
 # 引く手は spec/support/system_swipe.rb。右スワイプの「保存」は spec/system/save_swipe_spec.rb
 RSpec.describe "Swipe", type: :system do
   let(:now) { Time.current }
   # カード幅に対する送る閾値。view が yml から Stimulus の value で渡すので、spec も同じ所から読む
   let(:dismiss_ratio) { Dopamine.settings.dig(:swipe, :dismiss_threshold_ratio) }
 
-  it "左スワイプで行が帯に替わり未読数が減り、「元に戻す」で行が戻る" do
-    create(:article, title: "関心の無い記事", published_at: now - 1.hour)
-    create(:article, title: "読みたい記事", published_at: now - 2.hours)
+  it "左スワイプで行が消えて画面下にトーストが出て未読数が減り、「元に戻す」で行が元の位置に戻る" do
+    create(:article, title: "上の記事", published_at: now - 1.hour)
+    create(:article, title: "関心の無い記事", published_at: now - 2.hours)
+    create(:article, title: "下の記事", published_at: now - 3.hours)
     sign_in
     width = card_width("関心の無い記事")
 
-    expect(page).to have_css("[data-unread-badge]", text: "2")
+    expect(page).to have_css("[data-unread-badge]", text: "3")
     expect(page).to have_no_button("削除")
     drag_card("関心の無い記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 1.3, 40 ])
 
-    # 帯は見出しだけを省略するために 3 つの span に分かれ、見える文字は改行を挟んで読まれる。文として一致させず、帯の中に見出しがあることを見る
-    strip = find("li", text: "を削除した")
-    expect(strip).to have_text("関心の無い記事")
-    expect(strip).to have_button("元に戻す")
-    expect(page).to have_css("article", count: 1)
-    expect(page).to have_css("[data-unread-badge]", text: "1")
+    toast = find("#toast [role='status']", text: "1 件を削除しました")
+    expect(toast).to have_button("元に戻す")
+    expect(page).to have_no_css("article", text: "関心の無い記事")
+    expect(page).to have_css("article", count: 2)
+    expect(page).to have_css("[data-unread-badge]", text: "2")
     expect(Article.find_by(title: "関心の無い記事")).to be_dismissed
+    # トーストはタブバーの上に浮き、画面の中に収まる。押す所は 44px 以上
+    toast_rect = toast.evaluate_script("this.getBoundingClientRect().toJSON()")
+    nav_top = find("nav[aria-label='タブバー']").evaluate_script("this.getBoundingClientRect().top")
+    expect(toast_rect["bottom"]).to be <= nav_top
+    expect(toast_rect["left"]).to be >= 0
+    expect(toast_rect["right"]).to be <= page.evaluate_script("document.documentElement.clientWidth")
+    expect(toast.find_button("元に戻す").evaluate_script("this.getBoundingClientRect().height")).to be >= 44
     screenshot!("dismissed")
 
     click_on "元に戻す"
 
-    expect(page).to have_css("article", count: 2)
-    expect(page).to have_no_text("を削除した")
-    expect(page).to have_css("[data-unread-badge]", text: "2")
+    expect(page).to have_css("article", count: 3)
+    expect(all("article h2").map(&:text)).to eq(%w[上の記事 関心の無い記事 下の記事])
+    expect(page).to have_no_css("#toast [role='status']")
+    expect(page).to have_css("[data-unread-badge]", text: "3")
     expect(Article.find_by(title: "関心の無い記事")).not_to be_dismissed
   end
 
-  it "左へカード幅の 4 割を超えて引いて離すと、カードが流れて帯に替わる" do
+  it "トーストは yml の toast.visible_seconds が経つと消え、消えた後も記録は残る" do
+    allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.deep_merge(toast: { visible_seconds: 1 }))
+    create(:article, title: "消す記事", published_at: now - 1.hour)
+    sign_in
+    width = card_width("消す記事")
+
+    drag_card("消す記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 1.3, 40 ])
+    expect(page).to have_css("#toast [role='status']", text: "1 件を削除しました")
+
+    expect(page).to have_no_css("#toast [role='status']", wait: 5)
+    expect(page).to have_no_css("article", text: "消す記事")
+    expect(Article.find_by(title: "消す記事")).to be_dismissed
+  end
+
+  it "左へカード幅の 4 割を超えて引いて離すと、カードが流れて消え、トーストが出る" do
     create(:article, title: "飛ばす記事", published_at: now - 1.hour)
     create(:article, title: "残す記事", published_at: now - 2.hours)
     sign_in
@@ -56,7 +78,7 @@ RSpec.describe "Swipe", type: :system do
     expect(rail[:class]).to include("swipe-armed")
     screenshot!("armed")
     drag_card("飛ばす記事", from: [ width / 2 - width * dismiss_ratio * 1.1, 40 ], to: [ width / 2 - width * dismiss_ratio * 1.3, 40 ])
-    expect(page).to have_text("を削除した")
+    expect(page).to have_text("1 件を削除しました")
     expect(page).to have_css("article", count: 1)
     expect(page).to have_css("[data-unread-badge]", text: "1")
     expect(Article.find_by(title: "飛ばす記事")).to be_dismissed
@@ -99,7 +121,7 @@ RSpec.describe "Swipe", type: :system do
     expect(Article.find_by(title: "戻る記事")).not_to be_dismissed
   end
 
-  it "続けざまに 2 枚流しても両方が帯になる（送信は 1 本ずつ）" do
+  it "続けざまに 2 枚流しても両方消える（送信は 1 本ずつ）。トーストは後のものに置き換わって 1 枚だけ" do
     create(:article, title: "一枚目", published_at: now - 1.hour)
     create(:article, title: "二枚目", published_at: now - 2.hours)
     sign_in
@@ -109,7 +131,7 @@ RSpec.describe "Swipe", type: :system do
     drag_card("一枚目", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
     drag_card("二枚目", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
 
-    expect(page).to have_css("li", text: "を削除した", count: 2)
+    expect(page).to have_css("#toast [role='status']", text: "1 件を削除しました", count: 1)
     expect(page).to have_no_css("article")
     expect(page).to have_no_css("[data-unread-badge]")
     expect(Article.where.not(dismissed_at: nil).count).to eq(2)
@@ -130,7 +152,7 @@ RSpec.describe "Swipe", type: :system do
 
     page.execute_script("window.fetch = window.__fetch")
     drag_card("圏外の記事", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
-    expect(page).to have_text("を削除した")
+    expect(page).to have_text("1 件を削除しました")
     expect(Article.find_by(title: "圏外の記事")).to be_dismissed
   end
 
@@ -156,7 +178,7 @@ RSpec.describe "Swipe", type: :system do
 
     page.execute_script("window.fetch = window.__fetch")
     drag_card("次の記事", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
-    expect(page).to have_text("を削除した")
+    expect(page).to have_text("1 件を削除しました")
     expect(Article.find_by(title: "次の記事")).to be_dismissed
   end
 
@@ -225,7 +247,7 @@ RSpec.describe "Swipe", type: :system do
     expect(article.reload.reading).to be_present
   end
 
-  it "広がった行も見出しの上から左へ引けて、動くのは行だけ。広げた欄は動かず、離すと行ごと帯に替わる" do
+  it "広がった行も見出しの上から左へ引けて、動くのは行だけ。広げた欄は動かず、離すと行ごと消える" do
     create(:article, title: "広げた記事", summary: "・広げた要約", published_at: now - 1.hour)
     sign_in
     find("article", text: "広げた記事").find_button("読む").execute_script("this.click()")
@@ -246,7 +268,7 @@ RSpec.describe "Swipe", type: :system do
     expect(settled_shift("広げた記事")).to eq(0)
 
     drag_card("広げた記事", from: [ width / 2, 30 ], to: [ width / 2 - width * dismiss_ratio * 1.5, 30 ])
-    expect(page).to have_text("を削除した")
+    expect(page).to have_text("1 件を削除しました")
     expect(page).to have_no_link("記事に遷移")
   end
 end

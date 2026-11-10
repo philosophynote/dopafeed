@@ -1,16 +1,22 @@
-<%# Saved: 行を「保存を外した ・ 元に戻す」の帯に替え、保存数を合わせる。
-    Main（保存した帯の「元に戻す」）: 帯を行に戻す。保存した後に読み終えていた記事など、未読に戻らない記事は行を描かず帯だけ消す（判定は Article.unread に任せる）。
+<%# Saved: 行を隠し、画面下に「元に戻す」のトーストを出し、保存数を合わせる。
+    Main（トーストの「元に戻す」）: 隠した行を元の位置に戻し、トーストを消す。保存した後に読み終えていた記事など、未読に戻らない記事は行を描かず跡だけ消す（判定は Article.unread に任せる）。
     どちらも未読数を合わせる %>
 <% if @from_saved %>
   <%= turbo_stream.replace dom_id(@article) do %>
-    <%= render "saved/unbookmarked_card", article: @article %>
+    <%= render "shared/hidden_row", article: @article %>
+  <% end %>
+  <%= turbo_stream.update "toast" do %>
+    <%= render "shared/undo_toast", message: "1 件の保存を外しました", undo: { path: article_bookmark_path(@article, from: "saved") } %>
   <% end %>
   <%= turbo_stream.update "saved-count", @saved_count.to_s %>
-<% elsif Article.unread.exists?(@article.id) %>
-  <%= turbo_stream.replace dom_id(@article) do %>
-    <%= render "main/article_card", article: @article %>
-  <% end %>
 <% else %>
-  <%= turbo_stream.remove dom_id(@article) %>
+  <% if Article.unread.exists?(@article.id) %>
+    <%= turbo_stream.replace dom_id(@article) do %>
+      <%= render "main/article_card", article: @article %>
+    <% end %>
+  <% else %>
+    <%= turbo_stream.remove dom_id(@article) %>
+  <% end %>
+  <%= turbo_stream.update "toast", "" %>
 <% end %>
 <%= render "shared/unread_count_streams", unread_count: @unread_count %>

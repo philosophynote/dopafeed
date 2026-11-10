@@ -1,4 +1,4 @@
-# 「興味なし」（POST /articles/:id/dismissal）と「元に戻す」（DELETE）。docs/screens/swipe.md の受け入れ条件のうち、記録と片付け
+# 「興味なし」（POST /articles/:id/dismissal）と、画面下のトーストの「元に戻す」（DELETE）。docs/screens/swipe.md の受け入れ条件のうち、記録と片付け
 RSpec.describe "Dismissals", type: :request do
   include ActionView::RecordIdentifier
 
@@ -26,17 +26,20 @@ RSpec.describe "Dismissals", type: :request do
       let!(:article) { create(:article, title: "関心の無い記事") }
       let!(:other) { create(:article) }
 
-      it "dismissed_at を今にし、Turbo Stream でカードを「元に戻す」の帯に替え、未読数を減らす" do
+      it "dismissed_at を今にし、Turbo Stream で行を隠して画面下に「元に戻す」のトーストを出し、未読数を減らす" do
         travel_to(noon) { post article_dismissal_path(article), headers: turbo }
 
         expect(response).to have_http_status(:ok)
         expect(response.media_type).to eq("text/vnd.turbo-stream.html")
         expect(article.reload.dismissed_at).to eq(noon)
 
-        card = page.find("turbo-stream[action='replace'][target='#{dom_id(article)}']")
-        expect(card).to have_text("「関心の無い記事」を削除した")
-        expect(card).to have_button("元に戻す")
-        expect(card).to have_no_button("読む")
+        row = page.find("turbo-stream[action='replace'][target='#{dom_id(article)}']", visible: :all)
+        expect(row).to have_css("li##{dom_id(article)}[hidden]", visible: :all)
+        expect(row).to have_no_button("読む", visible: :all)
+        toast = page.find("turbo-stream[action='update'][target='toast']")
+        expect(toast).to have_css("[role='status']", text: "1 件を削除しました")
+        expect(toast.find("form[action='#{article_dismissal_path(article)}']")).to have_css("input[name='_method'][value='delete']", visible: :all)
+        expect(toast).to have_button("元に戻す")
         expect(page).to have_no_css("turbo-stream[target='unread-count']")
         expect(page.find("turbo-stream[action='replace'][target='unread-badge']")).to have_css("[data-unread-badge]", text: "1")
         expect(page).to have_css("turbo-stream[action='replace'][target='app-badge'] #app-badge[data-badge-count-value='1']", visible: :all)
@@ -88,7 +91,7 @@ RSpec.describe "Dismissals", type: :request do
     describe "元に戻す（DELETE）" do
       let!(:article) { create(:article, :dismissed, title: "戻す記事") }
 
-      it "dismissed_at を消し、Turbo Stream で帯をカードに戻し、未読数を増やす" do
+      it "dismissed_at を消し、Turbo Stream で隠した行を戻してトーストを消し、未読数を増やす" do
         delete article_dismissal_path(article), headers: turbo
 
         expect(response).to have_http_status(:ok)
@@ -99,12 +102,13 @@ RSpec.describe "Dismissals", type: :request do
         expect(card).to have_button("「戻す記事」を読む")
         expect(card).to have_css("form[hidden][action='#{article_dismissal_path(article)}']", visible: :all)
         expect(card).to have_no_button("元に戻す")
+        expect(page.find("turbo-stream[action='update'][target='toast']", visible: :all).text(:all)).to be_blank
         expect(page).to have_no_css("turbo-stream[target='unread-count']")
         expect(page.find("turbo-stream[action='replace'][target='unread-badge']")).to have_css("[data-unread-badge]", text: "1")
         expect(page).to have_css("turbo-stream[action='replace'][target='app-badge'] #app-badge[data-badge-count-value='1']", visible: :all)
       end
 
-      it "興味なしにした後に読み終えていた記事は、カードを戻さず帯だけ消す（未読ではない）" do
+      it "興味なしにした後に読み終えていた記事は、行を戻さず隠した跡を消す（未読ではない）" do
         read = create(:article, :dismissed, :read, title: "読み終えた記事")
 
         delete article_dismissal_path(read), headers: turbo

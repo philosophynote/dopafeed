@@ -153,3 +153,15 @@
   [data-chest="open"] .chest-lid { animation-duration: 1ms; animation-delay: 0ms; }
   [data-chest="open"] .chest-sparkle { animation: none; }
 }
+
+/* 取り消しのトースト。下から少しせり上がって出る（行が消えたのと同時に、どこで戻せるかへ目を移すため） */
+.toast-enter {
+  animation: toast-enter 0.2s ease-out both;
+}
+@keyframes toast-enter {
+  from { opacity: 0; transform: translateY(0.75rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast-enter { animation: none; }
+}
