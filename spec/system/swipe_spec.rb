@@ -240,6 +240,67 @@ RSpec.describe "Swipe", type: :system do
     expect(first.reload).to be_dismissed
   end
 
+  it "二枚目の送信が一枚目のトーストより先に始まっても、一枚目の取り消しを二枚目の応答待ちに押せば送らない" do
+    create(:article, title: "一枚目", published_at: now - 1.hour)
+    create(:article, title: "二枚目", published_at: now - 2.hours)
+    calls = 0
+    allow_any_instance_of(DismissalsController).to receive(:create).and_wrap_original do |original, *args|
+      calls += 1
+      sleep 1.5 if calls == 2
+      original.call(*args)
+    end
+    sign_in
+    width = card_width("一枚目")
+    far = width * dismiss_ratio * 1.3
+    # 応答を描くのを遅らせ、一枚目のトーストが出る前に二枚目の送信を始めさせる
+    page.execute_script(<<~JS)
+      document.addEventListener("turbo:before-stream-render", (event) => {
+        const render = event.detail.render
+        event.detail.render = (stream) => new Promise((resolve) => setTimeout(() => resolve(render(stream)), 500))
+      })
+    JS
+
+    drag_card("一枚目", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
+    drag_card("二枚目", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
+    first = Article.find_by!(title: "一枚目")
+    find("#toast form[action='#{article_dismissal_path(first)}']").click_on("元に戻す")
+
+    second = Article.find_by!(title: "二枚目")
+    expect(page).to have_css("#toast form[action='#{article_dismissal_path(second)}']")
+    expect(page).to have_no_css("article")
+    expect(second.reload).to be_dismissed
+    expect(first.reload).to be_dismissed
+  end
+
+  it "「元に戻す」の応答を待つ間に画面を離れて戻っても、次のスワイプは待たされずに送れる" do
+    allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.deep_merge(swipe: { submit_timeout_seconds: 30 }))
+    create(:article, title: "消した記事", published_at: now - 1.hour)
+    create(:article, title: "次の記事", published_at: now - 2.hours)
+    sign_in
+    width = card_width("消した記事")
+    far = width * dismiss_ratio * 1.3
+
+    drag_card("消した記事", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
+    toast = find("#toast [data-controller='toast']", text: "1 件を削除しました")
+    # POST（取り消しの DELETE も form は POST）だけ応答も中断も返さない fetch にして、取り消しを送信中のまま設定へ移る
+    page.execute_script(<<~JS)
+      window.__fetch = window.fetch
+      window.fetch = (url, options) => (options?.method || "GET").toUpperCase() === "POST" ? new Promise(() => {}) : window.__fetch(url, options)
+    JS
+    toast.click_on("元に戻す")
+    expect(page).to have_css("#toast form[aria-busy='true']", visible: :all)
+    click_on "設定"
+    expect(page).to have_css("h1", text: "設定")
+    click_on "戻る"
+    expect(page).to have_css("article", text: "次の記事")
+
+    page.execute_script("window.fetch = window.__fetch")
+    drag_card("次の記事", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
+    # 列が取り消しの待ちの上限（30 秒）まで止まっていれば、ここで待ちきれない
+    expect(page).to have_text("1 件を削除しました", wait: 5)
+    expect(Article.find_by(title: "次の記事")).to be_dismissed
+  end
+
   it "送れなかったらカードが戻り、もう一度引ける" do
     create(:article, title: "圏外の記事", published_at: now - 1.hour)
     sign_in

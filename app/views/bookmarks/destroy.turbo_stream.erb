@@ -6,7 +6,7 @@
     <%= render "shared/hidden_row", article: @article %>
   <% end %>
   <%= turbo_stream.update "toast" do %>
-    <%= render "shared/undo_toast", message: "1 件の保存を外しました", undo: { path: article_bookmark_path(@article, from: "saved") } %>
+    <%= render "shared/undo_toast", message: "1 件の保存を外しました", undo: { path: article_bookmark_path(@article, from: "saved") }, swipe: params[:swipe].to_i %>
   <% end %>
   <%= turbo_stream.update "saved-count", @saved_count.to_s %>
 <% else %>

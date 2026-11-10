@@ -26,6 +26,12 @@ RSpec.describe "Bookmarks", type: :request do
       let!(:article) { create(:article, title: "あとで読む記事") }
       let!(:other) { create(:article) }
 
+      it "スワイプが付けた送信の番号（swipe）をトーストに渡す" do
+        post article_bookmark_path(article), params: { swipe: 4 }, headers: turbo
+
+        expect(page).to have_css("turbo-stream[target='toast'] [data-controller='toast'][data-toast-swipe-value='4']", visible: :all)
+      end
+
       it "bookmarked_at を今にし、Turbo Stream で行を隠して画面下に「元に戻す」のトーストを出し、未読数を減らす" do
         travel_to(noon) { post article_bookmark_path(article), headers: turbo }
 

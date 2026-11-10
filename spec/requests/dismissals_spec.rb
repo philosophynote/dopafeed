@@ -26,6 +26,12 @@ RSpec.describe "Dismissals", type: :request do
       let!(:article) { create(:article, title: "関心の無い記事") }
       let!(:other) { create(:article) }
 
+      it "スワイプが付けた送信の番号（swipe）をトーストに渡す" do
+        post article_dismissal_path(article), params: { swipe: 3 }, headers: turbo
+
+        expect(page).to have_css("turbo-stream[target='toast'] [data-controller='toast'][data-toast-swipe-value='3']", visible: :all)
+      end
+
       it "dismissed_at を今にし、Turbo Stream で行を隠して画面下に「元に戻す」のトーストを出し、未読数を減らす" do
         travel_to(noon) { post article_dismissal_path(article), headers: turbo }
 

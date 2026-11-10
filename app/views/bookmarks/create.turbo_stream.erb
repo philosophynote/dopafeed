@@ -11,7 +11,7 @@
     <%= render "shared/hidden_row", article: @article %>
   <% end %>
   <%= turbo_stream.update "toast" do %>
-    <%= render "shared/undo_toast", message: "1 件を保存しました", undo: { path: article_bookmark_path(@article), method: :delete } %>
+    <%= render "shared/undo_toast", message: "1 件を保存しました", undo: { path: article_bookmark_path(@article), method: :delete }, swipe: params[:swipe].to_i %>
   <% end %>
 <% end %>
 <%= render "shared/unread_count_streams", unread_count: @unread_count %>

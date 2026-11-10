@@ -163,7 +163,17 @@ export default class extends Controller {
       noteSwipeFailed()
       this.restore()
     }
-    this.enqueue(form, null, done, { send: () => { noteSwipeSent(); form.requestSubmit() } })
+    this.enqueue(form, null, done, { send: () => { this.stamp(form, noteSwipeSent()); form.requestSubmit() } })
+  }
+
+  // 送った回数を送信に付ける。応答のトーストがそれを持ち、後から来た送信に置き換わる側かを見分ける（submission_queue）
+  stamp(form, count) {
+    let field = form.elements.namedItem("swipe")
+    if (!field) {
+      field = Object.assign(document.createElement("input"), { type: "hidden", name: "swipe" })
+      form.append(field)
+    }
+    field.value = count
   }
 
   enqueue(form, submitter, done, { stopOnTimeout = false, send = () => form.requestSubmit(submitter) } = {}) {

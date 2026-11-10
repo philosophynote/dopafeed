@@ -26,6 +26,14 @@ RSpec.describe "Bookmarks from Saved", type: :request do
     expect(page.find("turbo-stream[action='replace'][target='unread-badge']")).to have_css("[data-unread-badge]", text: "1")
   end
 
+  it "スワイプが付けた送信の番号（swipe）をトーストに渡す" do
+    article = create(:article, :bookmarked)
+
+    delete article_bookmark_path(article, from: "saved"), params: { swipe: 5 }, headers: turbo
+
+    expect(page).to have_css("turbo-stream[target='toast'] [data-controller='toast'][data-toast-swipe-value='5']", visible: :all)
+  end
+
   it "「元に戻す」で保存し直し、隠した行を Saved の行に戻してトーストを消し、保存数を合わせる" do
     article = create(:article, title: "戻す記事")
 
