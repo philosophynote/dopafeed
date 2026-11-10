@@ -28,11 +28,16 @@ export default class extends Controller {
     this.queued = true
     const form = event.target
     enqueue(() => nextFrame().then(() => new Promise((resolve) => {
-      if (!form.isConnected) return resolve()
+      if (!form.isConnected) {
+        this.queued = false
+        return resolve()
+      }
 
+      // 送れなかったとき（圏外・サーバーの失敗）はトーストが残るので、もう一度押せるようにする
       const finish = () => {
         clearTimeout(timer)
         document.removeEventListener("turbo:submit-end", ended)
+        this.queued = false
         resolve()
       }
       const ended = (e) => { if (e.target === form) finish() }

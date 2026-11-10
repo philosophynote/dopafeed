@@ -57,6 +57,28 @@ RSpec.describe "Swipe", type: :system do
     expect(last_bottom).to be <= toast.evaluate_script("this.getBoundingClientRect().top")
   end
 
+  it "「元に戻す」が送れなかったらトーストが残り、もう一度押せば戻る" do
+    create(:article, title: "戻す記事", published_at: now - 1.hour)
+    calls = 0
+    allow_any_instance_of(DismissalsController).to receive(:destroy).and_wrap_original do |original, *args|
+      calls += 1
+      calls == 1 ? original.receiver.head(:service_unavailable) : original.call(*args)
+    end
+    sign_in
+    width = card_width("戻す記事")
+
+    drag_card("戻す記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 1.3, 40 ])
+    find("#toast").click_on("元に戻す")
+    expect(page).to have_css("#toast [data-controller='toast']", text: "1 件を削除しました")
+    expect(page).to have_no_css("article", text: "戻す記事")
+    expect(Article.find_by(title: "戻す記事")).to be_dismissed
+
+    find("#toast").click_on("元に戻す")
+    expect(page).to have_css("article", text: "戻す記事")
+    expect(page).to have_no_css("#toast [data-controller='toast']")
+    expect(Article.find_by(title: "戻す記事")).not_to be_dismissed
+  end
+
   it "トーストは yml の toast.visible_seconds が経つと消え、消えた後も記録は残る" do
     allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.deep_merge(toast: { visible_seconds: 1 }))
     create(:article, title: "消す記事", published_at: now - 1.hour)
@@ -148,13 +170,13 @@ RSpec.describe "Swipe", type: :system do
     drag_card("一枚目", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
     drag_card("二枚目", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
 
+    # 残るトーストは 1 枚で、「元に戻す」は後に消した行を戻す。二枚目の応答が届いた印なので、記録を見る前に待つ
+    second = Article.find_by!(title: "二枚目")
+    expect(page).to have_css("#toast form[action='#{article_dismissal_path(second)}']", count: 1)
+    expect(page).to have_css("#toast [data-controller='toast']", text: "1 件を削除しました", count: 1)
     expect(page).to have_no_css("article")
     expect(page).to have_no_css("[data-unread-badge]")
     expect(Article.where.not(dismissed_at: nil).count).to eq(2)
-    # 残るトーストは 1 枚で、「元に戻す」は後に消した行を戻す
-    second = Article.find_by!(title: "二枚目")
-    expect(page).to have_css("#toast [data-controller='toast']", text: "1 件を削除しました", count: 1)
-    expect(page).to have_css("#toast form[action='#{article_dismissal_path(second)}']", count: 1)
     # 見える行が無くなったら、開き直さなくても空状態が出る
     expect(page).to have_text("全部読んだ。")
   end
