@@ -13,27 +13,27 @@
 
 ## 遷移
 - タブバー「保存」→ Saved（full page、`GET /saved`）
-- Main の行を右へ引いて離す → 行の中の隠れた「保存」の form を送る → `POST /articles/:id/bookmark` → Turbo Stream で行を「「見出し」を保存した ・ 元に戻す」の帯に替え、未読数を合わせる。引いた幅だけ左から丸型の背景とブックマークのアイコン「保存」が伸び、閾値の手前は灰、越えたら橙
-- 「元に戻す」→ `DELETE /articles/:id/bookmark` → 帯が行に戻る（保存した後に読み終えていたら帯だけ消える）。帯は Main を開き直すと出ない
+- Main の行を右へ引いて離す → 行の中の隠れた「保存」の form を送る → `POST /articles/:id/bookmark` → Turbo Stream で行を隠し、画面下（タブバーの上）に暗いトースト「1 件を保存しました　元に戻す」を出し、未読数を合わせる。引いた幅だけ左から丸型の背景とブックマークのアイコン「保存」が伸び、閾値の手前は灰、越えたら橙
+- トーストの「元に戻す」→ `DELETE /articles/:id/bookmark` → 行が元の位置に戻りトーストが消える（保存した後に読み終えていたら行は戻らない）。トーストの消え方は swipe.md と同じ（#112）
 - Saved の未読の行 → 「読む」（Roulette → Reader。Main と同じ POST、カードも普段どおり）。読み終えても保存は残り、Reader の「次の 1 本」は Main の未読（その記事より古い方）から継ぎ足す
 - Saved の読んだ行 → Reader（抽選し直さずカードも増えない）
-- Saved の行を左へ引いて離す → 隠れた「保存を外す」の form を送る → `DELETE /articles/:id/bookmark?from=saved` → 行を「「見出し」の保存を外した ・ 元に戻す」の帯に替え、保存数と未読数を合わせる。背景は右から伸び、斜線のブックマーク「外す」、越えたら濃い灰（赤にしないのは消すのではなく Main に戻すだけだから）。右へは動かない
-- 帯の「元に戻す」→ `POST /articles/:id/bookmark?from=saved` → 帯が行に戻る（保存した時刻は今になるので、開き直すと一覧の先頭に来る）
+- Saved の行を左へ引いて離す → 隠れた「保存を外す」の form を送る → `DELETE /articles/:id/bookmark?from=saved` → 行を隠し、画面下に「1 件の保存を外しました　元に戻す」のトーストを出し、保存数と未読数を合わせる。背景は右から伸び、斜線のブックマーク「外す」、越えたら濃い灰（赤にしないのは消すのではなく Main に戻すだけだから）。右へは動かない
+- トーストの「元に戻す」→ `POST /articles/:id/bookmark?from=saved` → 行が元の位置に戻りトーストが消える（保存した時刻は今になるので、開き直すと一覧の先頭に来る）
 
 ## 受け入れ条件（Given-When-Then）
 - Given 保存 2 本・いいねだけ 1 本・未保存 1 本 When Saved を開く Then 「保存 (2)」で 2 本が保存日時の新しい順
 - Given 保存が 0 本 When Saved を開く Then 空状態の文言
-- Given Main の未読の行 When 保存する Then 行が「元に戻す」の帯に替わり、未読数が 1 減り、`articles.bookmarked_at` が入る。カード・読了・今日のゴールは変わらない
+- Given Main の未読の行 When 保存する Then 行が消えて画面下に「元に戻す」のトーストが出て、未読数が 1 減り、`articles.bookmarked_at` が入る。カード・読了・今日のゴールは変わらない
 - Given 保存した記事 When Main を開き直す Then 行にも未読数にも出ず、Reader の「次の 1 本」にも継ぎ足されない
-- Given 保存した帯 When 「元に戻す」を押す Then 行が戻り、未読数が 1 増え、`bookmarked_at` が nil になる
+- Given 保存した直後のトースト When 「元に戻す」を押す Then 行が元の位置に戻り、未読数が 1 増え、`bookmarked_at` が nil になる
 - Given Saved の未読の行 When 押す Then ルーレットが回り Reader へ進む
 - Given Saved の読んだ行 When 押す Then 抽選せずに Reader が開く
-- Given Main の行 When 右へ閾値を越えて引いて離す Then 帯に替わって保存される。閾値の手前で離すと戻り、保存しない
-- Given 保存を解除（Saved の行を左へ引く） When 一覧 Then Turbo Stream でその行が「保存を外した ・ 元に戻す」の帯に替わり、保存数が 1 減り、Main の未読数が 1 増える
+- Given Main の行 When 右へ閾値を越えて引いて離す Then 行が消えて保存される。閾値の手前で離すと戻り、保存しない
+- Given 保存を解除（Saved の行を左へ引く） When 一覧 Then Turbo Stream でその行が消えて画面下に「1 件の保存を外しました　元に戻す」のトーストが出て、保存数が 1 減り、Main の未読数が 1 増える
 - Given Saved の読んだ行 When 引いて戻した直後の click Then Reader へ移らない
 
 ## 使う設定の鍵
-dopamine.yml: `swipe.dismiss_threshold_ratio`、`swipe.submit_timeout_seconds`（右スワイプと保存を外すのも左の削除と同じ値）
+dopamine.yml: `swipe.dismiss_threshold_ratio`、`swipe.submit_timeout_seconds`（右スワイプと保存を外すのも左の削除と同じ値）、`toast.visible_seconds`（取り消しのトースト。#112）
 personas.yml: なし
 
 ## 外部 API

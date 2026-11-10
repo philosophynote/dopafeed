@@ -19,7 +19,7 @@ RSpec.describe "DailyGoal", type: :system do
     JS
   end
 
-  # 「記事を開く」の POST /readings/:id/start は fetch で送るので、届いて opened_at が書き換わるまで待つ
+  # fetch が届く前に滞在を書き換えると上書きされるため、opened_at の更新を待つ。
   def wait_for_start(reading, since:)
     Timeout.timeout(Capybara.default_max_wait_time) { sleep 0.05 until reading.reload.opened_at > since }
   end
@@ -56,10 +56,14 @@ RSpec.describe "DailyGoal", type: :system do
     expect(page).to have_css("ul.card-deck li h3", text: "今日の最後の 1 本")
     expect(page).to have_text("#{goal_articles} 本 ・")
     expect(page).to have_no_button("もう 1 本だけ")
+    # めくりの途中では回転でカードの幅が縮むため、有限の演出が終わってからタップ領域を測る。
+    page.evaluate_async_script(<<~JS)
+      const done = arguments[0]
+      const finite = document.getAnimations().filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
+      Promise.all(finite.map((a) => a.finished)).then(() => done(true))
+    JS
     expect(no_horizontal_scroll?).to be(true), "横スクロールが出ている"
     expect(small_tap_areas).to be_empty, "44px 未満のタップ領域: #{small_tap_areas.inspect}"
-    # 蓋が持ち上がり切ってから撮る（開いた宝箱は描いた直後に動き出す）
-    page.evaluate_async_script("const done = arguments[0]; Promise.all(document.querySelector('.chest-lid').getAnimations().map((a) => a.finished)).then(() => done(true))")
     expect(page.evaluate_script("getComputedStyle(document.querySelector('.chest-lid')).transform")).not_to eq("none")
     screenshot!("achieved")
 

@@ -2,34 +2,118 @@ RSpec.describe "Swipe", type: :system do
   let(:now) { Time.current }
   let(:dismiss_ratio) { Dopamine.settings.dig(:swipe, :dismiss_threshold_ratio) }
 
-  it "左スワイプで行が帯に替わり未読数が減り、「元に戻す」で行が戻る" do
-    create(:article, title: "関心の無い記事", published_at: now - 1.hour)
-    create(:article, title: "読みたい記事", published_at: now - 2.hours)
+  it "左スワイプで行が消えて画面下にトーストが出て未読数が減り、「元に戻す」で行が元の位置に戻る" do
+    create(:article, title: "上の記事", published_at: now - 1.hour)
+    create(:article, title: "関心の無い記事", published_at: now - 2.hours)
+    create(:article, title: "下の記事", published_at: now - 3.hours)
     sign_in
     width = card_width("関心の無い記事")
 
-    expect(page).to have_css("[data-unread-badge]", text: "2")
+    expect(page).to have_css("[data-unread-badge]", text: "3")
     expect(page).to have_no_button("削除")
     drag_card("関心の無い記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 1.3, 40 ])
 
-    # 帯は見出しだけを省略するために 3 つの span に分かれ、見える文字は改行を挟んで読まれる。文として一致させず、帯の中に見出しがあることを見る
-    strip = find("li", text: "を削除した")
-    expect(strip).to have_text("関心の無い記事")
-    expect(strip).to have_button("元に戻す")
-    expect(page).to have_css("article", count: 1)
-    expect(page).to have_css("[data-unread-badge]", text: "1")
+    toast = find("#toast [data-controller='toast']", text: "1 件を削除しました")
+    expect(toast).to have_button("元に戻す")
+    expect(page).to have_no_css("article", text: "関心の無い記事")
+    expect(page).to have_css("article", count: 2)
+    expect(page).to have_css("[data-unread-badge]", text: "2")
     expect(Article.find_by(title: "関心の無い記事")).to be_dismissed
+    toast_rect = toast.evaluate_script("this.getBoundingClientRect().toJSON()")
+    nav_top = find("nav[aria-label='タブバー']").evaluate_script("this.getBoundingClientRect().top")
+    expect(toast_rect["bottom"]).to be <= nav_top
+    expect(toast_rect["left"]).to be >= 0
+    expect(toast_rect["right"]).to be <= page.evaluate_script("document.documentElement.clientWidth")
+    expect(toast.find_button("元に戻す").evaluate_script("this.getBoundingClientRect().height")).to be >= 44
     screenshot!("dismissed")
+    sleep 1.5
+    expect(page).to have_css("#toast [data-controller='toast']", wait: 0)
 
     click_on "元に戻す"
 
-    expect(page).to have_css("article", count: 2)
-    expect(page).to have_no_text("を削除した")
-    expect(page).to have_css("[data-unread-badge]", text: "2")
+    expect(page).to have_css("article", count: 3)
+    expect(all("article h2").map(&:text)).to eq(%w[上の記事 関心の無い記事 下の記事])
+    expect(page).to have_no_css("#toast [data-controller='toast']")
+    expect(page).to have_css("[data-unread-badge]", text: "3")
     expect(Article.find_by(title: "関心の無い記事")).not_to be_dismissed
   end
 
-  it "左へカード幅の 4 割を超えて引いて離すと、カードが流れて帯に替わる" do
+  it "トーストが出ている間は、一覧をスクロールしきると最後の行がトーストの上に出る" do
+    create_list(:article, 12)
+    create(:article, title: "最後の記事", published_at: Time.zone.local(2026, 9, 1))
+    sign_in
+    width = card_width(Article.order(published_at: :desc).first.title)
+
+    drag_card(Article.order(published_at: :desc).first.title, from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 1.3, 40 ])
+    toast = find("#toast [data-controller='toast']")
+    page.execute_script("window.scrollTo(0, document.documentElement.scrollHeight)")
+
+    last_bottom = find("article", text: "最後の記事").evaluate_script("this.getBoundingClientRect().bottom")
+    expect(last_bottom).to be <= toast.evaluate_script("this.getBoundingClientRect().top")
+  end
+
+  it "前の行のトーストが出ている間に次の行が送れなかったら、前の行の「元に戻す」は押せる" do
+    create(:article, title: "一枚目", published_at: now - 1.hour)
+    create(:article, title: "二枚目", published_at: now - 2.hours)
+    calls = 0
+    allow_any_instance_of(DismissalsController).to receive(:create).and_wrap_original do |original, *args|
+      calls += 1
+      calls == 2 ? original.receiver.head(:service_unavailable) : original.call(*args)
+    end
+    sign_in
+    width = card_width("一枚目")
+    far = width * dismiss_ratio * 1.3
+
+    drag_card("一枚目", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
+    first = Article.find_by!(title: "一枚目")
+    expect(page).to have_css("#toast form[action='#{article_dismissal_path(first)}']")
+    drag_card("二枚目", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
+    expect(settled_shift("二枚目")).to eq(0)
+
+    find("#toast").click_on("元に戻す")
+    expect(page).to have_css("article", count: 2)
+    expect(page).to have_no_css("#toast [data-controller='toast']")
+    expect(first.reload).not_to be_dismissed
+    expect(Article.find_by!(title: "二枚目")).not_to be_dismissed
+  end
+
+  it "「元に戻す」が送れなかったらトーストが残り、もう一度押せば戻る" do
+    create(:article, title: "戻す記事", published_at: now - 1.hour)
+    calls = 0
+    allow_any_instance_of(DismissalsController).to receive(:destroy).and_wrap_original do |original, *args|
+      calls += 1
+      calls == 1 ? original.receiver.head(:service_unavailable) : original.call(*args)
+    end
+    sign_in
+    width = card_width("戻す記事")
+
+    drag_card("戻す記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 1.3, 40 ])
+    find("#toast").click_on("元に戻す")
+    expect(page).to have_css("#toast [data-controller='toast']", text: "1 件を削除しました")
+    expect(page).to have_no_css("article", text: "戻す記事")
+    expect(Article.find_by(title: "戻す記事")).to be_dismissed
+
+    find("#toast").click_on("元に戻す")
+    expect(page).to have_css("article", text: "戻す記事")
+    expect(page).to have_no_css("#toast [data-controller='toast']")
+    expect(Article.find_by(title: "戻す記事")).not_to be_dismissed
+  end
+
+  it "トーストは yml の toast.visible_seconds が経つと消え、消えた後も記録は残る" do
+    allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.deep_merge(toast: { visible_seconds: 1 }))
+    create(:article, title: "消す記事", published_at: now - 1.hour)
+    sign_in
+    width = card_width("消す記事")
+
+    drag_card("消す記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 1.3, 40 ])
+    expect(page).to have_css("#toast [data-controller='toast']", text: "1 件を削除しました")
+
+    expect(page).to have_no_css("#toast [data-controller='toast']", wait: 5)
+    expect(page).to have_no_css("article", text: "消す記事")
+    expect(Article.find_by(title: "消す記事")).to be_dismissed
+  end
+
+  it "左へカード幅の 4 割を超えて引いて離すと、カードが流れて消え、トーストが出る" do
     create(:article, title: "飛ばす記事", published_at: now - 1.hour)
     create(:article, title: "残す記事", published_at: now - 2.hours)
     sign_in
@@ -51,7 +135,7 @@ RSpec.describe "Swipe", type: :system do
     expect(rail[:class]).to include("swipe-armed")
     screenshot!("armed")
     drag_card("飛ばす記事", from: [ width / 2 - width * dismiss_ratio * 1.1, 40 ], to: [ width / 2 - width * dismiss_ratio * 1.3, 40 ])
-    expect(page).to have_text("を削除した")
+    expect(page).to have_text("1 件を削除しました")
     expect(page).to have_css("article", count: 1)
     expect(page).to have_css("[data-unread-badge]", text: "1")
     expect(Article.find_by(title: "飛ばす記事")).to be_dismissed
@@ -92,7 +176,7 @@ RSpec.describe "Swipe", type: :system do
     expect(Article.find_by(title: "戻る記事")).not_to be_dismissed
   end
 
-  it "続けざまに 2 枚流しても両方が帯になる（送信は 1 本ずつ）" do
+  it "続けざまに 2 枚流しても両方消える（送信は 1 本ずつ）。トーストは後のものに置き換わって 1 枚だけ" do
     create(:article, title: "一枚目", published_at: now - 1.hour)
     create(:article, title: "二枚目", published_at: now - 2.hours)
     sign_in
@@ -102,10 +186,109 @@ RSpec.describe "Swipe", type: :system do
     drag_card("一枚目", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
     drag_card("二枚目", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
 
-    expect(page).to have_css("li", text: "を削除した", count: 2)
+    # 残るトーストは 1 枚で、「元に戻す」は後に消した行を戻す。二枚目の応答が届いた印なので、記録を見る前に待つ
+    second = Article.find_by!(title: "二枚目")
+    expect(page).to have_css("#toast form[action='#{article_dismissal_path(second)}']", count: 1)
+    expect(page).to have_css("#toast [data-controller='toast']", text: "1 件を削除しました", count: 1)
     expect(page).to have_no_css("article")
     expect(page).to have_no_css("[data-unread-badge]")
     expect(Article.where.not(dismissed_at: nil).count).to eq(2)
+    expect(page).to have_text("全部読んだ。")
+  end
+
+  it "前の行の取り消しを、次に引いた行の応答待ちの間に押しても、次の行の送信は止まらない（送らずに次のトーストへ置き換わる）" do
+    create(:article, title: "一枚目", published_at: now - 1.hour)
+    create(:article, title: "二枚目", published_at: now - 2.hours)
+    allow_any_instance_of(DismissalsController).to receive(:create).and_wrap_original do |original, *args|
+      sleep 1
+      original.call(*args)
+    end
+    sign_in
+    width = card_width("一枚目")
+    far = width * dismiss_ratio * 1.3
+
+    drag_card("一枚目", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
+    first = Article.find_by!(title: "一枚目")
+    expect(page).to have_css("#toast form[action='#{article_dismissal_path(first)}']")
+    page.execute_script("window.__starts = 0; document.addEventListener('turbo:submit-start', () => window.__starts++)")
+    drag_card("二枚目", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
+    # 二枚目が流れ終わって送信が始まってから押す（流れている間に押せば、列の先に並ぶ一枚目の取り消しが先に届くのが正しい）
+    page.document.synchronize { raise Capybara::ElementNotFound, "二枚目の送信が始まらない" unless page.evaluate_script("window.__starts") >= 1 }
+    # 応答が描かれる時刻は submit-end より後で決まらない（CI では取り消しの順番が先に来た）。描くのを遅らせて、その遅い側を毎回通す
+    page.execute_script(<<~JS)
+      document.addEventListener("turbo:before-stream-render", (event) => {
+        const render = event.detail.render
+        event.detail.render = (stream) => new Promise((resolve) => setTimeout(() => resolve(render(stream)), 300))
+      })
+    JS
+    find("#toast").click_on("元に戻す")
+
+    second = Article.find_by!(title: "二枚目")
+    expect(page).to have_css("#toast form[action='#{article_dismissal_path(second)}']")
+    expect(page).to have_no_css("article")
+    expect(second.reload).to be_dismissed
+    expect(first.reload).to be_dismissed
+  end
+
+  it "二枚目の送信が一枚目のトーストより先に始まっても、一枚目の取り消しを二枚目の応答待ちに押せば送らない" do
+    create(:article, title: "一枚目", published_at: now - 1.hour)
+    create(:article, title: "二枚目", published_at: now - 2.hours)
+    calls = 0
+    allow_any_instance_of(DismissalsController).to receive(:create).and_wrap_original do |original, *args|
+      calls += 1
+      sleep 1.5 if calls == 2
+      original.call(*args)
+    end
+    sign_in
+    width = card_width("一枚目")
+    far = width * dismiss_ratio * 1.3
+    # 応答を描くのを遅らせ、一枚目のトーストが出る前に二枚目の送信を始めさせる
+    page.execute_script(<<~JS)
+      document.addEventListener("turbo:before-stream-render", (event) => {
+        const render = event.detail.render
+        event.detail.render = (stream) => new Promise((resolve) => setTimeout(() => resolve(render(stream)), 500))
+      })
+    JS
+
+    drag_card("一枚目", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
+    drag_card("二枚目", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
+    first = Article.find_by!(title: "一枚目")
+    find("#toast form[action='#{article_dismissal_path(first)}']").click_on("元に戻す")
+
+    second = Article.find_by!(title: "二枚目")
+    expect(page).to have_css("#toast form[action='#{article_dismissal_path(second)}']")
+    expect(page).to have_no_css("article")
+    expect(second.reload).to be_dismissed
+    expect(first.reload).to be_dismissed
+  end
+
+  it "「元に戻す」の応答を待つ間に画面を離れて戻っても、次のスワイプは待たされずに送れる" do
+    allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.deep_merge(swipe: { submit_timeout_seconds: 30 }))
+    create(:article, title: "消した記事", published_at: now - 1.hour)
+    create(:article, title: "次の記事", published_at: now - 2.hours)
+    sign_in
+    width = card_width("消した記事")
+    far = width * dismiss_ratio * 1.3
+
+    drag_card("消した記事", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
+    toast = find("#toast [data-controller='toast']", text: "1 件を削除しました")
+    # POST（取り消しの DELETE も form は POST）だけ応答も中断も返さない fetch にして、取り消しを送信中のまま設定へ移る
+    page.execute_script(<<~JS)
+      window.__fetch = window.fetch
+      window.fetch = (url, options) => (options?.method || "GET").toUpperCase() === "POST" ? new Promise(() => {}) : window.__fetch(url, options)
+    JS
+    toast.click_on("元に戻す")
+    expect(page).to have_css("#toast form[aria-busy='true']", visible: :all)
+    click_on "設定"
+    expect(page).to have_css("h1", text: "設定")
+    click_on "戻る"
+    expect(page).to have_css("article", text: "次の記事")
+
+    page.execute_script("window.fetch = window.__fetch")
+    drag_card("次の記事", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
+    # 列が取り消しの待ちの上限（30 秒）まで止まっていれば、ここで待ちきれない
+    expect(page).to have_text("1 件を削除しました", wait: 5)
+    expect(Article.find_by(title: "次の記事")).to be_dismissed
   end
 
   it "送れなかったらカードが戻り、もう一度引ける" do
@@ -122,7 +305,7 @@ RSpec.describe "Swipe", type: :system do
 
     page.execute_script("window.fetch = window.__fetch")
     drag_card("圏外の記事", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
-    expect(page).to have_text("を削除した")
+    expect(page).to have_text("1 件を削除しました")
     expect(Article.find_by(title: "圏外の記事")).to be_dismissed
   end
 
@@ -148,7 +331,7 @@ RSpec.describe "Swipe", type: :system do
 
     page.execute_script("window.fetch = window.__fetch")
     drag_card("次の記事", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
-    expect(page).to have_text("を削除した")
+    expect(page).to have_text("1 件を削除しました")
     expect(Article.find_by(title: "次の記事")).to be_dismissed
   end
 
@@ -216,7 +399,7 @@ RSpec.describe "Swipe", type: :system do
     expect(article.reload.reading).to be_present
   end
 
-  it "広がった行も見出しの上から左へ引けて、動くのは行だけ。広げた欄は動かず、離すと行ごと帯に替わる" do
+  it "広がった行も見出しの上から左へ引けて、動くのは行だけ。広げた欄は動かず、離すと行ごと消える" do
     create(:article, title: "広げた記事", summary: "・広げた要約", published_at: now - 1.hour)
     sign_in
     find("article", text: "広げた記事").find_button("読む").execute_script("this.click()")
@@ -237,7 +420,7 @@ RSpec.describe "Swipe", type: :system do
     expect(settled_shift("広げた記事")).to eq(0)
 
     drag_card("広げた記事", from: [ width / 2, 30 ], to: [ width / 2 - width * dismiss_ratio * 1.5, 30 ])
-    expect(page).to have_text("を削除した")
+    expect(page).to have_text("1 件を削除しました")
     expect(page).to have_no_link("記事に遷移")
   end
 end

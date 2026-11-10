@@ -2,7 +2,7 @@ RSpec.describe "Save swipe", type: :system do
   let(:now) { Time.current }
   let(:ratio) { Dopamine.settings.dig(:swipe, :dismiss_threshold_ratio) }
 
-  it "右へ引くと左から保存の背景が伸び、閾値を越えて離すと帯に替わって未読数が減る。「元に戻す」で行が戻る" do
+  it "右へ引くと左から保存の背景が伸び、閾値を越えて離すと行が消えてトーストが出て未読数が減る。「元に戻す」で行が戻る" do
     create(:article, title: "あとで読む記事", published_at: now - 1.hour)
     create(:article, title: "今読む記事", published_at: now - 2.hours)
     sign_in
@@ -28,9 +28,7 @@ RSpec.describe "Save swipe", type: :system do
     screenshot!("armed")
     drag_card("あとで読む記事", from: [ width / 2, 40 ], to: [ width / 2 + width * ratio * 0.2, 40 ], down: false)
 
-    band = find("li", text: "を保存した")
-    expect(band).to have_text("あとで読む記事")
-    expect(band).to have_button("元に戻す")
+    expect(find("#toast [data-controller='toast']", text: "1 件を保存しました")).to have_button("元に戻す")
     expect(page).to have_css("article", count: 1)
     expect(page).to have_css("[data-unread-badge]", text: "1")
     expect(Article.find_by(title: "あとで読む記事")).to be_bookmarked
@@ -40,7 +38,8 @@ RSpec.describe "Save swipe", type: :system do
     click_on "元に戻す"
 
     expect(page).to have_css("article", count: 2)
-    expect(page).to have_no_text("を保存した")
+    expect(all("article h2").map(&:text)).to eq(%w[あとで読む記事 今読む記事])
+    expect(page).to have_no_css("#toast [data-controller='toast']")
     expect(page).to have_css("[data-unread-badge]", text: "2")
     expect(Article.find_by(title: "あとで読む記事")).not_to be_bookmarked
   end
@@ -57,7 +56,7 @@ RSpec.describe "Save swipe", type: :system do
     expect(Article.find_by(title: "迷う記事")).not_to be_bookmarked
   end
 
-  it "Saved の行を左へ引くと保存が外れて帯に替わり、保存数が減り Main の未読数が増える。「元に戻す」で行が戻る。右へは動かない" do
+  it "Saved の行を左へ引くと保存が外れて行が消えてトーストが出て、保存数が減り Main の未読数が増える。「元に戻す」で行が戻る。右へは動かない" do
     create(:article, title: "取り置いた記事", bookmarked_at: now - 1.hour)
     create(:article, :read, title: "読み終えた記事", bookmarked_at: now - 2.hours)
     sign_in
@@ -79,8 +78,8 @@ RSpec.describe "Save swipe", type: :system do
     screenshot!("pulling")
     drag_card("取り置いた記事", from: [ width / 2, 40 ], to: [ width / 2 - width * ratio * 0.7, 40 ], down: false)
 
-    band = find("li", text: "の保存を外した")
-    expect(band).to have_text("取り置いた記事")
+    expect(find("#toast [data-controller='toast']", text: "1 件の保存を外しました")).to have_button("元に戻す")
+    expect(page).to have_no_css("article", text: "取り置いた記事")
     expect(page).to have_css("h1", text: "保存 (1)")
     expect(page).to have_css("[data-unread-badge]", text: "1")
     expect(Article.find_by(title: "取り置いた記事")).not_to be_bookmarked
@@ -88,13 +87,15 @@ RSpec.describe "Save swipe", type: :system do
 
     click_on "元に戻す"
 
-    expect(page).to have_css("article", text: "取り置いた記事")
+    expect(page).to have_css("article", count: 2)
+    expect(all("article h2").map(&:text)).to eq(%w[取り置いた記事 読み終えた記事])
+    expect(page).to have_no_css("#toast [data-controller='toast']")
     expect(page).to have_css("h1", text: "保存 (2)")
     expect(page).to have_no_css("[data-unread-badge]")
     expect(Article.find_by(title: "取り置いた記事")).to be_bookmarked
 
     drag_card("読み終えた記事", from: [ width / 2, 40 ], to: [ width / 2 - width * ratio * 1.3, 40 ])
-    expect(page).to have_text("の保存を外した", count: 1)
+    expect(page).to have_css("#toast [data-controller='toast']", text: "1 件の保存を外しました", count: 1)
     expect(page).to have_current_path(saved_path)
     expect(page).to have_css("h1", text: "保存 (1)")
     expect(Article.find_by(title: "読み終えた記事")).not_to be_bookmarked

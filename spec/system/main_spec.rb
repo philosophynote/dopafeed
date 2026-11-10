@@ -357,7 +357,8 @@ RSpec.describe "Main", type: :system do
       click_on "読み終えた"
 
       expect(page).to have_css("section[aria-label='判定']", text: "カードにならなかった")
-      expect(find("li", text: "を削除した")).to have_text("消す記事")
+      expect(page).to have_text("1 件を削除しました")
+      expect(page).to have_no_css("article", text: "消す記事")
       expect(Article.find_by!(title: "消す記事")).to be_dismissed
     end
 
@@ -381,7 +382,8 @@ RSpec.describe "Main", type: :system do
       click_on "読み終えた"
 
       expect(page).to have_css("section[aria-label='判定']", text: "カードにならなかった")
-      expect(find("li", text: "を削除した")).to have_text("消す記事")
+      expect(page).to have_text("1 件を削除しました")
+      expect(page).to have_no_css("article", text: "消す記事")
     end
 
     it "畳んだ行は戻りの合図で判定しない（開いたまま合図が来なかった行が、別の行の戻りで判定されない）" do

@@ -15,12 +15,13 @@
   <% if @articles.empty? %>
     <%= render "empty" %>
   <% else %>
-    <ul class="divide-y divide-gray-100 overflow-hidden rounded-2xl bg-white shadow-sm"
+    <ul class="swipe-list divide-y divide-gray-100 overflow-hidden rounded-2xl bg-white shadow-sm"
         data-controller="accordion" data-accordion-swipe-outlet="[data-controller~='swipe']" data-action="swipe:expanded->accordion#collapseOthers">
       <% @articles.each do |article| %>
         <%= render "article_card", article: article %>
       <% end %>
     </ul>
+    <div class="swipe-list-empty"><%= render "empty" %></div>
   <% end %>
 </section>
 

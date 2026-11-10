@@ -1,5 +1,15 @@
-<%= turbo_stream.replace dom_id(@article) do %>
-  <%= render(@from_saved ? "saved/row" : "main/bookmarked_card", article: @article) %>
+<% if @from_saved %>
+  <%= turbo_stream.replace dom_id(@article) do %>
+    <%= render "saved/row", article: @article %>
+  <% end %>
+  <%= turbo_stream.update "toast", "" %>
+  <%= turbo_stream.update "saved-count", @saved_count.to_s %>
+<% else %>
+  <%= turbo_stream.replace dom_id(@article) do %>
+    <%= render "shared/hidden_row", article: @article %>
+  <% end %>
+  <%= turbo_stream.update "toast" do %>
+    <%= render "shared/undo_toast", message: "1 件を保存しました", undo: { path: article_bookmark_path(@article), method: :delete }, swipe: params[:swipe].to_i %>
+  <% end %>
 <% end %>
-<%= turbo_stream.update("saved-count", @saved_count.to_s) if @from_saved %>
 <%= render "shared/unread_count_streams", unread_count: @unread_count %>

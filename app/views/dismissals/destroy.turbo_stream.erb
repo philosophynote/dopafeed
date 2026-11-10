@@ -5,4 +5,5 @@
     <%= render "main/article_card", article: @article %>
   <% end %>
 <% end %>
+<%= turbo_stream.update "toast", "" %>
 <%= render "shared/unread_count_streams", unread_count: @unread_count %>

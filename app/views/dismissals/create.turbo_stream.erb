@@ -1,4 +1,7 @@
 <%= turbo_stream.replace dom_id(@article) do %>
-  <%= render "main/dismissed_card", article: @article %>
+  <%= render "shared/hidden_row", article: @article %>
+<% end %>
+<%= turbo_stream.update "toast" do %>
+  <%= render "shared/undo_toast", message: "1 件を削除しました", undo: { path: article_dismissal_path(@article), method: :delete }, swipe: params[:swipe].to_i %>
 <% end %>
 <%= render "shared/unread_count_streams", unread_count: @unread_count %>
