@@ -19,7 +19,7 @@
 ## 受け入れ条件（Given-When-Then）
 - Given フィードが 4 件 When Feeds を開く Then 4 行、各行に件数・未読・最終取得
 - Given 最終取得が 503 When Feeds を開く Then その行に赤字で「サーバーエラー (HTTP 503)」
-- Given 削除 When 確認 Then Feed と記事・いいね・保存・読了が消え、別フィードと達成済み DailyGoal は残る（ADR 0014）。確認文に累計 XP・読了数・連続日数への影響を明記する
+- Given 削除 When 確認 Then Feed と記事・いいね・保存・読了が消え、別フィードと達成済み DailyGoal は残る（ADR 0014）。確認文にカード（図鑑）・読了数・連続日数への影響を明記する（ADR 0020 で累計 XP から改めた）
 - Given 削除確認 When キャンセル Then フィードは残る
 - Given 未取得 / 記事 0 件 / 購読 0 件 When 開く Then 「未取得」/「0件・未読 0」/「購読中のフィードはありません」
 - Given 右・縦・短いスワイプ / 中断 When 離す Then 削除しない。390×844 で横スクロールがなく、タップ領域は 44px 以上

@@ -1,36 +1,36 @@
-# Jackpot（Unit 6）
+# Jackpot（Unit 6。#106 で「金のカードが懸かった」の予告に。ADR 0020）
 
 ## 目的
-可変報酬の頂点。確率が低いからこそ効く全画面演出。読み始めるまで閉じられない。第一の陣は金色（jackpot）の 1 種。モックにある紫（激レア）は yml に tier が無いので出さない（未決 4）。
+可変報酬の頂点。確率が低いからこそ効く全画面。読み始めるまで閉じられない。見せるのは「この記事を読み切ると金の枠のカードが図鑑に残る」の予告で、XP は無い。開封は完読の区切り。Main の広げた欄からは来ない（帯が金に光るだけ。ADR 0019）。第一の陣は金色（jackpot）の 1 種。モックにある紫（激レア）は yml に段が無いので出さない（未決 4）。
 
 ## 要素
 1. 黒背景（#141416）に紙吹雪（CSS。固定）
-2. ピル「N% のジャックポット」（N = `xp.tiers` の jackpot.probability × 100。今の yml なら「5% のジャックポット」。モックの 0.3% は未決 5）
-3. 「JACKPOT」（金 #FFD166、固定）
-4. 「+M」「XP ・ 通常 B の K 倍」（B = `xp.base`、K = jackpot.multiplier、M = B × K。今の yml なら「+100」「XP ・ 通常 10 の 10 倍」。モックの +250 / 25 は未決 5）
+2. ピル「N% の出目」（N = `cards.rarities` の最後の段の probability × 100。今の yml なら「5% の出目」。モックの 0.3% は未決 5）
+3. 小さく「JACKPOT」、大きく「金のカード」（金 #FFD166、固定）
+4. 「この記事を読み切ると、金の枠のカードが図鑑に残る」（固定。#106。旧「+100」「XP ・ 通常 10 の 10 倍」は廃止）
 5. 当たり記事カード: 見出し、フィード名、約 N 分（DB）
 6. チェック 3 行（固定文。数字は未決）
    - 「Lv.4 → Lv.5 にレベルアップ」（レベルは未決 1）
    - 「24 時間レア確率 2 倍」（未決 2）
    - 3 行目はモックの「激レア（1.5%）は +50 XP と紫の全画面。ジャックポットは金色」だが、激レアの tier が yml に無い間は出さない（tier が入ったら「激レアは紫、ジャックポットは金色」を yml の値で描画。未決 4）
-7. ボタン「受け取って読む」（金。→ 記事）
+7. ボタン「読んで手に入れる」（金。→ Reader。旧「受け取って読む」）
 8. 注記「全画面演出は読み始めるまで閉じられない。頻度が低いから効く」（固定）
 
 ## 遷移
 - Roulette（jackpot）→ Jackpot（full page か Turbo Frame で全画面）
-- Jackpot → Reader（「受け取って読む」のみ。戻るボタン・背景タップで閉じない）
-- Reader で記事を開いて戻る → 区切り（通常の流れ。XP にジャックポット倍率が掛かる）
+- Jackpot → Reader（「読んで手に入れる」のみ。戻るボタン・背景タップで閉じない）
+- Reader で記事を開いて戻る → 区切り（通常の流れ。「金のカードを手に入れた！」）の上に全画面の開封が重なる（reader.md 要素 4。こちらは閉じられる。#106 23c）
 
 ## 受け入れ条件（Given-When-Then）
-- Given Roulette で jackpot が出た When 画面が切り替わる Then 全画面で「JACKPOT」と xp.base × multiplier の XP が出る
+- Given Roulette で jackpot が出た When 画面が切り替わる Then 全画面で「金のカード」と確率が出て、XP の数字は出ない
 - Given Jackpot 画面 When 背景をタップ Then 閉じない
-- Given Jackpot 画面 When 「受け取って読む」Then Reader に記事のカードが出て、記事を開いて戻ると区切りの XP に jackpot 倍率が掛かる
+- Given Jackpot 画面 When 「読んで手に入れる」Then Reader に記事のカードが出て、記事を開いて戻ると区切りに「金のカードを手に入れた！」
 - Given Jackpot 画面 When ブラウザの戻る Then 元の一覧（#97 以後は Saved）に戻るが、抽選結果は保持され同じ記事を再度読むと Jackpot 画面が再表示される（未決 3）
 - Given jackpot を引いた When 24 時間以内に次の抽選 Then レア確率が 2 倍になる（未決 2。鍵が無ければこの条件は落とす）
 - Given 390 幅 When Jackpot を開く Then 紙吹雪が横スクロールを生まない
 
 ## 使う設定の鍵
-dopamine.yml: `xp.base`, `xp.tiers`（jackpot の multiplier / probability）
+dopamine.yml: `cards.rarities`（最後の段の probability）
 personas.yml: なし
 
 ## 外部 API

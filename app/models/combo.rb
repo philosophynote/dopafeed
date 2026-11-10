@@ -11,10 +11,4 @@ class Combo
                       .take_while(&:present?)
                       .size
   end
-
-  # readings.combo_multiplier の保存精度を超える値で計算しない。
-  def multiplier
-    xp = Dopamine.settings[:xp]
-    [ (1 + xp[:combo_multiplier_step] * count).round(1), xp[:combo_max_multiplier] ].min
-  end
 end

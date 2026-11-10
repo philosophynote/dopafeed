@@ -9,8 +9,8 @@ RSpec.describe "DailyGoal", type: :request do
     Capybara.string(response.body)
   end
 
-  def complete(count, at: noon - 1.hour, xp: 10)
-    count.times { create(:reading, :completed, opened_at: at, xp: xp) }
+  def complete(count, at: noon - 1.hour)
+    count.times { create(:reading, :completed, opened_at: at) }
   end
 
   it "未ログインならログイン画面へ" do
@@ -21,8 +21,10 @@ RSpec.describe "DailyGoal", type: :request do
   context "ログイン済み" do
     before { sign_in_as(create(:user)) }
 
-    it "達成なら「今日の N 本、読み切った！」、開いた宝箱、ストリーク、今日の合計（本数 ・ 分 ・ XP）" do
-      complete(goal_articles, xp: 62)
+    it "達成なら「今日の N 本、読み切った！」、開いた宝箱、ストリーク、今日の合計（本数 ・ 分）、今日のカード（レア・金は色付きのラベル）" do
+      complete(goal_articles - 2)
+      rare = create(:reading, :completed, :rare, article: create(:article, title: "レアの記事"), opened_at: noon - 30.minutes)
+      gold = create(:reading, :completed, :jackpot, article: create(:article, title: "金の記事"), opened_at: noon - 20.minutes)
       create(:daily_goal, :achieved, day: today)
 
       travel_to(noon) { get daily_goal_path }
@@ -31,22 +33,41 @@ RSpec.describe "DailyGoal", type: :request do
       expect(page).to have_text("今日の #{goal_articles} 本、読み切った！")
       expect(page).to have_css("[data-chest=open]")
       expect(page).to have_text("ストリーク 1 日目 確定")
-      expect(page).to have_text("#{goal_articles} 本 ・ #{goal_articles * (4 * 60 + 12) / 60} 分 ・ #{goal_articles * 62} XP")
+      expect(page).to have_text("#{goal_articles} 本 ・ #{goal_articles * (4 * 60 + 12) / 60} 分")
+      expect(page).to have_no_text("XP")
+      cards = page.find("ul.card-deck[aria-label='カードの一覧']")
+      expect(cards).to have_css("li.card-reveal[data-tier]", count: goal_articles)
+      expect(cards).to have_css("li[data-tier='#{rare.tier}'].border-orange-500 [data-rarity-label].bg-orange-500", text: "レア")
+      expect(cards).to have_css("li[data-tier='#{rare.tier}'] h3", text: "レアの記事")
+      expect(cards).to have_css("li[data-tier='#{gold.tier}'].border-amber-400 [data-rarity-label].bg-amber-400", text: "金")
+      expect(cards).to have_css("li[data-tier='#{gold.tier}'] h3", text: "金の記事")
+      expect(cards).to have_css("li[data-tier='#{Dopamine.base_rarity[:name]}']", count: goal_articles - 2)
+      expect(cards.find("li[data-tier='#{Dopamine.base_rarity[:name]}']", match: :first)).to have_no_css("[data-rarity-label]")
+      expect(cards.all("li").map { |li| li["style"][/--i: (\d+)/, 1] }).to eq((0...goal_articles).map(&:to_s))
+      expect(cards.first("li")["style"]).to include("--reveal-stagger: #{Dopamine.settings.dig(:cards, :reveal_stagger_ms).to_i}ms")
+      expect(cards["data-controller"]).to eq("card-deck") # 履歴で戻ったときにめくり直さない
+      expect(page).to have_text("今日のカード #{goal_articles} 枚", normalize_ws: true)
       expect(page).to have_link("今日はここまで", href: root_path)
       expect(page).to have_no_text("レア確率")
     end
 
-    it "ゴール達成ボーナスの行は bonus_xp があるときだけ" do
+    it "yml に cards.reveal_stagger_ms があれば、その幅で 1 枚ずつずらしてめくる" do
+      allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.deep_merge(cards: { reveal_stagger_ms: 120 }))
       complete(goal_articles)
-      goal = create(:daily_goal, :achieved, day: today)
+      create(:daily_goal, :achieved, day: today)
+
+      travel_to(noon) { get daily_goal_path }
+
+      expect(page.first("ul.card-deck li")["style"]).to include("--reveal-stagger: 120ms")
+    end
+
+    it "ゴール達成ボーナスの行は無い（宝箱の中身はカード。ADR 0020）" do
+      complete(goal_articles)
+      create(:daily_goal, :achieved, day: today)
 
       travel_to(noon) { get daily_goal_path }
       expect(page).to have_no_text("ゴール達成ボーナス")
-
-      goal.update!(bonus_xp: 100)
-      travel_to(noon) { get daily_goal_path }
-      expect(page).to have_text("ゴール達成ボーナス")
-      expect(page).to have_text("+100 XP")
+      expect(page).to have_no_text("XP")
     end
 
     it "昨日も完読していればストリークは続きの日数" do
@@ -90,7 +111,7 @@ RSpec.describe "DailyGoal", type: :request do
       travel_to(noon) { get daily_goal_path }
       form = page.find("form[action='#{article_reading_path(newest)}']")
       expect(form).to have_button("もう 1 本だけ")
-      expect(page).to have_no_text("ボーナス XP は半分")
+      expect(page).to have_no_text("ボーナス")
       expect(DailyGoal.count).to eq(0)
 
       Article.unread.each { |article| create(:reading, :completed, article: article, opened_at: noon - 3.hours) }

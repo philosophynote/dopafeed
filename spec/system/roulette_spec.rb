@@ -1,9 +1,8 @@
 RSpec.describe "Roulette", type: :system do
   let(:settings) { Dopamine.settings }
   let(:threshold) { settings.dig(:read, :complete_after_seconds) }
-  let(:base) { settings.dig(:xp, :base) }
-  let(:common) { Dopamine.tier_names.first }
-  let(:jackpot) { Dopamine.jackpot_tier }
+  let(:common) { Dopamine.rarity_names.first }
+  let(:jackpot) { Dopamine.top_rarity }
 
   def create_article(title = "読む記事")
     create(:article, :bookmarked, title: title, url: "#{Capybara.current_session.server.base_url}/up?#{title}")
@@ -15,22 +14,22 @@ RSpec.describe "Roulette", type: :system do
   end
 
   it "読むと止まった出目の帯つきでリーダーが開き、モーダルは残らない" do
-    allow(XpRoulette).to receive(:draw).and_return(common)
+    allow(RarityDraw).to receive(:draw).and_return(common)
     article = create_article
     sign_in_to_saved
 
     click_on "読む"
     expect(page).to have_current_path(read_article_path(article))
-    expect(page).to have_text("出目 通常 ×1 ・ 完読で +#{base} XP")
+    expect(page).to have_text("出目 通常 ・ 完読で通常カード")
     expect(page).to have_no_css("[data-controller='roulette']")
     expect(article.reload.reading.returned_at).to be_nil
   end
 
   it "回っている間は一覧の上にモーダルが重なり、背景のカードは残る（絵のためにこの例だけ長く回す）" do
     long = settings.deep_dup
-    long[:xp][:roulette_duration_ms] = 10_000
+    long[:cards][:reveal_duration_ms] = 10_000
     allow(Dopamine).to receive(:settings).and_return(long)
-    allow(XpRoulette).to receive(:draw).and_return(common)
+    allow(RarityDraw).to receive(:draw).and_return(common)
     article = create_article("背景に残るカード")
     sign_in_to_saved
 
@@ -44,15 +43,16 @@ RSpec.describe "Roulette", type: :system do
     expect(article.reload.reading.tier).to eq(common)
   end
 
-  it "jackpot なら全画面に進み、受け取って読むでリーダーが開き、記事を開いて戻ると jackpot の倍率で XP が付く" do
-    allow(XpRoulette).to receive(:draw).and_return(jackpot[:name])
+  it "jackpot なら全画面の予告に進み、読んで手に入れるでリーダーが開き、記事を開いて戻ると金のカードになる" do
+    allow(RarityDraw).to receive(:draw).and_return(jackpot[:name])
     article = create_article
     sign_in_to_saved
 
     click_on "読む"
     expect(page).to have_text("JACKPOT")
     expect(page).to have_current_path(jackpot_reading_path(article.reload.reading))
-    expect(page).to have_text("+#{base * jackpot[:multiplier]}")
+    expect(page).to have_text("金のカード")
+    expect(page).to have_no_text("XP")
     expect(page).to have_no_button("閉じる")
     expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "紙吹雪が横スクロールを生んでいる"
     screenshot!("jackpot")
@@ -61,13 +61,13 @@ RSpec.describe "Roulette", type: :system do
     expect(page).to have_current_path(saved_path)
     expect(page).to have_css("article", text: "読む記事")
     expect(page).to have_no_css("[data-controller='roulette']")
-    expect(page).to have_no_text("読了！")
+    expect(page).to have_no_text("手に入れた")
     expect(article.reading.reload.returned_at).to be_nil
     click_on "読む"
     expect(page).to have_text("JACKPOT")
     expect(page).to have_current_path(jackpot_reading_path(article.reading))
 
-    click_on "受け取って読む"
+    click_on "読んで手に入れる"
     expect(page).to have_current_path(read_article_path(article))
     opened = article.reading.reload.opened_at
 
@@ -80,7 +80,18 @@ RSpec.describe "Roulette", type: :system do
     end
     source.close
     switch_to_window(reader)
-    expect(page).to have_css("section[aria-label='判定']", text: "読了！ +#{base * jackpot[:multiplier]} XP")
+    # 金は全画面で開封し、どこを押しても閉じる。閉じた後も区切りの金のカードは残る
+    overlay = find("[data-controller='reveal'][role='dialog']")
+    expect(overlay).to have_text("金のカードを手に入れた！")
+    expect(overlay).to have_css("li.card-reveal[data-tier='#{jackpot[:name]}'] h3", text: "読む記事")
+    page.evaluate_async_script("const done = arguments[0]; Promise.all(document.querySelector('[data-controller=reveal] li.card-reveal').getAnimations().map((a) => a.finished)).then(() => done(true))")
+    expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "横スクロールが出ている"
+    screenshot!("gold")
+    expect(page.evaluate_script("document.activeElement.textContent")).to eq("閉じる")
+    overlay.find("p", text: "JACKPOT").click # ボタン以外のどこを押しても閉じる
+    expect(page).to have_no_css("[data-controller='reveal'][role='dialog']")
+    expect(page).to have_css("section[aria-label='判定']", text: "金のカードを手に入れた！")
+    expect(page).to have_css("section[aria-label='判定'] li[data-tier='#{jackpot[:name]}'] h3", text: "読む記事")
     expect(article.reading.reload).to be_completed
   end
 end

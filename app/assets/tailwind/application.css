@@ -85,11 +85,32 @@
   100% { box-shadow: 0 0 0 0.75rem rgb(251 191 36 / 0); transform: scale(1); }
 }
 
+/* 回転する箱に overflow や clip-path を付けると 3D が平らに潰れるため、切り抜きは面に付ける */
+.card-deck {
+  perspective: 800px;
+}
+.card-reveal {
+  transform-style: preserve-3d;
+  transform: rotateY(180deg);
+  animation: card-flip var(--reveal-duration) cubic-bezier(0.2, 0.8, 0.3, 1.1) calc(var(--i) * var(--reveal-stagger)) forwards;
+}
+.card-reveal > * {
+  backface-visibility: hidden;
+}
+.card-reveal > .card-back {
+  transform: rotateY(180deg);
+}
+@keyframes card-flip {
+  to { transform: rotateY(0deg); }
+}
+
 .detail-end:has(> form[hidden]) {
   margin-top: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .card-reveal { animation: none; transform: none; }
+  .card-reveal > .card-back { display: none; }
   .tier-glow { animation: none; }
   .roulette-strip { animation-duration: 1ms; }
   .roulette-result { animation-delay: 0ms; }

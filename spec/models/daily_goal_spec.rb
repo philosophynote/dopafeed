@@ -17,8 +17,8 @@ RSpec.describe DailyGoal, type: :model do
     expect(build(:daily_goal)).not_to be_achieved
   end
 
-  it "bonus_xp の既定は 0（鍵 daily_goal.bonus_xp が入るまで加算しない）" do
-    expect(create(:daily_goal).bonus_xp).to eq(0)
+  it "ボーナス XP の列は持たない（宝箱の中身は今日のカード。ADR 0020）" do
+    expect(DailyGoal.column_names).not_to include("bonus_xp")
   end
 end
 
@@ -39,26 +39,15 @@ RSpec.describe DailyGoal, ".achieve_if_reached!" do
     expect(DailyGoal.count).to eq(0)
   end
 
-  it "goal 本目で achieved_at = at の行を作る。鍵 daily_goal.bonus_xp が無ければ bonus_xp は 0" do
-    allow(Dopamine).to receive(:settings).and_return(settings.merge(daily_goal: settings[:daily_goal].except(:bonus_xp)))
+  it "goal 本目で achieved_at = at の行を作る" do
     complete(goal_articles)
     goal = DailyGoal.achieve_if_reached!(at: noon)
 
     expect(goal.day).to eq(today)
     expect(goal.achieved_at).to eq(noon)
-    expect(goal.bonus_xp).to eq(0)
   end
 
-  it "鍵 daily_goal.bonus_xp があればその値を bonus_xp に残す" do
-    allow(Dopamine).to receive(:settings).and_return(settings.deep_merge(daily_goal: { bonus_xp: 100 }))
-    complete(goal_articles)
-
-    expect(DailyGoal.achieve_if_reached!(at: noon).bonus_xp).to eq(100)
-    expect(DailyGoal.bonus_total).to eq(100)
-  end
-
-  it "2 回呼んでも行は 1 つで、bonus_xp は増えない（1 日 1 回）" do
-    allow(Dopamine).to receive(:settings).and_return(settings.deep_merge(daily_goal: { bonus_xp: 100 }))
+  it "2 回呼んでも行は 1 つ（1 日 1 回）" do
     complete(goal_articles + 1)
 
     first = DailyGoal.achieve_if_reached!(at: noon)
@@ -66,7 +55,6 @@ RSpec.describe DailyGoal, ".achieve_if_reached!" do
 
     expect(second).to eq(first)
     expect(DailyGoal.count).to eq(1)
-    expect(DailyGoal.bonus_total).to eq(100)
   end
 
   it "同時に 2 本届いて後の 1 本が一意性の検証で落ちたら先の行を使う" do

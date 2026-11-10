@@ -1,7 +1,5 @@
 RSpec.describe Combo do
   let(:settings) { Dopamine.settings }
-  let(:step) { settings.dig(:xp, :combo_multiplier_step) }
-  let(:max) { settings.dig(:xp, :combo_max_multiplier) }
   let(:reset_hour) { settings.dig(:daily_goal, :reset_hour) }
   let(:noon) { Time.zone.local(2026, 10, 20, reset_hour) + 8.hours }
 
@@ -13,10 +11,8 @@ RSpec.describe Combo do
     create(:reading, opened_at: time - 5.seconds, returned_at: time)
   end
 
-  it "完読が無ければ count 0、倍率 1.0" do
-    combo = described_class.new(before: noon)
-    expect(combo.count).to eq(0)
-    expect(combo.multiplier).to eq(1.0)
+  it "完読が無ければ count 0" do
+    expect(described_class.new(before: noon).count).to eq(0)
   end
 
   it "直前の連続完読を数え、未完読で途切れる" do
@@ -25,9 +21,7 @@ RSpec.describe Combo do
     completed_at(noon - 20.minutes)
     completed_at(noon - 10.minutes)
 
-    combo = described_class.new(before: noon)
-    expect(combo.count).to eq(2)
-    expect(combo.multiplier).to eq((1 + step * 2).round(1))
+    expect(described_class.new(before: noon).count).to eq(2)
   end
 
   it "before 以降の行は数えない" do
@@ -41,8 +35,7 @@ RSpec.describe Combo do
     expect(described_class.new(before: noon).count).to eq(1)
   end
 
-  it "倍率は combo_max_multiplier を超えない" do
-    30.times { |i| completed_at(noon - (31 - i).minutes) }
-    expect(described_class.new(before: noon).multiplier).to eq(max)
+  it "倍率は持たない" do
+    expect(described_class.new(before: noon)).not_to respond_to(:multiplier)
   end
 end

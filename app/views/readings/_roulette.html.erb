@@ -1,43 +1,41 @@
 <%# data-turbo-temporary が無いと、戻ったときにモーダルがキャッシュから復活して回り直す %>
-<% xp = Dopamine.settings[:xp] %>
-<% tiers = xp[:tiers] %>
+<% rarities = Dopamine.rarities %>
+<% duration = Dopamine.settings.dig(:cards, :reveal_duration_ms) %>
 <% laps = 3 %>
-<% stop = tiers.index { |tier| tier[:name] == reading.tier } + tiers.size * laps %>
-<% drawn = Dopamine.tier(reading.tier) %>
+<% stop = rarities.index { |rarity| rarity[:name] == reading.tier } + rarities.size * laps %>
 <div class="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-label="ルーレット"
-     style="--roulette-duration: <%= xp[:roulette_duration_ms] %>ms"
-     data-controller="roulette" data-roulette-duration-value="<%= xp[:roulette_duration_ms] %>" data-tier="<%= reading.tier %>" data-turbo-temporary>
+     style="--roulette-duration: <%= duration %>ms"
+     data-controller="roulette" data-roulette-duration-value="<%= duration %>" data-tier="<%= reading.tier %>" data-turbo-temporary>
   <div class="w-full max-w-md rounded-[28px] bg-white p-5 shadow-2xl">
-    <p class="text-center text-xs font-semibold text-gray-500">「読む」を押した <%= roulette_seconds %> 秒間</p>
+    <p class="text-center text-xs font-semibold text-gray-500">「読む」を押した <%= reveal_seconds %> 秒間</p>
 
     <div class="roulette-window mt-3 overflow-hidden rounded-2xl bg-gray-900" style="--roulette-stop: <%= stop - 1 %>" aria-hidden="true">
       <ul class="roulette-strip">
         <% (laps + 2).times do %>
-          <% tiers.each do |tier| %>
-            <li class="roulette-row flex items-center justify-center text-2xl font-black text-white" data-tier="<%= tier[:name] %>">+<%= xp[:base] * tier[:multiplier] %> XP</li>
+          <% rarities.each do |rarity| %>
+            <li class="roulette-row flex items-center justify-center text-2xl font-black text-white" data-tier="<%= rarity[:name] %>"><%= card_name(rarity[:name]) %></li>
           <% end %>
         <% end %>
       </ul>
       <div class="pointer-events-none absolute inset-x-3 top-1/2 h-12 -translate-y-1/2 rounded-xl border-2 border-orange-400"></div>
     </div>
 
-    <% if drawn[:multiplier] > 1 && !reading.jackpot? %>
-      <p class="roulette-result mt-3 text-center text-base font-bold text-orange-600"><%= tier_label(reading.tier) %>ボーナス ×<%= drawn[:multiplier] %> → 合計 +<%= xp[:base] * drawn[:multiplier] %> XP</p>
+    <% if !base_rarity?(reading.tier) && !reading.jackpot? %>
+      <p class="roulette-result mt-3 text-center text-base font-bold text-orange-600"><%= card_name(reading.tier) %>が懸かった！ 完読で手に入る</p>
     <% end %>
 
     <table class="mt-3 w-full text-sm" aria-label="出目表">
       <tbody>
-        <% tiers.each do |tier| %>
-          <tr class="<%= tier[:name] == reading.tier ? "font-bold text-orange-600" : "text-gray-600" %>" data-tier="<%= tier[:name] %>" <%= "data-selected" if tier[:name] == reading.tier %>>
-            <td class="py-1"><%= tier_label(tier[:name]) %>（<%= tier_percent(tier) %>%）</td>
-            <td class="py-1 text-right">×<%= tier[:multiplier] %></td>
-            <td class="py-1 text-right">+<%= xp[:base] * tier[:multiplier] %> XP</td>
+        <% rarities.each do |rarity| %>
+          <tr class="<%= rarity[:name] == reading.tier ? "font-bold text-orange-600" : "text-gray-600" %>" data-tier="<%= rarity[:name] %>" <%= "data-selected" if rarity[:name] == reading.tier %>>
+            <td class="py-1"><%= card_name(rarity[:name]) %></td>
+            <td class="py-1 text-right"><%= rarity_percent(rarity) %>%</td>
           </tr>
         <% end %>
       </tbody>
     </table>
 
-    <p class="mt-3 text-center text-xs text-gray-500">止まると記事のカードが開きます</p>
+    <p class="mt-3 text-center text-xs text-gray-500">止まると記事が開きます</p>
 
     <% if reading.jackpot? %>
       <%= link_to "ジャックポットへ", jackpot_reading_path(reading), class: "sr-only", data: { roulette_target: "link" } %>

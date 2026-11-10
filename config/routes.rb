@@ -13,6 +13,8 @@ Rails.application.routes.draw do
   resource :push_subscription, only: [ :create, :destroy ]
   resource :daily_goal, only: :show
   resource :saved, only: :show, controller: :saved
+  # 手に入れたカードの図鑑。描くだけで書き込まない
+  resource :collection, only: :show, controller: :collection
   resources :articles, only: [] do
     resource :reading, only: :create
     get :read, on: :member

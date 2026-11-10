@@ -31,7 +31,7 @@ RSpec.describe "Feeds", type: :system do
     feed = create(:feed, title: "消す購読")
     sign_in
     click_on "購読"
-    dismiss_confirm(/累計 XP・読了数・連続日数/) { click_on "削除" }
+    dismiss_confirm(/図鑑のカード・読了数・連続日数/) { click_on "削除" }
     expect(page).to have_text("消す購読")
     expect(Feed.exists?(feed.id)).to be(true)
     accept_confirm { click_on "削除" }

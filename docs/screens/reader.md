@@ -1,8 +1,8 @@
 # Reader（Unit 5c #43、5d #50、要約 #85。#97 で Main からは来なくなった）
 
 ## 目的
-「無限供給」と「報酬距離」を担う。記事のカードを 1 枚ずつ並べ、「記事を開く」で元サイトを見た目のままアプリ内ブラウザ（シート）に開く。閉じて戻るとその場で判定と XP の区切りを挟み、下に次の未読のカードを継ぎ足す。
-閉じるまで読み続けられる流れにしつつ、区切りごとに XP と今日のゴールを見せて、止まり所（DailyGoal）を見失わせない。
+「無限供給」と「報酬距離」を担う。記事のカードを 1 枚ずつ並べ、「記事を開く」で元サイトを見た目のままアプリ内ブラウザ（シート）に開く。閉じて戻るとその場で判定の区切り（手に入れたカード）を挟み、下に次の未読のカードを継ぎ足す。
+閉じるまで読み続けられる流れにしつつ、区切りごとにカードと今日のゴールを見せて、止まり所（DailyGoal）を見失わせない。XP は無い（#106、ADR 0020）。
 モックには無い画面。nao の決定で足した（2026-11-03「情報元に遷移せずに無限スクロールで記事を読みたい」ADR 0010、2026-11-04「読みづらい。アプリ内ブラウザのように読みたい」ADR 0011）。
 
 ## 要素
@@ -12,17 +12,17 @@
 2. 記事のカード（1 本ずつ白いカード）
    - OGP 画像（DB: image_url。あればカードの上端に 1.91:1 で全幅、無い・読めなければ出さない。#87、ADR 0016）
    - フィード名・相対時刻・見出し（DB）
-   - 出目の帯「出目 掘り出し物 ×3 ・ 完読で +30 XP」（DB: readings.tier。倍率は `xp.tiers`、XP は `xp.base` × multiplier）
+   - 出目の帯「出目 レア ・ 完読でレアカード」（DB: readings.tier。段は `cards.rarities`。Main の広げた欄と同じ `readings/_rarity_band`）
    - 「Claude の 3 行要約」（DB: summary）。本文は描かない。要約は「読む」を押してから作る（ADR 0015）ので、出来るまでは「要約を作成中…」、出来るとその欄だけ差し替わる（Turbo Stream）。失敗なら「要約できませんでした。記事を開いて読めます」、その日の上限（`claude.daily_call_limit`）なら「今日の要約の上限に達しました。記事を開いて読めます」
    - 「記事を開く」（橙の大きなボタン。元サイトを別窓で開く。iPhone のホーム画面アプリではシート）
 3. 「読み終えた」ボタン。「記事を開く」を押すまで隠す（JS が無いときは最初から見える）。判定が済むと区切りに置き換わる
-4. 区切り（判定）: 完読なら橙で「読了！ +N XP」「完読ボーナス +A ・ コンボ ×C +B」「滞在 X ・ n 本連続」（A = `xp.base` × 出目の倍率、N = A × C）、未完なら灰で「未完 ・ +0 XP」「滞在 X。S 秒未満なら XP なし」（S = `read.complete_after_seconds`）。どちらも「今日のゴール n / 5 ・ あと m 本で宝箱」（`daily_goal.articles`）。完読数がちょうど 5 本目の区切りには金色の「宝箱を開く」（→ DailyGoal。Unit 7 #55）
+4. 区切り（判定）: 完読なら出目の色（通常・レアは橙、金は金色）で「読了」「レアカードを手に入れた！」、手に入れたカード（`cards/_card`。判定した直後の応答では裏（ロゴ）から表へめくれる。長さは `cards.reveal_duration_ms`。金はさらに全画面で開封し、どこを押しても Escape でも閉じる。再読込の描き直しではめくらず全画面も出さない。`prefers-reduced-motion` なら表のまま出す。#106 23c）、「滞在 X ・ n 本連続」、未完なら灰で「カードにならなかった」「滞在 X。S 秒以上読むと手に入る」（S = `read.complete_after_seconds`）。どちらも「今日のゴール n / 5 ・ あと m 本で宝箱」（`daily_goal.articles`）。完読数がちょうど 5 本目の区切りには金色の「宝箱を開く」（→ DailyGoal。Unit 7 #55）
 5. 次の記事のカード（2. と同じ形）。未読が尽きたら「全部読んだ。」と「閉じる」
 
 ## 遷移
 - Saved の未読の行 → Roulette（Turbo Stream のモーダル）→ 止まると Reader（`GET /articles/:id/read`、full page）。Main の行は下に広がり Reader へは来ない（#97、ADR 0019）
 - Saved の読んだ行 → Reader（抽選なし）
-- Roulette → Jackpot → 「受け取って読む」→ Reader
+- Roulette → Jackpot → 「読んで手に入れる」→ Reader
 - JS が無いとき: 「読む」の POST が直接 Reader へ redirect
 - Reader の中: 「記事を開く」→ 元サイトが別窓（シート）で開き、Stimulus `sheet` が `POST /readings/:id/start` で開いた時刻を記録 → シートを閉じて戻る（`visibilitychange` で隠れた後に、見えるか `focus` が戻る。押した瞬間の blur → focus では送らない）か「読み終えた」を押す → `POST /readings/:id/advance` → Turbo Stream で「読み終えた」を区切りに replace、次のカードを `#reader` に append。JS が無ければ次の記事の Reader へ redirect
 - Reader → Main（「閉じる」）。完読したカードは消える
@@ -30,8 +30,13 @@
 ## 受け入れ条件（Given-When-Then）
 - Given 「読む」を押した When 出目が止まる Then Reader に記事のカード（見出し・出目の帯・3 行要約・「記事を開く」）が出る。本文は描かれない
 - Given Reader のカード When 「記事を開く」を押す Then 元サイトが別窓（iPhone のホーム画面アプリではシート）で開き、滞在はこの時刻から数える
-- Given 記事を開いて complete_after_seconds 以上たった When Reader に戻る Then 区切りに「読了！ +N XP」が出て、下に次の未読（published_at が古い方の 1 本）のカードが継ぎ足される
-- Given 記事を開いてすぐ戻った When Reader に戻る Then 区切りは「未完 ・ +0 XP」で、記事は Main に未読のまま残る（コンボは途切れる）
+- Given 記事を開いて complete_after_seconds 以上たった When Reader に戻る Then 区切りに「〜カードを手に入れた！」と、裏からめくれて表になるカードが出て、下に次の未読（published_at が古い方の 1 本）のカードが継ぎ足される（#106）
+- Given 金の出目の記事 When 完読して戻る Then 区切りの上に全画面の開封（「金のカードを手に入れた！」とカード）が重なり、どこを押しても閉じる。閉じた後も区切りの金のカードは残る（#106）
+- Given 判定済みの区切り When Reader を再読込する Then カードは表のまま出て、めくり直さず全画面も出ない（#106）
+- Given 区切りを見た後に Main へ移った When 履歴で Reader に戻る Then カードは表のまま出て、めくり直さない（#106）
+- Given 金の全画面 When 開く Then 「閉じる」に焦点が移り、Tab で後ろへ抜けず、Escape でも背景のどこを押しても閉じ、焦点は区切りへ戻る（#106）
+- Given prefers-reduced-motion When 完読して戻る Then カードはめくらずに表で出る（#106）
+- Given 記事を開いてすぐ戻った When Reader に戻る Then 区切りは「カードにならなかった」で、記事は Main に未読のまま残る（コンボは途切れる）
 - Given 戻りの合図が来ない端末 When 記事を開いた後に「読み終えた」を押す Then 同じ判定になる
 - Given 「記事を開く」を押していない When Reader を見る Then 「読み終えた」は出ていない
 - Given 古い方の未読が無い When 記事を開いて戻る Then 「全部読んだ。」と「閉じる」が出る
@@ -47,7 +52,7 @@
 - Given 「読む」を押していない記事 When 新しい記事が取り込まれる Then 要約は作られない（API を呼ばない）
 
 ## 使う設定の鍵
-dopamine.yml: `read.complete_after_seconds`, `claude.daily_call_limit`, `xp.base`, `xp.tiers`, `xp.combo_multiplier_step`, `xp.combo_max_multiplier`, `daily_goal.articles`
+dopamine.yml: `read.complete_after_seconds`, `claude.daily_call_limit`, `cards.rarities`, `cards.reveal_duration_ms`（区切りのカードのめくり）, `daily_goal.articles`
 personas.yml: なし
 
 ## 外部 API

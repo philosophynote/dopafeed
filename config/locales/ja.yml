@@ -1,10 +1,10 @@
 # 全体を ja にすると ActiveRecord のエラー文言まで変わるため、必要な箇所だけ日本語にする。
 ja:
   dopamine:
-    tiers:
+    rarities:
       common: 通常
-      rare: 掘り出し物
-      jackpot: ジャックポット
+      rare: レア
+      jackpot: 金
   datetime:
     distance_in_words:
       half_a_minute: 30秒

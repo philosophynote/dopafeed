@@ -1,13 +1,10 @@
 RSpec.describe Reading, "#return!" do
   let(:settings) { Dopamine.settings }
   let(:threshold) { settings.dig(:read, :complete_after_seconds) }
-  let(:base) { settings.dig(:xp, :base) }
-  let(:step) { settings.dig(:xp, :combo_multiplier_step) }
-  let(:max) { settings.dig(:xp, :combo_max_multiplier) }
   let(:reset_hour) { settings.dig(:daily_goal, :reset_hour) }
   let(:noon) { Time.zone.local(2026, 10, 20, reset_hour) + 8.hours }
-  let(:common) { Dopamine.tier_names.first }
-  let(:rare) { Dopamine.settings.dig(:xp, :tiers).find { |t| t[:multiplier] > 1 }[:name] }
+  let(:common) { Dopamine.rarity_names.first }
+  let(:rare) { Dopamine.rarity_names.second }
 
   def completed_before(time, tier: common)
     create(:reading, tier: tier, opened_at: time - threshold - 1.minute).return!(at: time)
@@ -17,14 +14,14 @@ RSpec.describe Reading, "#return!" do
     create(:reading, tier: common, opened_at: time - threshold + 5.seconds).return!(at: time)
   end
 
-  it "complete_after_seconds + 5 秒で読み終えれば完読で XP が付く" do
+  it "complete_after_seconds + 5 秒で読み終えれば完読でカードになる" do
     reading = create(:reading, tier: common, opened_at: noon)
     reading.return!(at: noon + threshold + 5.seconds)
 
     expect(reading).to be_completed
     expect(reading.returned_at).to eq(noon + threshold + 5.seconds)
     expect(reading.completed_at).to eq(reading.returned_at)
-    expect(reading.xp).to eq(base)
+    expect(Reading.completed).to contain_exactly(reading)
   end
 
   it "complete_after_seconds ちょうどで読み終えれば完読" do
@@ -33,53 +30,31 @@ RSpec.describe Reading, "#return!" do
     expect(reading).to be_completed
   end
 
-  it "complete_after_seconds − 10 秒で読み終えれば未完で XP 0、記事は未読のまま" do
+  it "complete_after_seconds − 10 秒で読み終えれば未完でカードにならず、記事は未読のまま" do
     reading = create(:reading, tier: common, opened_at: noon)
     reading.return!(at: noon + threshold - 10.seconds)
 
     expect(reading).not_to be_completed
     expect(reading.returned_at).to be_present
-    expect(reading.xp).to eq(0)
-    expect(reading.combo_multiplier).to be_nil
+    expect(Reading.completed).to be_empty
     expect(Article.unread).to include(reading.article)
   end
 
-  it "完読・倍率 ×1・コンボ無しなら合計 = xp.base、コンボ倍率は 1.0" do
-    reading = create(:reading, tier: common, opened_at: noon)
-    reading.return!(at: noon + threshold)
-
-    expect(reading.xp).to eq(base)
-    expect(reading.combo_multiplier).to eq(1.0)
-    expect(reading.xp_breakdown).to eq(bonus: base, combo: 0, total: base)
-  end
-
-  it "ルーレットの倍率を掛ける（rare なら base × multiplier）" do
-    multiplier = Dopamine.tier(rare)[:multiplier]
+  it "希少度は抽選のまま確定する（完読で変わらない）" do
     reading = create(:reading, tier: rare, opened_at: noon)
     reading.return!(at: noon + threshold)
 
-    expect(reading.xp).to eq(base * multiplier)
+    expect(reading.tier).to eq(rare)
+    expect(reading.reload.tier).to eq(rare)
   end
 
-  it "同じ読書日に直前 2 本を連続完読していればコンボ倍率 = 1 + step × 2" do
+  it "同じ読書日に直前 2 本を連続完読していれば、この完読を含めて 3 本連続" do
     completed_before(noon - 20.minutes)
     completed_before(noon - 10.minutes)
     reading = create(:reading, tier: common, opened_at: noon)
     reading.return!(at: noon + threshold)
 
-    expect(reading.combo_multiplier).to eq((1 + step * 2).round(1))
-    expect(reading.xp).to eq((base * (1 + step * 2)).round)
-    expect(reading.xp_breakdown[:combo]).to eq(reading.xp - base)
     expect(reading.combo_count).to eq(3)
-  end
-
-  it "連続 20 本ならコンボ倍率は combo_max_multiplier で頭打ち" do
-    20.times { |i| completed_before(noon - (21 - i).minutes) }
-    reading = create(:reading, tier: common, opened_at: noon)
-    reading.return!(at: noon + threshold)
-
-    expect(reading.combo_multiplier).to eq(max)
-    expect(reading.xp).to eq((base * max).round)
   end
 
   it "直前が未完読ならコンボは 1 から数え直す" do
@@ -89,7 +64,6 @@ RSpec.describe Reading, "#return!" do
     reading = create(:reading, tier: common, opened_at: noon)
     reading.return!(at: noon + threshold)
 
-    expect(reading.combo_multiplier).to eq(1.0)
     expect(reading.combo_count).to eq(1)
   end
 
@@ -98,7 +72,7 @@ RSpec.describe Reading, "#return!" do
     reading = create(:reading, tier: common, opened_at: noon)
     reading.return!(at: noon + threshold)
 
-    expect(reading.combo_multiplier).to eq(1.0)
+    expect(reading.combo_count).to eq(1)
   end
 
   it "判定前の行はコンボを切らない" do
@@ -107,7 +81,15 @@ RSpec.describe Reading, "#return!" do
     reading = create(:reading, tier: common, opened_at: noon)
     reading.return!(at: noon + threshold)
 
-    expect(reading.combo_multiplier).to eq((1 + step).round(1))
+    expect(reading.combo_count).to eq(2)
+  end
+
+  it "未完の combo_count は 0" do
+    completed_before(noon - 20.minutes)
+    reading = create(:reading, tier: common, opened_at: noon)
+    reading.return!(at: noon + 5.seconds)
+
+    expect(reading.combo_count).to eq(0)
   end
 
   it "2 回目の判定は何も変えない（冪等）" do

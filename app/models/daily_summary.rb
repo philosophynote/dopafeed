@@ -13,8 +13,8 @@ class DailySummary
     @dwell_seconds ||= readings.pluck(:opened_at, :returned_at).sum { |opened, returned| (returned - opened).to_i }
   end
 
-  def xp
-    @xp ||= readings.sum(:xp)
+  def cards
+    readings.includes(:article).order(:completed_at, :id)
   end
 
   def goal

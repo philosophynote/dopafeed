@@ -6,17 +6,32 @@ module ReadingsHelper
     minutes.positive? ? "#{minutes}分#{rest}秒" : "#{rest}秒"
   end
 
-  # 保存に使う出目の英字名を、表示の翻訳に依存させない。
-  def tier_label(name)
-    I18n.t("dopamine.tiers.#{name}", locale: :ja, default: name)
+  # 保存に使う希少度の英字名を、表示の翻訳に依存させない。
+  def rarity_label(name)
+    I18n.t("dopamine.rarities.#{name}", locale: :ja, default: name)
   end
 
-  def tier_percent(tier)
-    number_with_precision(tier[:probability] * 100, precision: 1, strip_insignificant_zeros: true)
+  def card_name(name)
+    name == Dopamine.top_rarity[:name] ? "#{rarity_label(name)}のカード" : "#{rarity_label(name)}カード"
   end
 
-  def roulette_seconds
-    number_with_precision(Dopamine.settings.dig(:xp, :roulette_duration_ms) / 1000.0, precision: 1)
+  def base_rarity?(name)
+    name == Dopamine.base_rarity[:name]
+  end
+
+  def rarity_tone(name, base:)
+    if name == Dopamine.top_rarity[:name] then "bg-amber-400 text-amber-950"
+    elsif base_rarity?(name) then base
+    else "bg-orange-500 text-white"
+    end
+  end
+
+  def rarity_percent(rarity)
+    number_with_precision(rarity[:probability] * 100, precision: 1, strip_insignificant_zeros: true)
+  end
+
+  def reveal_seconds
+    number_with_precision(Dopamine.settings.dig(:cards, :reveal_duration_ms) / 1000.0, precision: 1)
   end
 
   def daily_goal_line(summary)

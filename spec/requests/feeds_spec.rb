@@ -54,10 +54,10 @@ RSpec.describe "Feeds", type: :request do
       create(:reading, :completed, article: other, opened_at: Time.current - 1.day)
       create(:article, feed: article.feed)
       create(:article, feed: other.feed)
-      goal = create(:daily_goal, :achieved, bonus_xp: 50)
+      goal = create(:daily_goal, :achieved)
       get root_path
       expect(Capybara.string(response.body)).to have_css("[data-unread-badge]", text: "2")
-      expect(Capybara.string(response.body)).to have_text("累計 70 XP", normalize_ws: true).and have_text("2日連続")
+      expect(Capybara.string(response.body)).to have_text("2 枚", normalize_ws: true).and have_text("2日連続")
       expect { delete feed_path(article.feed) }.to change(Feed, :count).by(-1)
         .and change(Article, :count).by(-2).and change(Reading, :count).by(-1)
       expect(response).to redirect_to(feeds_path)
@@ -65,7 +65,7 @@ RSpec.describe "Feeds", type: :request do
       expect(goal.reload).to be_achieved
       get root_path
       expect(Capybara.string(response.body)).to have_css("[data-unread-badge]", text: "1")
-      expect(Capybara.string(response.body)).to have_text("累計 60 XP", normalize_ws: true).and have_text("1日連続")
+      expect(Capybara.string(response.body)).to have_text("1 枚", normalize_ws: true).and have_text("1日連続")
     end
 
     it "存在しないフィードの削除は 404" do

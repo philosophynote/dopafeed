@@ -2,9 +2,9 @@ RSpec.describe "DailyGoal", type: :system do
   let(:settings) { Dopamine.settings }
   let(:threshold) { settings.dig(:read, :complete_after_seconds) }
   let(:goal_articles) { settings.dig(:daily_goal, :articles) }
-  let(:common) { Dopamine.tier_names.first }
+  let(:common) { Dopamine.rarity_names.first }
 
-  before { allow(XpRoulette).to receive(:draw).and_return(common) }
+  before { allow(RarityDraw).to receive(:draw).and_return(common) }
 
   def no_horizontal_scroll?
     page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
@@ -41,7 +41,7 @@ RSpec.describe "DailyGoal", type: :system do
 
     click_on "読み終えた"
 
-    expect(page).to have_css("section[aria-label='判定']", text: "読了！")
+    expect(page).to have_css("section[aria-label='判定']", text: "カードを手に入れた！")
     expect(page).to have_text("今日のゴール #{goal_articles} / #{goal_articles} ・ 読み切った！")
     expect(page).to have_link("宝箱を開く")
     screenshot!("divider")
@@ -52,6 +52,8 @@ RSpec.describe "DailyGoal", type: :system do
     expect(page).to have_text("今日の #{goal_articles} 本、読み切った！")
     expect(page).to have_css("[data-chest=open]")
     expect(page).to have_text("ストリーク 1 日目 確定")
+    expect(page).to have_css("ul.card-deck li.card-reveal[data-tier]", count: goal_articles)
+    expect(page).to have_css("ul.card-deck li h3", text: "今日の最後の 1 本")
     expect(page).to have_text("#{goal_articles} 本 ・")
     expect(page).to have_no_button("もう 1 本だけ")
     expect(no_horizontal_scroll?).to be(true), "横スクロールが出ている"

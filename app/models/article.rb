@@ -51,7 +51,7 @@ class Article < ApplicationRecord
     bookmarked_at.present?
   end
 
-  # 二度目は最初の時刻を保つ。{.bookmarked} は保存した時刻の順なので、二重送信で順番を動かさない
+  # 二度目は最初の時刻を保つ。{.bookmarked} は保存した時刻の順なので、二重送信で順番を動かさない。
   def bookmark!(at: Time.current)
     with_lock { update!(bookmarked_at: at) unless bookmarked? }
     self

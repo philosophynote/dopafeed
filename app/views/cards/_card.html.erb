@@ -1,0 +1,38 @@
+<%# カード 1 枚（docs/screens/collection.md）。完読した readings の行がそのままカード。
+    表は OGP 画像、無ければ（読めなければ）フィードの色地。見出しとフィード名を下に重ね、枠の色が希少度。
+    画像が読めなかったら image-fallback が figure ごと外し、下の色地が出る。
+    リンクは元記事を別窓（iPhone のホーム画面アプリではシート）で開く。読み直しても抽選し直さない（1 記事 1 行）。link: false で開かない面だけにする。
+    reveal_order: 束の中の順番（0 から）を渡すと、裏（ロゴ）から表へめくれて現れる。長さは yml の cards.reveal_duration_ms。
+    順番ぶん遅らせる幅は cards.reveal_stagger_ms で、鍵が無ければ遅らせない（束が一斉にめくれる）。
+    図鑑のように並べて見るだけの場所では渡さない（毎回めくると慣れる）。
+    枠（li）は回る箱で、切り抜き（overflow）は面に持たせる。箱で切り抜くと 3D が平らに潰れて裏面が出ない。
+    id: 同じカードを 1 つの文書に 2 度描くとき（全画面の開封）は nil で外す %>
+<% article = card.article %>
+<% reveal_order = local_assigns[:reveal_order] %>
+<% style = "--reveal-duration: #{Dopamine.settings.dig(:cards, :reveal_duration_ms)}ms; --reveal-stagger: #{Dopamine.settings.dig(:cards, :reveal_stagger_ms).to_i}ms; --i: #{Integer(reveal_order)}" if reveal_order %>
+<% face = local_assigns.fetch(:link, true) ? :a : :div %>
+<li class="relative aspect-[3/4] rounded-xl border-2 <%= rarity_frame(card.tier) %> <%= "card-reveal" if reveal_order %>"
+    data-tier="<%= card.tier %>" <%= tag.attributes(id: local_assigns.fetch(:id, dom_id(card, :card)), style: style) %>>
+  <div class="card-face absolute inset-0 overflow-hidden rounded-[0.625rem] <%= feed_tone(article.feed) %>">
+    <% if article.image_url.present? %>
+      <figure class="absolute inset-0" data-controller="image-fallback">
+        <img src="<%= article.image_url %>" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" draggable="false"
+             class="pointer-events-none h-full w-full select-none object-cover [-webkit-touch-callout:none]" data-image-fallback-target="image" data-action="error->image-fallback#remove">
+      </figure>
+    <% end %>
+    <%= content_tag face, href: (article.url if face == :a), target: ("_blank" if face == :a), rel: ("noopener noreferrer" if face == :a), draggable: "false",
+                    class: "absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2 text-white [-webkit-tap-highlight-color:transparent] active:bg-black/20" do %>
+      <%# 希少度は読み上げでは「金のカード、」と先に言い、見える方のラベルは重ねて読ませない %>
+      <% unless base_rarity?(card.tier) %>
+        <span class="sr-only"><%= card_name(card.tier) %>、</span>
+        <span class="absolute left-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold <%= rarity_tone(card.tier, base: "") %>" data-rarity-label aria-hidden="true"><%= rarity_label(card.tier) %></span>
+      <% end %>
+      <h3 class="line-clamp-3 break-words text-xs font-bold leading-snug"><%= article.title %></h3>
+      <p class="mt-0.5 truncate text-[10px] text-white/80"><%= article.feed.title %></p>
+    <% end %>
+  </div>
+  <% if reveal_order %>
+    <%# 裏面。めくれる前に見える側。表と同じ箱の中で 180 度向こうを向かせ、めくれて向こうを向いたら隠れる（backface-visibility） %>
+    <span class="card-back absolute inset-0 flex items-center justify-center rounded-[0.625rem] bg-[#141416] text-sm font-black tracking-tight text-white" aria-hidden="true"><span class="text-orange-500">Dopa</span>Feed</span>
+  <% end %>
+</li>

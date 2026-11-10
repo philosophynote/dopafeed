@@ -7,11 +7,12 @@
 |---|---|---|---|---|---|
 | 1 コアループ | Main | main.md | Main.dc.html | 5、行を広げる 21（#97、ADR 0019） | 深 |
 | 1 | Swipe | swipe.md | Swipe.dc.html | 8a（左スワイプの興味なしだけ、#56）。残りは未定 | 浅 |
-| 1 | Roulette | roulette.md | Roulette.dc.html | 6 | 深 |
-| 1 | Jackpot | jackpot.md | Jackpot.dc.html | 6 | 深 |
+| 1 | Roulette | roulette.md | Roulette.dc.html | 6、出目をカードの希少度に 23（#106、ADR 0020） | 深 |
+| 1 | Jackpot | jackpot.md | Jackpot.dc.html | 6、金のカードの予告に 23（#106） | 深 |
 | 1 | ReadDone | read_done.md（Reader の区切りに畳んだ） | ReadDone.dc.html | 5 | 深 |
 | 1 | Reader | reader.md | （モックに無い。ADR 0010・0011） | 5c・5d | 深 |
-| 1 | DailyGoal | daily_goal.md | DailyGoal.dc.html | 7 | 深 |
+| 1 | DailyGoal | daily_goal.md | DailyGoal.dc.html | 7、中身を今日のカードに 23（#106） | 深 |
+| 1 | Collection（図鑑） | collection.md | （モックに無い。ADR 0020） | 23b（#106） | 深 |
 | 1 | Comments | comments.md | Comments.dc.html | 未定（案: 9） | 浅 |
 | 2 個人最適化 | ForYou | for_you.md | ForYou.dc.html | 未定（案: 11） | 浅 |
 | 2 | Learning | learning.md | Learning.dc.html | 未定（案: 12） | 浅 |
@@ -36,6 +37,6 @@
 
 ## モック共通の見た目（全画面）
 - 390×844、角丸 48、背景 #F2F2F7、文字 #141416、アクセント #FF2E6B（props で #F0831A / #7C3AED / #0A84FF に切替可）
-- 上の余白 56px（ステータスバー）。下タブバーは高さ 83px、4 タブ: フィード（未読バッジ）/ 保存 / レポート / 購読
+- 上の余白 56px（ステータスバー）。下タブバーは高さ 83px、4 タブ: フィード（未読バッジ）/ 保存 / レポート（実装では図鑑。ADR 0020）/ 購読
 - タップ領域は 44px 以上。アイコンは inline SVG（絵文字なし）
 - カードは白、角丸 20、padding 14。見出し 18px/700、本文 13px、メタ 12px

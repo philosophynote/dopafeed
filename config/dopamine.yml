@@ -2,19 +2,15 @@
 shared:
   read:
     complete_after_seconds: 20
-  xp:
-    base: 10
-    roulette_duration_ms: 500
-    combo_multiplier_step: 0.1
-    combo_max_multiplier: 2.0
-    tiers:
-      - { name: common, multiplier: 1, probability: 0.70 }
-      - { name: rare, multiplier: 3, probability: 0.25 }
-      - { name: jackpot, multiplier: 10, probability: 0.05 }
+  cards:
+    reveal_duration_ms: 500
+    rarities:
+      - { name: common, probability: 0.70 }
+      - { name: rare, probability: 0.25 }
+      - { name: jackpot, probability: 0.05 }
   daily_goal:
     articles: 5
     reset_hour: 4
-    bonus_xp: 100
   fetch:
     timeout_seconds: 10
     max_body_megabytes: 5
