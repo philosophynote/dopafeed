@@ -1,14 +1,14 @@
 <% swipe = Dopamine.settings[:swipe] %>
 <li id="<%= dom_id(article) %>" class="relative" data-controller="swipe" data-action="sheet:finish->swipe#finish"
     data-swipe-dismiss-ratio-value="<%= swipe[:dismiss_threshold_ratio] %>" data-swipe-flick-velocity-value="<%= swipe[:flick_velocity] %>" data-swipe-flick-window-ms-value="<%= swipe[:flick_window_ms] %>" data-swipe-flick-min-px-value="<%= swipe[:flick_min_px] %>" data-swipe-submit-timeout-seconds-value="<%= swipe[:submit_timeout_seconds] %>">
-    <%# 背景を li 基準にすると、詳細欄を広げた高さまで伸びてしまう %>
+  <%# 背景を li 基準にすると、詳細欄を広げた高さまで伸びてしまう %>
   <div class="relative">
     <%= render "articles/swipe_rail", target: "rail", modifier: nil, icon: :trash, label: "削除" %>
     <%= render "articles/swipe_rail", target: "saveRail", modifier: "swipe-save-rail", icon: :bookmark, label: "保存" %>
     <article class="swipe-card relative flex items-start gap-3 bg-white px-4 py-2.5" data-swipe-target="card"
              data-action="pointerdown->swipe#start pointermove->swipe#move pointerup->swipe#end pointercancel->swipe#end">
       <%= render "articles/row_body", article: article %>
-            <%= button_to article_reading_path(article), params: { expand: 1 }, form: { class: "contents" },
+      <%= button_to article_reading_path(article), params: { expand: 1 }, form: { class: "contents" },
                     "aria-expanded": "false", "aria-controls": dom_id(article, :detail),
                     class: "absolute inset-0 w-full [-webkit-tap-highlight-color:transparent] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-orange-500 active:bg-black/5",
                     data: { swipe_target: "read", action: "click->swipe#open" } do %>
