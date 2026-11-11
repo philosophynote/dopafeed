@@ -1,7 +1,5 @@
-<%# Saved（docs/screens/saved.md）。上から: 見出し / 取り置いた記事の一覧（保存した新しい順） / タブバー %>
 <% content_for :title, "保存" %>
 <header class="flex min-h-11 items-center">
-  <%# 数は保存を外すたびに Turbo Stream が書き換える %>
   <h1 class="text-2xl font-black tracking-tight">保存 (<span id="saved-count"><%= @articles.size %></span>)</h1>
 </header>
 

@@ -1,7 +1,6 @@
 #!/bin/bash -e
 
-# server 起動時だけ「復元 → db:prepare → Litestream 配下で起動」を行う。
-# console / runner など他のコマンドは素通し（複製プロセスは DB 1 つにつき 1 本だけ）。
+# 複製プロセスは DB につき 1 本なので、console や runner では起動しない。
 if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
   if [ -z "${LITESTREAM_BUCKET:-}" ] || [ -z "${LITESTREAM_REGION:-}" ]; then
     # バックアップ無しで静かに動くほうが致命的（ADR 0004）。設定が入るまで起動しない

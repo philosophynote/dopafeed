@@ -1,5 +1,3 @@
-# 読了（1 記事 1 行）。既定は「読む」を押して開いただけ。完読（= 図鑑のカード）は :completed。
-# 希少度 tier は既定で一番低い段。頂点は :jackpot
 FactoryBot.define do
   factory :reading do
     article

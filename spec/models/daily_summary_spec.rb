@@ -1,4 +1,3 @@
-# 読書日 1 日ぶんの数（本数・滞在・ゴールまでの残り）とその日のカード。Main・判定の区切り・DailyGoal が同じ数を見る
 RSpec.describe DailySummary do
   let(:settings) { Dopamine.settings }
   let(:goal_articles) { settings.dig(:daily_goal, :articles) }

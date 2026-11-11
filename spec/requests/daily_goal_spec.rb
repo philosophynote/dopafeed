@@ -1,4 +1,3 @@
-# DailyGoal（GET /daily_goal）。docs/screens/daily_goal.md の受け入れ条件のうち、描画で確かめられるもの
 RSpec.describe "DailyGoal", type: :request do
   let(:settings) { Dopamine.settings }
   let(:goal_articles) { settings.dig(:daily_goal, :articles) }
@@ -34,7 +33,6 @@ RSpec.describe "DailyGoal", type: :request do
       expect(page).to have_text("今日の #{goal_articles} 本、読み切った！")
       expect(page).to have_css("[data-chest=open]")
       expect(page).to have_text("ストリーク 1 日目 確定")
-      # 滞在は factory の 4 分 12 秒 × 本数を分に切り下げる
       expect(page).to have_text("#{goal_articles} 本 ・ #{goal_articles * (4 * 60 + 12) / 60} 分")
       expect(page).to have_no_text("XP")
       cards = page.find("ul.card-deck[aria-label='カードの一覧']")
@@ -45,7 +43,6 @@ RSpec.describe "DailyGoal", type: :request do
       expect(cards).to have_css("li[data-tier='#{gold.tier}'] h3", text: "金の記事")
       expect(cards).to have_css("li[data-tier='#{Dopamine.base_rarity[:name]}']", count: goal_articles - 2)
       expect(cards.find("li[data-tier='#{Dopamine.base_rarity[:name]}']", match: :first)).to have_no_css("[data-rarity-label]")
-      # 束の中で順にめくる（--i は 0 から）。ずらす幅は yml の鍵から。鍵が無ければ 0（一斉）
       expect(cards.all("li").map { |li| li["style"][/--i: (\d+)/, 1] }).to eq((0...goal_articles).map(&:to_s))
       expect(cards.first("li")["style"]).to include("--reveal-stagger: #{Dopamine.settings.dig(:cards, :reveal_stagger_ms).to_i}ms")
       expect(cards["data-controller"]).to eq("card-deck") # 履歴で戻ったときにめくり直さない
@@ -115,7 +112,7 @@ RSpec.describe "DailyGoal", type: :request do
       form = page.find("form[action='#{article_reading_path(newest)}']")
       expect(form).to have_button("もう 1 本だけ")
       expect(page).to have_no_text("ボーナス")
-      expect(DailyGoal.count).to eq(0) # 描くだけで達成の行は作らない（作るのは判定）
+      expect(DailyGoal.count).to eq(0)
 
       Article.unread.each { |article| create(:reading, :completed, article: article, opened_at: noon - 3.hours) }
       travel_to(noon) { get daily_goal_path }

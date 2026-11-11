@@ -1,5 +1,3 @@
-# 読む → Roulette → リーダーと、jackpot → Jackpot → 受け取って読む → リーダーを 390×844 で通す。
-# Main の行はモーダルを回さず下に広がる（ADR 0019）ので、ルーレットが残る入口の Saved の行から読む
 RSpec.describe "Roulette", type: :system do
   let(:settings) { Dopamine.settings }
   let(:threshold) { settings.dig(:read, :complete_after_seconds) }
@@ -59,7 +57,6 @@ RSpec.describe "Roulette", type: :system do
     expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "紙吹雪が横スクロールを生んでいる"
     screenshot!("jackpot")
 
-    # 戻るで一覧に帰っても、モーダルは蘇らず、読了も勝手に送られない。結果は保持され、再び読めば同じ Jackpot
     page.go_back
     expect(page).to have_current_path(saved_path)
     expect(page).to have_css("article", text: "読む記事")
@@ -74,7 +71,6 @@ RSpec.describe "Roulette", type: :system do
     expect(page).to have_current_path(read_article_path(article))
     opened = article.reading.reload.opened_at
 
-    # 元サイトの代わりに /up を別窓で開き、そこにいる間に滞在を作って戻る（戻った瞬間に判定が走る）
     reader = current_window
     source = window_opened_by { click_on "記事を開く" }
     within_window(source) do

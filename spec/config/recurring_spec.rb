@@ -1,4 +1,3 @@
-# Solid Queue の定期実行（config/recurring.yml）に取得 Job が載り、要約 Job は載っていないことを守る
 RSpec.describe "config/recurring.yml" do
   let(:recurring) { YAML.safe_load(ERB.new(Rails.root.join("config/recurring.yml").read).result, aliases: true) }
 

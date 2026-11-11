@@ -1,5 +1,4 @@
-# 全フィードの取得を 1 本ずつ {FetchFeedJob} に積む。config/recurring.yml が定期的に呼ぶ（本番）。
-# 自分では取りに行かない（1 本の失敗や遅さが他のフィードを巻き込まないため）
+# 自分で全件取得すると、1 本の失敗や遅さが他のフィードを巻き込む。
 class FetchAllFeedsJob < ApplicationJob
   queue_as :feeds
 

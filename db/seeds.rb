@@ -1,11 +1,6 @@
-# 冪等。bin/setup と CI の「Tests: Seeds」段（db:seed:replant）で毎回流れる。
-# 本番でも db:prepare が DB を新規作成した初回に一度流れる（User だけ。下の return を見よ）。
-# 乱数・Time.current は使わない（二度流しても同じ結果、テストで件数を固定できる）。
-# 記事 URL は example.com。seed のために実サイトへ偽パスを向けない。
+# 再 seed でも同じ結果にするため、乱数や現在時刻は使わない。記事 URL は実サイトに向けない。
 
-# --- User（ADR 0005: 1 人用。seed で 1 件）----------------------------------
-# development / test は既定値で通す（CI と bin/setup を secrets 無しで回すため）。
-# production は ENV 必須。既定パスワードのユーザーを本番に作らないため、無ければ KeyError で止まる。
+# 本番に既定パスワードを作らないよう ENV を必須にし、開発・テストでは secrets 無しで通す。
 credential = lambda do |key, default|
   Rails.env.production? ? ENV.fetch(key) : ENV.fetch(key, default)
 end
@@ -18,8 +13,6 @@ if User.none?
   User.create!(email_address: email_address, password: password)
 end
 
-# --- Feeds / Articles ----------------------------------------------------------
-# 開発・テスト用のダミー。本番には入れない（本番のフィードは画面から登録し、記事は Unit 3 の取得 Job が作る）
 return if Rails.env.production?
 
 feeds = [
@@ -30,7 +23,6 @@ feeds = [
   { slug: "shopify", title: "Shopify Engineering", url: "https://shopify.engineering/blog.atom", site_url: "https://shopify.engineering" }
 ]
 
-# 各フィード 6 本。[title, 3 行要約]
 articles = {
   "rails" => [
     [ "Rails 8.1 の新機能まとめ", "・bin/ci と config/ci.rb で CI の段をコードにする\n・Active Job Continuations で長いジョブを途中から再開\n・構造化イベントで本番ログを機械が読める形に" ],

@@ -1,4 +1,3 @@
-# ログインとサインアウト。ログイン状態の保持と期限は Authentication concern が持つ
 class SessionsController < ApplicationController
   allow_unauthenticated_access only: %i[ new create ]
   rate_limit to: 10, within: 3.minutes, only: :create, with: -> { redirect_to new_session_path, alert: "試行が多すぎます。少し待ってからもう一度" }
@@ -22,8 +21,8 @@ class SessionsController < ApplicationController
 
   private
 
-  # メールは送られてこないので、ただ一人のユーザーのメールで照合する（ADR 0005）。
-  # 0 人・2 人以上は seed か console の誤りで、ログイン画面を 500 にすると直しに入る手がかりも消えるので、入れないだけにする
+  # メールは送られてこないので、唯一のユーザーのメールで照合する（ADR 0005）。
+  # 人数の不整合で 500 にすると復旧の手がかりも消えるため、認証失敗として扱う。
   def authenticate(password)
     User.authenticate_by(email_address: User.sole.email_address, password: password)
   rescue ActiveRecord::RecordNotFound, ActiveRecord::SoleRecordExceeded

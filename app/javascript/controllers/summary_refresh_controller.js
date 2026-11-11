@@ -1,9 +1,8 @@
 import { Controller } from "@hotwired/stimulus"
 
-// 要約の出来上がりを待つ購読（中の turbo-cable-stream-source）。購読がつながるたびに、作成中なら要約欄の frame を取り直す。
-// つながる前や、iPhone でアプリを裏に回して切れている間に Job が書き終えると、その差し替えは届かず「作成中」のまま残るため。
-// 取り直しで出来上がり（要約・失敗）が返ったら購読ごと外す。取り直しは frame だけを入れ替えるので、外さないと購読が残り、継ぎ足すたびに溜まる。
-// Stimulus を stream source 自身に付けないのは、その data-* が購読のパラメータに混ざるから
+// 接続前や切断中の broadcast は届かないため、再接続時に作成中の欄を取り直す。
+// frame の取り直しだけでは購読が残って溜まるため、完成後は購読も外す。
+// stream source に Stimulus を付けると data-* が購読パラメータに混ざる。
 export default class extends Controller {
   static values = { url: String, frame: String }
 

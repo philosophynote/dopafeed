@@ -1,7 +1,5 @@
-# request spec でログイン状態を作る。Authentication concern が signed cookie の session_id を見るので、同じ形で焼く。
+# Authentication が signed cookie を読むため、通常の cookie ではログイン状態にならない。
 module SessionHelper
-  # @param user [User] ログインさせるユーザー
-  # @return [Session] 作った Session
   def sign_in_as(user)
     Current.session = user.sessions.create!
 
@@ -13,8 +11,6 @@ module SessionHelper
     Current.session
   end
 
-  # 今の Session を消して cookie も捨てる
-  # @return [void]
   def sign_out
     Current.session&.destroy!
     cookies.delete("session_id")

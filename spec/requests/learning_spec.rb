@@ -1,4 +1,3 @@
-# Learning の最小版（docs/screens/learning.md 未決 4）。サインアウトと、Install への導線の置き場だけ
 RSpec.describe "Learning", type: :request do
   it "未ログインならログイン画面へ" do
     get learning_path

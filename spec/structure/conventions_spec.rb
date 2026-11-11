@@ -1,4 +1,3 @@
-# AGENTS.md の規約を文章ではなくテストで守る。失敗文に直し方を書く。
 RSpec.describe "AGENTS.md の規約" do
   let(:app) { Rails.root.join("app") }
 
@@ -26,7 +25,6 @@ RSpec.describe "AGENTS.md の規約" do
   end
 
   it "app/ と lib/ のコメントに工程・画面の語を書かない（ADR 0009）" do
-    # 工程（Unit・陣・PR・Issue と、#23 のような番号）は Issue と PR に書く。画面はモデル・サービス・ジョブが知らない。
     # 「ADR 0002」「1 回」「#{...}」「URL の /#top」は通す。行頭が # のコメントだけ見る（行末コメントと =begin は見ない）
     process = /\bUnit(?:\s*\d|\b)|陣|\bPR\b|\bIssue\b|(?<![\w\/])#\d/i
     screen = /画面/

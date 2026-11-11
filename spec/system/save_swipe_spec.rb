@@ -1,7 +1,5 @@
-# 右スワイプで「保存」（あとで読む）し、Saved で左スワイプで保存を外す（docs/screens/saved.md）。390×844 で通す。引く手は spec/support/system_swipe.rb
 RSpec.describe "Save swipe", type: :system do
   let(:now) { Time.current }
-  # 左右とも同じ閾値（ADR 0018）。view が yml から Stimulus の value で渡すので、spec も同じ所から読む
   let(:ratio) { Dopamine.settings.dig(:swipe, :dismiss_threshold_ratio) }
 
   it "右へ引くと左から保存の背景が伸び、閾値を越えて離すと行が消えてトーストが出て未読数が減る。「元に戻す」で行が戻る" do
@@ -20,7 +18,6 @@ RSpec.describe "Save swipe", type: :system do
     expect(rail.evaluate_script("this.getBoundingClientRect().width")).to be_within(16).of(pull)
     expect(rail.evaluate_script("this.getBoundingClientRect().left")).to be < width / 4
     expect(rail[:class]).not_to include("swipe-armed")
-    # 削除の背景は出ない
     expect(swipe_rail("あとで読む記事").evaluate_script("parseFloat(getComputedStyle(this).opacity)")).to eq(0)
     expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "引いている間に横スクロールが出ている"
     screenshot!("pulling")
@@ -68,7 +65,6 @@ RSpec.describe "Save swipe", type: :system do
     width = card_width("取り置いた記事")
     expect(page).to have_no_css("[data-unread-badge]")
 
-    # 右へ引いても動かない（保存の一覧に右の動作は無い）。引いている最中から 0 のまま
     drag_card("取り置いた記事", from: [ width / 2, 40 ], to: [ width / 2 + width * ratio * 1.5, 40 ], release: false)
     expect(card_shift("取り置いた記事")).to eq(0)
     expect(rail_opacity("取り置いた記事")).to eq(0)
@@ -98,7 +94,6 @@ RSpec.describe "Save swipe", type: :system do
     expect(page).to have_no_css("[data-unread-badge]")
     expect(Article.find_by(title: "取り置いた記事")).to be_bookmarked
 
-    # 読んだ行（Reader へのリンク）も引いて外せる。引いた後の click で Reader へ移らない
     drag_card("読み終えた記事", from: [ width / 2, 40 ], to: [ width / 2 - width * ratio * 1.3, 40 ])
     expect(page).to have_css("#toast [data-controller='toast']", text: "1 件の保存を外しました", count: 1)
     expect(page).to have_current_path(saved_path)

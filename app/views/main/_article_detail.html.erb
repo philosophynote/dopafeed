@@ -1,7 +1,4 @@
-<%# 行の下に広げる欄（docs/screens/main.md）。画面を移らずに要約で読むかを決め、そのまま元記事を別窓（iPhone のホーム画面アプリではシート）で開くため（ADR 0019）。
-    出目はモーダルで回さず（待ち時間を削る）帯の色で見せる（readings/_rarity_band）。
-    欄の id と data-swipe-target は空の欄と同じにする（Turbo Stream の replace が同じ場所に収め、swipe が差し替わりを拾う）。
-    戻ったときの判定は Reader と同じ部品（Stimulus sheet と「読み終えた」）を使い、判定の式を一つに保つ %>
+<%# 空欄と id・data-swipe-target を揃えないと、差し替え後に swipe が欄を拾えない %>
 <% article = reading.article %>
 <div id="<%= dom_id(article, :detail) %>" class="bg-white px-4 pb-4" data-swipe-target="detail"
      data-controller="sheet" data-sheet-start-url-value="<%= start_reading_path(reading, from: "main") %>">

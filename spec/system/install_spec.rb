@@ -1,14 +1,9 @@
-# Install（docs/screens/install.md）の standalone の分岐と、アイコンのバッジ（Badging API）。
-# iOS の「ホーム画面から開いた」は Selenium では作れないので、navigator.standalone（か display-mode）を偽って同じ分岐を踏ませる。
-# setAppBadge / clearAppBadge は呼ばれた引数を window.__badges に積む代物に置き換え、「呼んだ」ことまでを検証する
-# （iOS で本当にバッジが出るかは通知の許可に掛かるので、実機でしか分からない）
+# iOS の standalone は Selenium で再現できないため、検出値を差し替える。
+# バッジ API の呼び出しまでを検証する。通知の許可と実際の表示は iOS 実機で確認する。
 RSpec.describe "Install", type: :system do
-  # 新しい文書ごとに先回りで入れるスクリプト（ページの JS より先に走るので、Stimulus の connect が見る値を変えられる）。
-  # ブラウザは例をまたいで使い回されるので、入れたものは after で外す
-  # push: は Notification と service worker の pushManager の偽物の状態。
-  # :default は未許可（requestPermission で許可になる）、:denied は拒否済み、:subscribed は許可済みで購読あり。
-  # 購読の有無と subscribe を呼んだ回数は sessionStorage に持ち、文書をまたいでも残す（再訪で再購読しないことを見るため。
-  # 許可は購読と一緒に granted になる）
+  # Stimulus の接続後では遅いため、文書の JS より先に検出値を差し替える。
+  # ブラウザは例をまたいで使い回すので、登録は after で外す。
+  # 再訪時の再購読を検証するため、購読と呼び出し回数は sessionStorage に残す。
   def emulate_standalone!(via: :navigator, push: nil, key: vapid["VAPID_PUBLIC_KEY"])
     detection = if via == :navigator
       'Object.defineProperty(navigator, "standalone", { value: true, configurable: true });'
@@ -24,7 +19,6 @@ RSpec.describe "Install", type: :system do
     JS
   end
 
-  # key: は端末の購読が作られた公開鍵（base64url）。サーバーの鍵と違えば Install が解除するはず
   def push_stub(state, key:)
     <<~JS
       (() => {
@@ -70,7 +64,6 @@ RSpec.describe "Install", type: :system do
     warn "standalone stub not removed: #{e.class}"
   end
 
-  # Stimulus が connect するまで待ってから最後の呼び出しを見る
   def expect_last_badge(value)
     page.document.synchronize do
       last = page.evaluate_script("window.__badges[window.__badges.length - 1]")
@@ -202,7 +195,6 @@ RSpec.describe "Install", type: :system do
 
     sign_in
     expect_last_badge(2)
-    # 興味なしは左スワイプが隠れた form を送る。ここではバッジだけ見るので form を直に送る
     page.execute_script("document.querySelector('article form[data-swipe-target=form]').requestSubmit()")
 
     expect(page).to have_text("元に戻す")

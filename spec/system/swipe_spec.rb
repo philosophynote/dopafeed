@@ -1,8 +1,5 @@
-# Main の行を読まずに片付ける（docs/screens/swipe.md）。左スワイプで行が消えて画面下に「元に戻す」のトーストが出て、押せば戻る、を 390×844 で通す。「興味なし」の見えるボタンは無い。
-# 引く手は spec/support/system_swipe.rb。右スワイプの「保存」は spec/system/save_swipe_spec.rb
 RSpec.describe "Swipe", type: :system do
   let(:now) { Time.current }
-  # カード幅に対する送る閾値。view が yml から Stimulus の value で渡すので、spec も同じ所から読む
   let(:dismiss_ratio) { Dopamine.settings.dig(:swipe, :dismiss_threshold_ratio) }
 
   it "左スワイプで行が消えて画面下にトーストが出て未読数が減り、「元に戻す」で行が元の位置に戻る" do
@@ -22,7 +19,6 @@ RSpec.describe "Swipe", type: :system do
     expect(page).to have_css("article", count: 2)
     expect(page).to have_css("[data-unread-badge]", text: "2")
     expect(Article.find_by(title: "関心の無い記事")).to be_dismissed
-    # トーストはタブバーの上に浮き、画面の中に収まる。押す所は 44px 以上
     toast_rect = toast.evaluate_script("this.getBoundingClientRect().toJSON()")
     nav_top = find("nav[aria-label='タブバー']").evaluate_script("this.getBoundingClientRect().top")
     expect(toast_rect["bottom"]).to be <= nav_top
@@ -30,7 +26,6 @@ RSpec.describe "Swipe", type: :system do
     expect(toast_rect["right"]).to be <= page.evaluate_script("document.documentElement.clientWidth")
     expect(toast.find_button("元に戻す").evaluate_script("this.getBoundingClientRect().height")).to be >= 44
     screenshot!("dismissed")
-    # yml に toast.visible_seconds が無ければ、トーストは消えずに残る
     sleep 1.5
     expect(page).to have_css("#toast [data-controller='toast']", wait: 0)
 
@@ -124,12 +119,10 @@ RSpec.describe "Swipe", type: :system do
     sign_in
     width = card_width("飛ばす記事")
 
-    # 途中で止めると指に付いてきて、右側のレールが見える
     pull = width * dismiss_ratio * 0.6
     drag_card("飛ばす記事", from: [ width / 2, 40 ], to: [ width / 2 - pull, 40 ], release: false)
     expect(card_shift("飛ばす記事")).to be < -(pull * 0.8)
     expect(rail_opacity("飛ばす記事")).to be > 0.3
-    # 引いた幅だけ右から赤い丸型の背景が伸び、ゴミ箱のアイコンと「削除」が出る（閾値の手前ではまだ薄い色）
     rail = find("article", text: "飛ばす記事").find(:xpath, "..").find("[data-swipe-target='rail']", visible: :all)
     expect(rail).to have_css("svg", visible: :all)
     expect(rail).to have_text("削除", normalize_ws: true)
@@ -160,7 +153,6 @@ RSpec.describe "Swipe", type: :system do
     expect(settled_shift("戻る記事")).to eq(0)
     expect(rail_opacity("戻る記事")).to eq(0)
 
-    # 行全体は「読む」のボタン。その上から始めた触りも引け、引いて戻した後に来る click では読まない
     read_button = find("article", text: "戻る記事").find_button("読む")
     drag_card("戻る記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 0.6, 40 ], on: read_button, release: false, slow: true)
     expect(card_shift("戻る記事")).to be < 0
@@ -174,7 +166,6 @@ RSpec.describe "Swipe", type: :system do
     expect(page).to have_no_link("記事に遷移")
     expect(Article.find_by(title: "戻る記事").reading).to be_nil
 
-    # 縦に動いた触りはスクロールに任せ、横へ少し流れてもカードは動かない
     drag_card("戻る記事", from: [ width / 2, 20 ], to: [ width / 2 - 30, 160 ])
     expect(settled_shift("戻る記事")).to eq(0)
 
@@ -309,7 +300,6 @@ RSpec.describe "Swipe", type: :system do
     expect(page).to have_no_css("article")
     expect(page).to have_no_css("[data-unread-badge]")
     expect(Article.where.not(dismissed_at: nil).count).to eq(2)
-    # 見える行が無くなったら、開き直さなくても空状態が出る
     expect(page).to have_text("全部読んだ。")
   end
 
@@ -414,7 +404,6 @@ RSpec.describe "Swipe", type: :system do
     width = card_width("圏外の記事")
     far = width * dismiss_ratio * 1.3
 
-    # Turbo の送信は fetch なので、落として圏外を作る
     page.execute_script("window.__fetch = window.fetch; window.fetch = () => Promise.reject(new TypeError('offline'))")
     drag_card("圏外の記事", from: [ width / 2, 40 ], to: [ width / 2 - far, 40 ])
     expect(page).to have_css("article", text: "圏外の記事")
@@ -465,7 +454,6 @@ RSpec.describe "Swipe", type: :system do
     click = "this.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }))"
     read_button.execute_script(click)
 
-    # 新しい触り（pointerdown）の後の click は読む。先の click が送られていれば送信は 2 本になる
     read_button.execute_script("this.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 8, isPrimary: true, button: 0, clientX: 200, clientY: 10 }))")
     read_button.execute_script(click)
     expect(page).to have_link("記事に遷移")

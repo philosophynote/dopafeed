@@ -1,4 +1,3 @@
-# ストリークの警告（ADR 0013。21:00 固定、「N 日連続が切れます。{reset_hour} 時までに 1 本」）
 RSpec.describe Push::StreakWarning do
   let(:day) { Date.new(2026, 11, 7) }
 

@@ -1,4 +1,3 @@
-# 朝のダイジェスト（ADR 0013。第一の陣は新着の未読の見出しで代替、タップ先は Main）
 RSpec.describe Push::Digest do
   let(:day) { Date.new(2026, 11, 7) }
 

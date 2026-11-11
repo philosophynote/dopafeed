@@ -1,4 +1,3 @@
-# Push の購読。1 端末 1 行
 FactoryBot.define do
   factory :push_subscription do
     sequence(:endpoint) { |n| "https://push.example.com/sub/#{n}" }

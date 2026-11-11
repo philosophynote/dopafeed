@@ -1,5 +1,3 @@
-# 読書の「1 日」は config/dopamine.yml の daily_goal.reset_hour で切り替わる（Asia/Tokyo）。
-# 時刻は yml の値から組み立てる。4 を書かない。
 RSpec.describe ReadingDay do
   let(:reset_hour) { Dopamine.settings.dig(:daily_goal, :reset_hour) }
 

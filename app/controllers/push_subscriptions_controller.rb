@@ -1,11 +1,9 @@
-# Push の購読の受け口。端末が作った PushSubscription（endpoint と鍵）を JSON で受けて預かる。
-# 送るのは Job、描くのは Install の view。ここは保存と削除だけ
 class PushSubscriptionsController < ApplicationController
   def create
     # 鍵の無いサーバーで購読を預かっても送れないので、保存せずに止める
     return head :service_unavailable unless Push::Vapid.configured?
 
-    # keys は PushSubscription.toJSON() の形（{ p256dh, auth }）。壊れた形（文字列など）は欠けと同じに扱い、500 にしない
+    # 壊れた keys（文字列など）で 500 にせず、鍵の欠けとして扱う。
     keys = params[:keys].is_a?(ActionController::Parameters) ? params[:keys] : {}
     subscription = PushSubscription.register(
       endpoint: params[:endpoint], p256dh: keys[:p256dh], auth: keys[:auth], user_agent: request.user_agent

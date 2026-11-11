@@ -1,4 +1,3 @@
-# /cable もコントローラと同じ基準でログインを確かめる（期限切れの cookie で current_user を得させない）
 RSpec.describe ApplicationCable::Connection, type: :channel do
   let(:user) { create(:user) }
   let(:session) { user.sessions.create! }

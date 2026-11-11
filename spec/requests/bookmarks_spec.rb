@@ -1,11 +1,10 @@
-# 「保存」（POST /articles/:id/bookmark）と、画面下のトーストの「元に戻す」（DELETE）。docs/screens/saved.md の受け入れ条件のうち、Main での記録と片付け
 RSpec.describe "Bookmarks", type: :request do
   include ActionView::RecordIdentifier
 
   let(:noon) { Time.zone.local(2026, 10, 20, 12) }
   let(:turbo) { { "Accept" => "text/vnd.turbo-stream.html, text/html" } }
 
-  # turbo-stream の中身は <template> に包まれ、HTML4 の parser は template の子を捨てるので外して読む
+  # HTML4 の parser は template の子を捨てるため、Turbo Stream の template を外して読む。
   def page
     Capybara.string(response.body.gsub(%r{</?template>}, ""))
   end

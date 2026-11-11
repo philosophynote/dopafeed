@@ -1,8 +1,7 @@
-# ログイン状態を cookie の session_id と Session 行で保ち、使い続ける間は期限を延ばす。期限の長さは Session、ログイン画面の出入りは SessionsController が持つ
 module Authentication
   extend ActiveSupport::Concern
 
-  # 使い続けている間は期限（Session::REMEMBER_FOR）を延ばす。毎リクエストの書き込みを避け、この間隔に一度だけ延ばす
+  # 毎リクエストで期限を延ばすと書き込みが増えるので、この間隔に一度だけ延ばす。
   REMEMBER_REFRESH_INTERVAL = 1.day
 
   included do

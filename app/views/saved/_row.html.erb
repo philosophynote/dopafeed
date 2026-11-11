@@ -1,6 +1,3 @@
-<%# Saved の 1 行。見た目は Main の行（articles/_row_body）と同じで、行全体を覆うボタンかリンクから開く。
-    未読なら「読む」の POST（ルーレット → Reader。カードも普段どおり）。読み終えた記事は抽選し直さず、カードの付かない Reader を開くだけ。
-    左へ引くと Stimulus swipe が隠れた「保存を外す」の form を送る（右に充てる動作は無い）。from=saved は応答を Saved の行とトーストで返させるため %>
 <% swipe = Dopamine.settings[:swipe] %>
 <li id="<%= dom_id(article) %>" class="relative" data-controller="swipe"
     data-swipe-dismiss-ratio-value="<%= swipe[:dismiss_threshold_ratio] %>" data-swipe-flick-velocity-value="<%= swipe[:flick_velocity] %>" data-swipe-flick-window-ms-value="<%= swipe[:flick_window_ms] %>" data-swipe-flick-min-px-value="<%= swipe[:flick_min_px] %>" data-swipe-submit-timeout-seconds-value="<%= swipe[:submit_timeout_seconds] %>">

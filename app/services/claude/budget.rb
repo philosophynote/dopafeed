@@ -1,7 +1,5 @@
 module Claude
-  # 日次の呼び出し上限（ADR 0002）。上限は config/dopamine.yml の claude.daily_call_limit。
-  # 台帳の 1 行は API への HTTP 要求 1 回。{Client} が SDK の再試行を切っているので、呼ぶ前に 1 行書けば実際の要求数と一致する。
-  # 「今日」は Time.zone の暦日。daily_goal.reset_hour（{ReadingDay}）は読書の日付であって費用の日付ではないので使わない（ADR 0006）。
+  # 費用の「今日」は暦日なので、読書用の reset_hour は使わない（ADR 0006）。
   class Budget
     class Exhausted < StandardError; end
 
@@ -27,9 +25,7 @@ module Claude
       used_today >= limit
     end
 
-    # 呼ぶ前に 1 回だけ呼ぶ。上限に達していれば行を作らずに Exhausted を投げる（Job は discard_on で止まる）。
-    # 数えて → 書くを 1 トランザクションに閉じる。Rails の SQLite は BEGIN IMMEDIATE なので
-    # Solid Queue のスレッド（queue.yml threads: 3）が同時に来ても上限を超えない。
+    # 数えてから書く間に他のスレッドが入ると上限を超えるため、BEGIN IMMEDIATE の中で行う。
     def record!(purpose:, model:)
       ClaudeApiCall.transaction do
         used = used_today

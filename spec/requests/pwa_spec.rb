@@ -1,5 +1,3 @@
-# PWA の配信物（docs/screens/install.md の manifest / service worker の受け入れ条件）。
-# ホーム画面に追加する前に読まれるので、ログイン無しで返る
 RSpec.describe "PWA", type: :request do
   describe "GET /manifest.json" do
     it "name・180 と 512 のアイコン・display standalone・start_url / を返す（アイコンは public/ に実在する）" do
@@ -18,7 +16,6 @@ RSpec.describe "PWA", type: :request do
       end
     end
 
-    # PNG の IHDR（先頭 16 バイト目から幅・高さが 4 バイトずつ）。gem を足さずに寸法を読む
     def png_size(src)
       bytes = Rails.public_path.join(src.delete_prefix("/")).binread(24)
       bytes[16, 8].unpack("N2").join("x")

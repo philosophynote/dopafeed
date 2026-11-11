@@ -1,7 +1,6 @@
 <%= turbo_stream.replace dom_id(@reading, :end) do %>
   <%= render "readings/divider", reading: @reading, reveal: true %>
 <% end %>
-<%# 完読で未読が 1 つ減るので、アイコンのバッジも書き直す %>
 <%= turbo_stream.replace "app-badge" do %>
   <%= render "shared/app_badge", unread_count: unread_count %>
 <% end %>

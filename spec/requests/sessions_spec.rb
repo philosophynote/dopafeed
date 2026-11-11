@@ -1,12 +1,10 @@
 RSpec.describe "Sessions", type: :request do
   let!(:user) { create(:user) }
 
-  # Set-Cookie の session_id の行。消す cookie（値が空）は除く
   def session_cookie_line
     Array(response.headers["set-cookie"]).join("\n").lines.find { |l| l.match?(/\Asession_id=[^;]+;/) }
   end
 
-  # session_id の期限。出していなければ nil
   def session_cookie_expires
     line = session_cookie_line
     return nil unless line
@@ -14,7 +12,6 @@ RSpec.describe "Sessions", type: :request do
     Time.httpdate(line[/expires=([^;]+)/i, 1])
   end
 
-  # JS から読めず、他サイトからの POST に付かないこと（ログイン直後も延長時も同じ属性で出す）
   def expect_session_cookie_protected
     expect(session_cookie_line).to match(/;\s*httponly/i)
     expect(session_cookie_line).to match(/;\s*samesite=lax/i)

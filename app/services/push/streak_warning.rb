@@ -1,7 +1,5 @@
 module Push
-  # ストリークの警告。昨日まで続いていて今日がまだ 0 本のときだけ「N 日連続が切れます。{reset_hour} 時までに 1 本」。
-  # 今日 1 本でも読んでいれば切れないので出さず、昨日も 0 本なら切れた後なので出さない（ADR 0013）。
-  # 時刻は dopamine.yml の push.streak_warning_at（reset_hour の 3 時間前は深夜になるので固定の時刻）
+  # reset_hour の 3 時間前では深夜になるため、警告は固定の時刻にする（ADR 0013）。
   class StreakWarning < Notice
     def self.time_key
       :streak_warning_at

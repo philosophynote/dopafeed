@@ -81,10 +81,6 @@ RSpec.describe Reading, type: :model do
     expect(Reading.on(day)).not_to include(opened_only), "completed_at が nil の行は除く"
   end
 
-  # 完読した Reading を 1 行作る（開いた時刻は 1 分前）
-  #
-  # @param at [ActiveSupport::TimeWithZone] 完読した時刻
-  # @return [Reading]
   def complete(at:)
     create(:reading, :completed, opened_at: at - 1.minute, returned_at: at, completed_at: at)
   end

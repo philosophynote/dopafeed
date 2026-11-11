@@ -1,4 +1,3 @@
-# 購読の一覧・登録・名前の変更・削除の入口。記事の取り込みは既存の Job に委ねる。
 class FeedsController < ApplicationController
   before_action :set_back_path, only: %i[new create]
   before_action :set_feed, only: %i[edit update destroy]

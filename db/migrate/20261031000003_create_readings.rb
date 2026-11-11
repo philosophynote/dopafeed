@@ -1,5 +1,3 @@
-# 読了は 1 記事 1 行（ADR 0006）。「読む」のタップで行を作り（opened_at + 抽選結果 tier）、
-# 戻ってきたら returned_at / completed_at / xp を埋める。tier は名前だけ。倍率・確率は yml から導く。
 class CreateReadings < ActiveRecord::Migration[8.1]
   def change
     create_table :readings do |t|

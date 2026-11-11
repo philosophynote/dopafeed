@@ -1,4 +1,3 @@
-# Saved を 390×844 で開く。タブバーからの動線、見た目の崩れ（横スクロール・タップ領域）、未読と読んだ行の開き方
 RSpec.describe "Saved", type: :system do
   it "タブバーの「保存」から開き、保存した新しい順に並ぶ。横スクロールが無く、タップ領域は 44px 以上" do
     feed = create(:feed, title: "Ruby Weekly")

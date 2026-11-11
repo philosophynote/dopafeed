@@ -1,5 +1,3 @@
-# 記事を読み終えたときの判定（docs/screens/reader.md の受け入れ条件）。完読した行がそのままカードになり、数値の XP は確定しない（ADR 0020）。
-# 数字はすべて dopamine.yml から組み立てる
 RSpec.describe Reading, "#return!" do
   let(:settings) { Dopamine.settings }
   let(:threshold) { settings.dig(:read, :complete_after_seconds) }
@@ -8,12 +6,10 @@ RSpec.describe Reading, "#return!" do
   let(:common) { Dopamine.rarity_names.first }
   let(:rare) { Dopamine.rarity_names.second }
 
-  # 完読 1 本（noon の少し前に判定した）
   def completed_before(time, tier: common)
     create(:reading, tier: tier, opened_at: time - threshold - 1.minute).return!(at: time)
   end
 
-  # 未完 1 本（threshold 未満で判定した）
   def incomplete_before(time)
     create(:reading, tier: common, opened_at: time - threshold + 5.seconds).return!(at: time)
   end
@@ -120,7 +116,6 @@ RSpec.describe Reading, "#return!" do
   end
 end
 
-# goal 本目の完読で宝箱（daily_goals）の行ができる。判定の瞬間に記録し、画面を開いた時には書かない
 RSpec.describe Reading, "#return! と今日のゴール" do
   let(:settings) { Dopamine.settings }
   let(:threshold) { settings.dig(:read, :complete_after_seconds) }

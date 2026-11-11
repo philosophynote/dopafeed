@@ -22,7 +22,6 @@ RSpec.describe DailyGoal, type: :model do
   end
 end
 
-# 達成の記録。5 本目（daily_goal.articles）の完読で 1 行、2 回目は作らない（docs/screens/daily_goal.md）
 RSpec.describe DailyGoal, ".achieve_if_reached!" do
   let(:settings) { Dopamine.settings }
   let(:goal_articles) { settings.dig(:daily_goal, :articles) }

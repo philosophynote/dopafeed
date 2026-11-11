@@ -1,8 +1,6 @@
-# Claude API の通信をカセットで再生する。RSS と記事ページは WebMock の stub_request（spec/support/webmock.rb）のまま。
-# カセットは spec/vcr_cassettes/。CI は record: :none で、カセットに無い通信は落ちる（実通信ゼロを仕組みで守る）。
+# CI で未収録の実通信を許さないよう record: :none にする。API キーはカセットから除く。
 # 録り直し: VCR_RECORD=all ANTHROPIC_API_KEY=<実キー> bin/rspec spec/services/claude/summarizer_spec.rb
-# API キーはカセットに残らない（x-api-key を <ANTHROPIC_API_KEY> に置き換える）。
-# localhost は Capybara（system test の Puma と chromedriver）が使うので VCR も素通しにする
+# localhost は Capybara が使うため素通しにする。
 require "vcr"
 
 VCR.configure do |config|

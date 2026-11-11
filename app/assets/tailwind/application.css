@@ -1,7 +1,5 @@
 @import "tailwindcss";
 
-/* Roulette の出目の帯。長さ（--roulette-duration）と止まる行（--roulette-stop）はビューが yml から埋める。
-   JS は回さない: 止まった瞬間にリンクを踏むだけ（roulette_controller） */
 .roulette-window {
   --roulette-row: 3rem;
   position: relative;
@@ -16,7 +14,6 @@
 @keyframes roulette-spin {
   to { transform: translateY(calc(-1 * var(--roulette-stop) * var(--roulette-row))); }
 }
-/* 結果の行は止まるのと同時に見せる */
 .roulette-result {
   animation: roulette-reveal 1ms var(--roulette-duration) both;
 }
@@ -25,7 +22,6 @@
   to { opacity: 1; }
 }
 
-/* Jackpot の紙吹雪。横に出ないよう親で overflow を切る */
 .confetti {
   position: absolute;
   inset: 0;
@@ -49,9 +45,6 @@
   to { transform: translateY(110vh) rotate(720deg); }
 }
 
-/* 一覧の行の左右のスワイプ（swipe_controller）。縦はブラウザがスクロールし、横だけ JS が追従させる。
-   引いている間は transition 無しで指に付け、離した後だけ .swipe-settling で戻るか流れ出す（長さは JS が読む）。
-   引いている間は文字の選択と長押しメニューを出さない。引いている行は隣の行の上に出す（.swipe-active） */
 .swipe-card {
   touch-action: pan-y;
   user-select: none;
@@ -64,7 +57,6 @@
 .swipe-active {
   z-index: 10;
 }
-/* 引いた幅だけ伸びる丸型の背景（幅は JS が書く。カードの外へは出さない）。閾値の手前は灰、越えたら赤（.swipe-armed） */
 .swipe-rail {
   opacity: 0;
   max-width: calc(100% - 0.5rem);
@@ -73,7 +65,7 @@
 .swipe-rail.swipe-armed {
   background-color: var(--color-red-500);
 }
-/* 右へ引くと左から伸びる保存の背景は、越えたら橙（アプリのアクセント）。保存を外す背景は、越えたら濃い灰（消すのではなく戻すだけなので赤にしない） */
+/* 保存を外す操作は削除ではないため、警告の赤を使わない */
 .swipe-rail.swipe-save-rail.swipe-armed {
   background-color: var(--color-orange-500);
 }
@@ -84,7 +76,6 @@
   transition: width 200ms ease-out, opacity 200ms ease-out;
 }
 
-/* 一覧の行の下に広げた欄の出目の帯。モーダルで回さない代わりに、倍率の上がった出目だけ現れた瞬間に光らせる */
 .tier-glow {
   animation: tier-glow 900ms ease-out 2;
 }
@@ -94,9 +85,7 @@
   100% { box-shadow: 0 0 0 0.75rem rgb(251 191 36 / 0); transform: scale(1); }
 }
 
-/* カードの開封（cards/_card に reveal_order を渡したとき）。裏（.card-back）を向いた状態から表へめくる。
-   長さ（--reveal-duration）と、束の中の順番（--i）ぶん遅らせる幅（--reveal-stagger）は yml から style に出る。
-   奥行きは束（.card-deck）に持たせる。回る箱（li）に overflow や clip-path を付けると 3D が平らに潰れて裏面が出ないので、切り抜きは面がする */
+/* 回転する箱に overflow や clip-path を付けると 3D が平らに潰れるため、切り抜きは面に付ける */
 .card-deck {
   perspective: 800px;
 }
@@ -115,7 +104,6 @@
   to { transform: rotateY(0deg); }
 }
 
-/* 広げた欄の「読み終えた」は開くまで隠れる。隠れている間は枠の余白も畳み、欄の下の余白を上と揃える */
 .detail-end:has(> form[hidden]) {
   margin-top: 0;
 }
@@ -130,7 +118,6 @@
   .swipe-card.swipe-settling, .swipe-rail.swipe-settling { transition: none; }
 }
 
-/* DailyGoal の宝箱。開いた宝箱は描いた瞬間に蓋を持ち上げる（止まり所の報酬）。閉じた宝箱は動かさない */
 .chest-lid {
   transform-box: view-box;
   transform-origin: 14px 70px;

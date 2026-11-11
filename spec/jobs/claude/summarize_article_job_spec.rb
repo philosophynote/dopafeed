@@ -9,7 +9,6 @@ RSpec.describe Claude::SummarizeArticleJob, type: :job do
     expect(described_class.new(article).queue_name).to eq("claude")
   end
 
-  # turbo_stream_from(article, :summary) が購読する名前
   def summary_stream
     "#{article.to_gid_param}:summary"
   end
@@ -131,7 +130,6 @@ RSpec.describe Claude::SummarizeArticleJob, type: :job do
     expect(described_class).to have_been_enqueued.with(article)
     expect(article.reload.summary_failed_at).to be_nil
 
-    # 積んだ Job を待ち時間なしで続けて走らせると、既定の回数で尽きて記録する
     perform_enqueued_jobs { described_class.perform_later(article) }
     expect(summarizer).to have_received(:call).at_least(3).times
     expect(article.reload).to have_attributes(summary: nil, summary_error: "API エラー (HTTP 529)")

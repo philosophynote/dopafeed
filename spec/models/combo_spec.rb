@@ -1,4 +1,3 @@
-# コンボ = 同じ読書日の中で直前の完読が途切れずに続いた数。数だけで、倍率は持たない（ADR 0020）
 RSpec.describe Combo do
   let(:settings) { Dopamine.settings }
   let(:reset_hour) { settings.dig(:daily_goal, :reset_hour) }

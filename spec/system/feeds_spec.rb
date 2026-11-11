@@ -1,5 +1,4 @@
 RSpec.describe "Feeds", type: :system do
-  # on を渡すと、その要素の上で始めた触りになる（イベントは行まで bubbling する）
   def swipe(dx, dy = 0, ending = "pointerup", on: nil)
     page.execute_script(<<~JS, find("[data-feed]").native, on&.native, dx, dy, ending)
       const [row, origin, dx, dy, ending] = arguments, r = row.getBoundingClientRect()
@@ -70,7 +69,6 @@ RSpec.describe "Feeds", type: :system do
     expect(page).to have_no_field("名前")
 
     click_on "名前を変更"
-    # 空欄はブラウザが送らせない（required）。空白だけは送れてしまうので、サーバーが断る
     fill_in "名前", with: "   "
     click_on "保存"
     expect(page).to have_css(".text-red-600", text: "名前を入力してください")
@@ -101,7 +99,6 @@ RSpec.describe "Feeds", type: :system do
     click_on "購読"
     click_on "名前を変更"
 
-    # 削除の確認が出れば次の操作で Selenium が UnexpectedAlertOpen を上げる
     swipe(-180, on: find_field("名前"))
     swipe(-180, on: find("label", text: "名前"))
 

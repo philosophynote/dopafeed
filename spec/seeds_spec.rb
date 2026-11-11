@@ -1,4 +1,3 @@
-# db/seeds.rb は bin/setup と CI の「Tests: Seeds」段で毎回走る。冪等でなければならない
 RSpec.describe "db/seeds.rb" do
   before do
     Reading.delete_all

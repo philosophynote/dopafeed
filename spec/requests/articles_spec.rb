@@ -1,4 +1,3 @@
-# Reader（docs/screens/reader.md）のカード。本文は描かず、要約と元サイトを開くリンク、開いた後の「読み終えた」form まで
 RSpec.describe "Articles", type: :request do
   let(:settings) { Dopamine.settings }
   let(:noon) { Time.zone.local(2026, 10, 20, 12) }
@@ -155,7 +154,7 @@ RSpec.describe "Articles", type: :request do
 
         expect(page).to have_css("turbo-frame#summary_article_#{article.id}", text: "今日の要約の上限に達しました")
         expect(page).to have_link("記事を開く", href: article.url)
-        expect(subscribed?).to be(true) # 日が変わって積み直した Job の差し替えを受ける
+        expect(subscribed?).to be(true)
       end
 
       it "GET /articles/:id/summary は要約欄の frame だけを描く（購読がつながる前に書き終えた分の取り直し）" do

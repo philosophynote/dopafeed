@@ -1,5 +1,3 @@
-# Push の送信（docs/screens/install.md「VAPID 鍵 When サーバーが Push を送る Then web-push gem で送り、410 が返った購読は削除する」）。
-# endpoint への POST は WebMock で止め、暗号化と署名は本物の鍵で通す（カセットは使わない）
 RSpec.describe Push::Sender do
   let(:vapid_key) { WebPush.generate_key }
   let(:vapid) { { "VAPID_PUBLIC_KEY" => vapid_key.public_key, "VAPID_PRIVATE_KEY" => vapid_key.private_key, "VAPID_SUBJECT" => "mailto:nao@example.com" } }

@@ -1,4 +1,3 @@
-# 10 分おきに回り、時刻を過ぎていて今日の印が無い購読に送って日付を書く（ADR 0013）
 RSpec.describe Push::DispatchJob, type: :job do
   let(:vapid) { { "VAPID_PUBLIC_KEY" => "BPublic", "VAPID_PRIVATE_KEY" => "private", "VAPID_SUBJECT" => "mailto:nao@example.com" } }
   let(:sender) { instance_double(Push::Sender, deliver: true) }

@@ -1,6 +1,3 @@
-# 5 本目（daily_goal.articles）を読み終えて宝箱を開き、満足して閉じる、を 390×844 で通す（docs/screens/daily_goal.md）。
-# 戻りの合図は使わず、「記事を開く」の後の「読み終えた」で判定する（reader_spec が合図の経路を見ている）。
-# 滞在は travel_to ではなく opened_at を書き換えて作る（ブラウザの時計とずれないように）
 RSpec.describe "DailyGoal", type: :system do
   let(:settings) { Dopamine.settings }
   let(:threshold) { settings.dig(:read, :complete_after_seconds) }
@@ -22,7 +19,7 @@ RSpec.describe "DailyGoal", type: :system do
     JS
   end
 
-  # 「記事を開く」の POST /readings/:id/start は fetch で送るので、届いて opened_at が書き換わるまで待つ
+  # fetch が届く前に滞在を書き換えると上書きされるため、opened_at の更新を待つ。
   def wait_for_start(reading, since:)
     Timeout.timeout(Capybara.default_max_wait_time) { sleep 0.05 until reading.reload.opened_at > since }
   end
@@ -34,7 +31,6 @@ RSpec.describe "DailyGoal", type: :system do
     expect(page).to have_text("今日のゴール #{goal_articles - 1} / #{goal_articles}", normalize_ws: true)
 
     read_from_saved(article)
-    # 別窓は開かせず、リンクの遷移だけ止める（sheet#open は走り、「読み終えた」が出る）
     page.execute_script(<<~JS)
       document.addEventListener("click", (event) => { if (event.target.closest("a[target=_blank]")) event.preventDefault() }, true)
     JS
@@ -59,9 +55,8 @@ RSpec.describe "DailyGoal", type: :system do
     expect(page).to have_css("ul.card-deck li.card-reveal[data-tier]", count: goal_articles)
     expect(page).to have_css("ul.card-deck li h3", text: "今日の最後の 1 本")
     expect(page).to have_text("#{goal_articles} 本 ・")
-    expect(page).to have_no_button("もう 1 本だけ") # 未読が尽きた
-    # カードがめくれ終わり、蓋が持ち上がり切ってから測って撮る。めくれている途中のカードは回転で幅が縮んで見え、タップ領域の検査が揺れる
-    # （宝箱のきらめきは繰り返し続けるので待たない）
+    expect(page).to have_no_button("もう 1 本だけ")
+    # めくりの途中では回転でカードの幅が縮むため、有限の演出が終わってからタップ領域を測る。
     page.evaluate_async_script(<<~JS)
       const done = arguments[0]
       const finite = document.getAnimations().filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
@@ -88,7 +83,7 @@ RSpec.describe "DailyGoal", type: :system do
     expect(page).to have_current_path(daily_goal_path)
     expect(page).to have_css("[data-chest=closed]")
     expect(page).to have_text("あと #{goal_articles - 2} 本で宝箱")
-    expect(page).to have_no_button("もう 1 本だけ") # 読み足すなら Main の「読む」
+    expect(page).to have_no_button("もう 1 本だけ")
     expect(no_horizontal_scroll?).to be(true), "横スクロールが出ている"
     expect(small_tap_areas).to be_empty, "44px 未満のタップ領域: #{small_tap_areas.inspect}"
     screenshot!("pending")

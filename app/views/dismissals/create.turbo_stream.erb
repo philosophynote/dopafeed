@@ -1,4 +1,3 @@
-<%# 引いた行を隠し、画面下に「元に戻す」のトーストを出し、未読数（タブバーとアイコンのバッジ）を合わせる %>
 <%= turbo_stream.replace dom_id(@article) do %>
   <%= render "shared/hidden_row", article: @article %>
 <% end %>

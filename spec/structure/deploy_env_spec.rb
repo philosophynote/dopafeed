@@ -1,5 +1,3 @@
-# 本番のコンテナに届く環境変数は config/deploy.yml の env にあるものだけ。
-# アプリが読む鍵を足したのに deploy.yml へ足し忘れると、テストは緑のまま本番でだけ KeyError か機能停止になる。
 RSpec.describe "config/deploy.yml の env" do
   let(:deploy) { YAML.load_file(Rails.root.join("config/deploy.yml")) }
   let(:declared) { Array(deploy.dig("env", "secret")) + deploy.dig("env", "clear").to_h.keys }

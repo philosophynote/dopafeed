@@ -1,7 +1,5 @@
-# Claude API は VCR（spec/support/vcr.rb）。正常系のカセット spec/vcr_cassettes/claude/summary/ok.yml は手書き。
-# 本物に置き換えるには: VCR_RECORD=all ANTHROPIC_API_KEY=<実キー> bin/rspec spec/services/claude/summarizer_spec.rb
-# エラー系は WebMock の stub_request。SDK の再試行は Claude::Client が切っているので、1 回の失敗がそのまま例外になる
-# （再試行しないことは「HTTP 要求は 1 回」の例がヘッダ無しで確かめる。他の例の x-should-retry: false は待ち時間を無くすため）
+# エラー系の x-should-retry: false は SDK の待ち時間を避けるため。
+# 再試行しないこと自体は「HTTP 要求は 1 回」の例で、ヘッダを付けずに検証する。
 RSpec.describe Claude::Summarizer do
   let(:article) { create(:article, :awaiting_summary, title: "RSpec で Claude を試す", url: "https://fixtures.example.com/articles/claude") }
   let(:settings) { Dopamine.settings.fetch(:claude) }
@@ -22,7 +20,6 @@ RSpec.describe Claude::Summarizer do
     { type: "error", error: { type: type, message: "fixture" } }.to_json
   end
 
-  # 送った本文を @request_body に取っておく（プロンプトのスナップショット比較に使う）
   def stub_claude(status: 200, body: message_body(three_lines))
     stub_request(:post, endpoint).with { |req| @request_body = req.body }
                                  .to_return(status: status, body: body, headers: { "Content-Type" => "application/json", "x-should-retry" => "false" })

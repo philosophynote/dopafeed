@@ -1,8 +1,7 @@
-# 相対時刻（time_ago_in_words）と出目の名前の日本語だけ。既定ロケールは en のまま、必要な箇所で locale: :ja を渡す。
-# rails-i18n を入れて全部を ja にするのは、ActiveRecord のエラー文言まで変わるので別に決める
+# 全体を ja にすると ActiveRecord のエラー文言まで変わるため、必要な箇所だけ日本語にする。
 ja:
   dopamine:
-    rarities: # config/dopamine.yml の cards.rarities の name に対する表示（カードの枠の希少度）
+    rarities:
       common: 通常
       rare: レア
       jackpot: 金

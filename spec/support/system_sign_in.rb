@@ -1,7 +1,5 @@
-# システムテストのログイン。request spec の SessionHelper と違い、ブラウザでログイン画面を通る
-# （cookie を焼く手は使えないし、ログイン画面が壊れていれば全画面の例が落ちて気づける）
+# cookie を直接作ると、ログイン画面の故障を見逃すため、ブラウザでログインを通す。
 module SystemSignIn
-  # @return [User] ログインしたユーザー
   def sign_in
     user = create(:user)
     visit new_session_path

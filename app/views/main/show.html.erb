@@ -1,4 +1,3 @@
-<%# Main（docs/screens/main.md）。上から: ヘッダ / ステータス / 記事の一覧 / タブバー %>
 <header class="flex items-center justify-between">
   <h1 class="text-2xl font-black tracking-tight">
     <span class="text-orange-500">Dopa</span>Feed
@@ -16,14 +15,12 @@
   <% if @articles.empty? %>
     <%= render "empty" %>
   <% else %>
-    <%# 行は白い 1 枚の中に細い線で区切って並べる（カードの枠と隙間をやめ、一画面に並ぶ本数を増やす）。引いた行がはみ出さないよう角で切る %>
     <ul class="swipe-list divide-y divide-gray-100 overflow-hidden rounded-2xl bg-white shadow-sm"
         data-controller="accordion" data-accordion-swipe-outlet="[data-controller~='swipe']" data-action="swipe:expanded->accordion#collapseOthers">
       <% @articles.each do |article| %>
         <%= render "article_card", article: article %>
       <% end %>
     </ul>
-    <%# 引いて全部片付けると一覧は隠した跡だけになる。そのときだけ CSS が空状態を出す（開き直さなくても「ここまで」と言う） %>
     <div class="swipe-list-empty"><%= render "empty" %></div>
   <% end %>
 </section>

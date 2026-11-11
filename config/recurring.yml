@@ -1,21 +1,9 @@
-# examples:
-#   periodic_cleanup:
-#     class: CleanSoftDeletedRecordsJob
-#     queue: background
-#     args: [ 1000, { batch_size: 500 } ]
-#     schedule: every hour
-#   periodic_cleanup_with_command:
-#     command: "SoftDeletedRecord.due.delete_all"
-#     priority: 2
-#     schedule: at 5am every day
-
 production:
-  # 全フィードの取得（Unit 3）。間隔はここにだけ置く（docs/screens/feeds.md 未決 2）
   fetch_all_feeds:
     class: FetchAllFeedsJob
     queue: feeds
     schedule: every 30 minutes
-  # Push の送信。時刻（dopamine.yml の push.digest_at / push.streak_warning_at）はここに書かず、Job が過ぎたかを見る（ADR 0013）
+  # 遅れても同じ読書日に送れるよう、固定時刻のスケジュールではなく Job で時刻を判定する（ADR 0013）。
   push_dispatch:
     class: Push::DispatchJob
     queue: push

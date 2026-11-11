@@ -1,8 +1,6 @@
-# docs/screens/login.md の受け入れ条件を 390×844 で
 RSpec.describe "Login", type: :system do
   let!(:user) { create(:user) }
 
-  # 要素の高さ（CSS ピクセル）
   def height_of(selector)
     page.evaluate_script("document.querySelector(#{selector.to_json}).getBoundingClientRect().height")
   end

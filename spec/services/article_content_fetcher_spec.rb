@@ -1,8 +1,6 @@
-# 外部通信は WebMock。ページは spec/fixtures/files/pages/*.html（手書き）
 RSpec.describe ArticleContentFetcher do
   let(:article) { create(:article, url: "https://fixtures.example.com/posts/solid-queue", content: "フィードの抜粋") }
   let(:page) { file_fixture("pages/article.html").read }
-  # 文字コードの検証用。meta で charset を宣言するかはテストごとに変える
   let(:japanese_page) do
     <<~HTML
       <html><head>%{meta}<title>文字コードの罠</title></head>

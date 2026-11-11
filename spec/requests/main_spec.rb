@@ -1,4 +1,3 @@
-# Main（root）。docs/screens/main.md の受け入れ条件のうち、描画で確かめられるもの
 RSpec.describe "Main", type: :request do
   let(:goal_articles) { Dopamine.settings.dig(:daily_goal, :articles) }
   let(:reset_hour) { Dopamine.settings.dig(:daily_goal, :reset_hour) }
