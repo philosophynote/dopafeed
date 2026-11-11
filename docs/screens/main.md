@@ -68,7 +68,7 @@
 - Given 記事に OGP 画像が無い、または画像が読めない（404・直リンク拒否）When 行を見る Then 画像の枠ごと出ない
 
 ## 使う設定の鍵
-dopamine.yml: `daily_goal.articles`, `read.complete_after_seconds`（広げた欄の判定）, `cards.rarities`（広げた欄の帯）, `cards.reveal_duration_ms`（区切りのカードのめくり）, `swipe.dismiss_threshold_ratio`, `swipe.submit_timeout_seconds`（行のタップで送る「読む」の応答待ちにも使う。#91）, `toast.visible_seconds`（取り消しのトーストが消えるまで。鍵が無ければ消えない。#112）
+dopamine.yml: `daily_goal.articles`, `read.complete_after_seconds`（広げた欄の判定）, `cards.rarities`（広げた欄の帯）, `cards.reveal_duration_ms`（区切りのカードのめくり）, `swipe.dismiss_threshold_ratio`, `swipe.flick_velocity`（閾値の手前でも払えば片付く。#112）, `swipe.flick_window_ms`, `swipe.flick_min_px`, `swipe.submit_timeout_seconds`（行のタップで送る「読む」の応答待ちにも使う。#91）, `toast.visible_seconds`（取り消しのトーストが消えるまで。鍵が無ければ消えない。#112）
 personas.yml: なし
 
 ## 外部 API

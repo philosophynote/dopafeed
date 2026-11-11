@@ -33,7 +33,7 @@
 - Given Saved の読んだ行 When 引いて戻した直後の click Then Reader へ移らない
 
 ## 使う設定の鍵
-dopamine.yml: `swipe.dismiss_threshold_ratio`、`swipe.submit_timeout_seconds`（右スワイプと保存を外すのも左の削除と同じ値）、`toast.visible_seconds`（取り消しのトースト。#112）
+dopamine.yml: `swipe.dismiss_threshold_ratio`、`swipe.flick_velocity`、`swipe.flick_window_ms`、`swipe.flick_min_px`、`swipe.submit_timeout_seconds`（右スワイプと保存を外すのも左の削除と同じ値）、`toast.visible_seconds`（取り消しのトースト。#112）
 personas.yml: なし
 
 ## 外部 API

@@ -28,9 +28,11 @@
 - Given 興味なしにした記事 When Reader で前の記事を読み終える Then 次の 1 本に継ぎ足されない
 - Given Main を開き直す When 興味なしにした記事がある Then 行もトーストも出ない
 - Given 行全体は「読む」のボタン When その上から左へ引いて閾値に届かずに離す Then 行は戻り、読みにも進まない（引いた後の click を読みにしない。#91）
+- Given yml に `swipe.flick_velocity` と `swipe.flick_window_ms` がある When 閾値の手前でも、離す直前のその長さの間、引いた向きへその速さ（px/ms）より速く払って離す Then 閾値まで引いたのと同じに流れて片付く。ゆっくり引いて離す・止めてから離す・離す直前に戻す・`swipe.flick_min_px` に届かない滑りは戻る。鍵が無ければ払いでは片付かない（#112）
+- Given 行を引いている途中 When iOS が指を取り上げる（`pointercancel`） Then 閾値を越えていれば片付き、手前なら払っていても戻る（取り上げは縦のスクロールなど払うつもりでない指にも来る。#112）
 
 ## 使う設定の鍵
-dopamine.yml: `swipe.dismiss_threshold_ratio`、`swipe.submit_timeout_seconds`、`toast.visible_seconds`（取り消しのトーストが消えるまで。#112）。一掃の閾値（本数・日数）は鍵が無い（未決 1, 2）
+dopamine.yml: `swipe.dismiss_threshold_ratio`、`swipe.flick_velocity`（払いと見なす速さ。#112）、`swipe.flick_window_ms`（速さを測る離す直前の長さ。この二つが無ければ払いでは片付けない）、`swipe.flick_min_px`（払いでも要る引いた幅。少し滑ったタップを払いにしない）、`swipe.submit_timeout_seconds`、`toast.visible_seconds`（取り消しのトーストが消えるまで。#112）。一掃の閾値（本数・日数）は鍵が無い（未決 1, 2）
 personas.yml: なし
 
 ## 外部 API

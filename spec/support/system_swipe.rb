@@ -3,22 +3,43 @@
 module SystemSwipe
   # カードの上で pointer を押し、動かし、離す。x / y はカードの左上からの CSS px、steps は途中の pointermove の数。
   # on を渡すと、その要素の上で始めた触りになる（イベントはカードまで bubbling する）。
-  # down: false は離さずに止めた指をそのまま動かし続ける（pointerdown を送らない）。座標は動いた後のカードの左上から
-  def drag_card(title, from:, to:, steps: 4, release: true, on: nil, down: true)
+  # down: false は離さずに止めた指をそのまま動かし続ける（pointerdown を送らない）。座標は動いた後のカードの左上から。
+  # release: :cancel は離す代わりに pointercancel（iOS が途中で指を取り上げた）で終える。
+  # 既定は一瞬で動かす（時刻の差がほぼ無く、払いとしては測れない）。ms を渡すとその長さをかけて動かす（払う手）。
+  # slow: true は SLOW_DRAG_MS かけて動かす。タイマーは早くは来ないので、払う速さは距離 ÷ SLOW_DRAG_MS より遅いと言い切れる。
+  # 閾値の手前で離して戻ることを見る手は slow にする（yml に払いの鍵が足されても戻る）
+  SLOW_DRAG_MS = 600
+
+  def drag_card(title, from:, to:, steps: 4, release: true, on: nil, down: true, slow: false, ms: nil)
+    duration = slow ? SLOW_DRAG_MS : ms.to_i
+    raise ArgumentError, "時間をかけて動かすには steps が 1 以上要る" if duration.positive? && steps < 1
+
     card = find("article", text: title)
-    page.execute_script(<<~JS, card.native, on&.native, from, to, steps, release, down)
-      const [card, origin, from, to, steps, release, down] = arguments
+    ending = { true => "pointerup", cancel: "pointercancel" }[release]
+    page.evaluate_async_script(<<~JS, card.native, on&.native, from, to, steps, ending, down, duration)
+      const [card, origin, from, to, steps, ending, down, duration, done] = arguments
       const rect = card.getBoundingClientRect()
       const fire = (type, x, y) => (origin || card).dispatchEvent(new PointerEvent(type, {
         bubbles: true, cancelable: true, composed: true,
         pointerId: 7, pointerType: "touch", isPrimary: true, button: type === "pointermove" ? -1 : 0, buttons: 1,
         clientX: rect.left + x, clientY: rect.top + y
       }))
-      if (down) fire("pointerdown", from[0], from[1])
-      for (let i = 1; i <= steps; i++) {
-        fire("pointermove", from[0] + (to[0] - from[0]) * i / steps, from[1] + (to[1] - from[1]) * i / steps)
+      const moveTo = (i) => fire("pointermove", from[0] + (to[0] - from[0]) * i / steps, from[1] + (to[1] - from[1]) * i / steps)
+      const finish = () => {
+        if (ending) fire(ending, to[0], to[1])
+        done()
       }
-      if (release) fire("pointerup", to[0], to[1])
+      if (down) fire("pointerdown", from[0], from[1])
+      if (!duration) {
+        for (let i = 1; i <= steps; i++) moveTo(i)
+        return finish()
+      }
+      let i = 0
+      const step = () => {
+        moveTo(++i)
+        i < steps ? setTimeout(step, duration / steps) : finish()
+      }
+      setTimeout(step, duration / steps)
     JS
   end
 

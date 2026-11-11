@@ -6,13 +6,13 @@
     li に id を持つのは、「興味なし」と「保存」の Turbo Stream がこの行を隠した跡と差し替え、「元に戻す」で同じ位置に戻すため %>
 <% swipe = Dopamine.settings[:swipe] %>
 <li id="<%= dom_id(article) %>" class="relative" data-controller="swipe" data-action="sheet:finish->swipe#finish"
-    data-swipe-dismiss-ratio-value="<%= swipe[:dismiss_threshold_ratio] %>" data-swipe-submit-timeout-seconds-value="<%= swipe[:submit_timeout_seconds] %>">
+    data-swipe-dismiss-ratio-value="<%= swipe[:dismiss_threshold_ratio] %>" data-swipe-flick-velocity-value="<%= swipe[:flick_velocity] %>" data-swipe-flick-window-ms-value="<%= swipe[:flick_window_ms] %>" data-swipe-flick-min-px-value="<%= swipe[:flick_min_px] %>" data-swipe-submit-timeout-seconds-value="<%= swipe[:submit_timeout_seconds] %>">
   <%# 背景と行を包む。li の高さが変わっても（行の下に何か足しても）背景は行の高さに留まる %>
   <div class="relative">
     <%= render "articles/swipe_rail", target: "rail", modifier: nil, icon: :trash, label: "削除" %>
     <%= render "articles/swipe_rail", target: "saveRail", modifier: "swipe-save-rail", icon: :bookmark, label: "保存" %>
     <article class="swipe-card relative flex items-start gap-3 bg-white px-4 py-2.5" data-swipe-target="card"
-             data-action="pointerdown->swipe#start pointermove->swipe#move pointerup->swipe#end pointercancel->swipe#cancel">
+             data-action="pointerdown->swipe#start pointermove->swipe#move pointerup->swipe#end pointercancel->swipe#end">
       <%= render "articles/row_body", article: article %>
       <%# form は flex の項目として場所を取らない（contents）。ボタンは article を基準に行全体を覆う %>
       <%= button_to article_reading_path(article), params: { expand: 1 }, form: { class: "contents" },
