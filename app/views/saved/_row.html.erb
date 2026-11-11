@@ -1,10 +1,10 @@
 <% swipe = Dopamine.settings[:swipe] %>
 <li id="<%= dom_id(article) %>" class="relative" data-controller="swipe"
-    data-swipe-dismiss-ratio-value="<%= swipe[:dismiss_threshold_ratio] %>" data-swipe-submit-timeout-seconds-value="<%= swipe[:submit_timeout_seconds] %>">
+    data-swipe-dismiss-ratio-value="<%= swipe[:dismiss_threshold_ratio] %>" data-swipe-flick-velocity-value="<%= swipe[:flick_velocity] %>" data-swipe-flick-window-ms-value="<%= swipe[:flick_window_ms] %>" data-swipe-flick-min-px-value="<%= swipe[:flick_min_px] %>" data-swipe-submit-timeout-seconds-value="<%= swipe[:submit_timeout_seconds] %>">
   <div class="relative">
     <%= render "articles/swipe_rail", target: "rail", modifier: "swipe-unsave-rail", icon: :unbookmark, label: "外す" %>
     <article class="swipe-card relative flex items-start gap-3 bg-white px-4 py-3" data-swipe-target="card"
-             data-action="pointerdown->swipe#start pointermove->swipe#move pointerup->swipe#end pointercancel->swipe#cancel">
+             data-action="pointerdown->swipe#start pointermove->swipe#move pointerup->swipe#end pointercancel->swipe#end">
       <% read = article.reading&.completed? %>
       <%= render "articles/row_body", article: article, read_mark: read %>
       <% cover = "absolute inset-0 w-full [-webkit-tap-highlight-color:transparent] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-orange-500 active:bg-black/5" %>

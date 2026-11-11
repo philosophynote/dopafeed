@@ -49,7 +49,7 @@ RSpec.describe "Save swipe", type: :system do
     sign_in
     width = card_width("迷う記事")
 
-    drag_card("迷う記事", from: [ width / 2, 40 ], to: [ width / 2 + width * ratio * 0.5, 40 ])
+    drag_card("迷う記事", from: [ width / 2, 40 ], to: [ width / 2 + width * ratio * 0.5, 40 ], slow: true)
 
     expect(settled_shift("迷う記事")).to eq(0)
     expect(swipe_rail("迷う記事", "saveRail").evaluate_script("parseFloat(getComputedStyle(this).opacity)")).to eq(0)
@@ -101,6 +101,19 @@ RSpec.describe "Save swipe", type: :system do
     expect(Article.find_by(title: "読み終えた記事")).not_to be_bookmarked
   end
 
+  it "yml に払いの鍵があれば、Saved の行も閾値の手前で左へ払えば保存が外れる" do
+    allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.deep_merge(swipe: { flick_velocity: 0.5, flick_window_ms: 100, flick_min_px: 30 }))
+    create(:article, title: "払って外す記事", bookmarked_at: now - 1.hour)
+    sign_in
+    visit saved_path
+    width = card_width("払って外す記事")
+
+    drag_card("払って外す記事", from: [ width / 2, 40 ], to: [ width / 2 - width * ratio * 0.6, 40 ], ms: 30, steps: 3)
+
+    expect(page).to have_css("#toast [data-controller='toast']", text: "1 件の保存を外しました")
+    expect(Article.find_by(title: "払って外す記事")).not_to be_bookmarked
+  end
+
   it "Saved の読んだ行は、引いて戻した直後の click では Reader へ移らず、次に押せば移る" do
     article = create(:article, :read, title: "読み返す記事", bookmarked_at: now - 1.hour)
     sign_in
@@ -108,7 +121,7 @@ RSpec.describe "Save swipe", type: :system do
     width = card_width("読み返す記事")
     link = find("article", text: "読み返す記事").find_link("を開く", visible: :all)
 
-    drag_card("読み返す記事", from: [ width / 2, 40 ], to: [ width / 2 - width * ratio * 0.5, 40 ], on: link)
+    drag_card("読み返す記事", from: [ width / 2, 40 ], to: [ width / 2 - width * ratio * 0.5, 40 ], on: link, slow: true)
     expect(settled_shift("読み返す記事")).to eq(0)
     # Turbo がリンクの click を拾うと turbo:click が出る。引いた直後の click はそこまで届かせない
     page.execute_script("window.__visits = 0; document.addEventListener('turbo:click', () => window.__visits++)")

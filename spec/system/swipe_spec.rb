@@ -131,10 +131,11 @@ RSpec.describe "Swipe", type: :system do
     expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "引いている間に横スクロールが出ている"
     screenshot!("swiping")
 
-    drag_card("飛ばす記事", from: [ width / 2 - pull, 40 ], to: [ width / 2 - width * dismiss_ratio * 1.1, 40 ], release: false)
+    # 動いた後のカードの左上から測るので、指の位置は引いた分だけ戻して書く
+    drag_card("飛ばす記事", from: [ width / 2, 40 ], to: [ width / 2 + pull - width * dismiss_ratio * 1.1, 40 ], release: false, down: false)
     expect(rail[:class]).to include("swipe-armed")
     screenshot!("armed")
-    drag_card("飛ばす記事", from: [ width / 2 - width * dismiss_ratio * 1.1, 40 ], to: [ width / 2 - width * dismiss_ratio * 1.3, 40 ])
+    drag_card("飛ばす記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 0.2, 40 ], down: false)
     expect(page).to have_text("1 件を削除しました")
     expect(page).to have_css("article", count: 1)
     expect(page).to have_css("[data-unread-badge]", text: "1")
@@ -147,13 +148,13 @@ RSpec.describe "Swipe", type: :system do
     sign_in
     width = card_width("戻る記事")
 
-    drag_card("戻る記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 0.5, 40 ])
+    drag_card("戻る記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 0.5, 40 ], slow: true)
     expect(page).to have_css("article", text: "戻る記事")
     expect(settled_shift("戻る記事")).to eq(0)
     expect(rail_opacity("戻る記事")).to eq(0)
 
     read_button = find("article", text: "戻る記事").find_button("読む")
-    drag_card("戻る記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 0.6, 40 ], on: read_button, release: false)
+    drag_card("戻る記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 0.6, 40 ], on: read_button, release: false, slow: true)
     expect(card_shift("戻る記事")).to be < 0
     read_button.execute_script(<<~JS)
       const rect = this.getBoundingClientRect()
@@ -174,6 +175,112 @@ RSpec.describe "Swipe", type: :system do
 
     expect(page).to have_css("article", count: 1)
     expect(Article.find_by(title: "戻る記事")).not_to be_dismissed
+  end
+
+  context "yml に swipe.flick_velocity・swipe.flick_window_ms・swipe.flick_min_px がある" do
+    let(:flick_velocity) { 0.5 }
+    let(:flick_min_px) { 30 }
+
+    before do
+      allow(Dopamine).to receive(:settings).and_return(
+        Dopamine.settings.deep_merge(swipe: { flick_velocity: flick_velocity, flick_window_ms: 100, flick_min_px: flick_min_px })
+      )
+    end
+
+    it "速く払えば閾値の手前で離しても流れて消える。ゆっくり引く・止めてから離す・払って戻す・少し滑らせる・取り上げられると戻る" do
+      create(:article, title: "払う記事", published_at: now - 1.hour)
+      create(:article, title: "迷う記事", published_at: now - 2.hours)
+      create(:article, title: "保存する記事", published_at: now - 3.hours)
+      sign_in
+      width = card_width("迷う記事")
+      short = width * dismiss_ratio * 0.6
+      # ゆっくり引く手の速さが閾値を下回り、払う手（30ms）が上回っていなければ、この spec は払いと区別できない
+      expect(short / SystemSwipe::SLOW_DRAG_MS).to be < flick_velocity
+      expect(short / 100.0).to be > flick_velocity
+
+      drag_card("迷う記事", from: [ width / 2, 40 ], to: [ width / 2 - short, 40 ], slow: true)
+      expect(settled_shift("迷う記事")).to eq(0)
+      # 同じ向きでも遅ければ戻る（離す直前の 100ms に動きが 2 つ以上ある）
+      drag_card("迷う記事", from: [ width / 2, 40 ], to: [ width / 2 - short, 40 ], steps: 12, slow: true)
+      expect(settled_shift("迷う記事")).to eq(0)
+
+      # 速く引いてから止めて離す（離す前の 0.3 秒は動いていない）
+      drag_card("迷う記事", from: [ width / 2, 40 ], to: [ width / 2 - short, 40 ], release: false, ms: 30, steps: 3)
+      sleep 0.3
+      drag_card("迷う記事", from: [ width / 2, 40 ], to: [ width / 2, 40 ], steps: 0, down: false)
+      expect(settled_shift("迷う記事")).to eq(0)
+
+      # 左へゆっくり引いてから、右へ速く戻しながら離す（払った向きと引いた向きが逆）
+      drag_card("迷う記事", from: [ width / 2, 40 ], to: [ width / 2 - short, 40 ], release: false, slow: true)
+      drag_card("迷う記事", from: [ width / 2, 40 ], to: [ width / 2 + short / 2, 40 ], down: false, ms: 30, steps: 3)
+      expect(settled_shift("迷う記事")).to eq(0)
+
+      # 左へ速く払ってから、離す直前に少し右へ戻す（直前の 100ms の平均はまだ左向き）
+      page.evaluate_async_script(<<~JS, find("article", text: "迷う記事").native, width / 2, short)
+        const [card, x, short, done] = arguments
+        const rect = card.getBoundingClientRect()
+        const fire = (type, dx) => card.dispatchEvent(new PointerEvent(type, {
+          bubbles: true, cancelable: true, pointerId: 7, pointerType: "touch", isPrimary: true, button: type === "pointermove" ? -1 : 0, buttons: 1,
+          clientX: rect.left + x + dx, clientY: rect.top + 40
+        }))
+        fire("pointerdown", 0)
+        setTimeout(() => fire("pointermove", -short / 2), 10)
+        setTimeout(() => fire("pointermove", -short), 20)
+        setTimeout(() => fire("pointermove", -short + 10), 30)
+        setTimeout(() => { fire("pointerup", -short + 10); done() }, 35)
+      JS
+      expect(settled_shift("迷う記事")).to eq(0)
+
+      # 横と決まる幅は越えたが flick_min_px に届かない速い滑り（タップのつもりの指）
+      drag_card("迷う記事", from: [ width / 2, 40 ], to: [ width / 2 - (flick_min_px - 8), 40 ], ms: 20, steps: 2)
+      expect(settled_shift("迷う記事")).to eq(0)
+
+      # 速く払っている途中で取り上げられたら、閾値の手前なので戻る（取り上げでは払いを見ない）
+      drag_card("迷う記事", from: [ width / 2, 40 ], to: [ width / 2 - short, 40 ], release: :cancel, ms: 30, steps: 3)
+      expect(settled_shift("迷う記事")).to eq(0)
+      expect(Article.find_by(title: "迷う記事")).not_to be_dismissed
+
+      drag_card("払う記事", from: [ width / 2, 40 ], to: [ width / 2 - short, 40 ], ms: 30, steps: 3)
+      expect(page).to have_css("#toast [data-controller='toast']", text: "1 件を削除しました")
+      expect(page).to have_no_css("article", text: "払う記事")
+      expect(Article.find_by(title: "払う記事")).to be_dismissed
+
+      # 右へ払えば保存
+      drag_card("保存する記事", from: [ width / 2, 40 ], to: [ width / 2 + short, 40 ], ms: 30, steps: 3)
+      expect(page).to have_css("#toast [data-controller='toast']", text: "1 件を保存しました")
+      expect(Article.find_by(title: "保存する記事")).to be_bookmarked
+      expect(page).to have_css("article", count: 1)
+    end
+  end
+
+  it "yml に swipe.flick_velocity か swipe.flick_window_ms が無ければ、速く払っても閾値の手前では戻る" do
+    allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.deep_merge(swipe: { flick_velocity: 0.5, flick_window_ms: nil }))
+    create(:article, title: "戻る記事", published_at: now - 1.hour)
+    sign_in
+    width = card_width("戻る記事")
+
+    drag_card("戻る記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 0.6, 40 ], ms: 30, steps: 3)
+
+    expect(settled_shift("戻る記事")).to eq(0)
+    expect(Article.find_by(title: "戻る記事")).not_to be_dismissed
+  end
+
+  it "引いている途中で指を取り上げられても（pointercancel）、閾値を越えていれば流れて消え、手前なら戻る。縦に動いた指の取り上げは何もしない" do
+    create(:article, title: "取り上げられた記事", published_at: now - 1.hour)
+    create(:article, title: "引きかけの記事", published_at: now - 2.hours)
+    sign_in
+    width = card_width("引きかけの記事")
+
+    drag_card("引きかけの記事", from: [ width / 2, 20 ], to: [ width / 2 - 30, 160 ], release: :cancel)
+    expect(settled_shift("引きかけの記事")).to eq(0)
+    drag_card("引きかけの記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 0.5, 40 ], release: :cancel, slow: true)
+    expect(settled_shift("引きかけの記事")).to eq(0)
+    expect(Article.find_by(title: "引きかけの記事")).not_to be_dismissed
+
+    drag_card("取り上げられた記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 1.3, 40 ], release: :cancel, slow: true)
+    expect(page).to have_css("#toast [data-controller='toast']", text: "1 件を削除しました")
+    expect(page).to have_no_css("article", text: "取り上げられた記事")
+    expect(Article.find_by(title: "取り上げられた記事")).to be_dismissed
   end
 
   it "続けざまに 2 枚流しても両方消える（送信は 1 本ずつ）。トーストは後のものに置き換わって 1 枚だけ" do
@@ -341,7 +448,7 @@ RSpec.describe "Swipe", type: :system do
     width = card_width("迷う記事")
     read_button = find("article", text: "迷う記事").find_button("読む")
 
-    drag_card("迷う記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 0.5, 40 ], on: read_button)
+    drag_card("迷う記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 0.5, 40 ], on: read_button, slow: true)
     expect(settled_shift("迷う記事")).to eq(0)
     page.execute_script("window.__submits = 0; document.addEventListener('turbo:submit-start', () => window.__submits++)")
     click = "this.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }))"
@@ -408,7 +515,7 @@ RSpec.describe "Swipe", type: :system do
     detail_left = page.evaluate_script("document.querySelector('[data-swipe-target=detail]').getBoundingClientRect().left")
     rail_height = find("article", text: "広げた記事").evaluate_script("this.parentElement.querySelector('[data-swipe-target=rail]').getBoundingClientRect().height")
 
-    drag_card("広げた記事", from: [ width / 2, 30 ], to: [ width / 2 - width * dismiss_ratio * 0.6, 30 ], release: false)
+    drag_card("広げた記事", from: [ width / 2, 30 ], to: [ width / 2 - width * dismiss_ratio * 0.6, 30 ], release: false, slow: true)
     expect(card_shift("広げた記事")).to be < 0
     expect(page.evaluate_script("document.querySelector('[data-swipe-target=detail]').getBoundingClientRect().left")).to eq(detail_left)
     expect(rail_height).to be <= find("article", text: "広げた記事").evaluate_script("this.getBoundingClientRect().height")

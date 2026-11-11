@@ -12,7 +12,7 @@ let latestTap = 0
 
 export default class extends Controller {
   static targets = ["card", "rail", "saveRail", "form", "saveForm", "read", "detail"]
-  static values = { dismissRatio: Number, submitTimeoutSeconds: Number }
+  static values = { dismissRatio: Number, flickVelocity: Number, flickWindowMs: Number, flickMinPx: Number, submitTimeoutSeconds: Number }
 
   disconnect() {
     this.settleCleanup?.()
@@ -31,6 +31,7 @@ export default class extends Controller {
     this.tracking = true
     this.horizontal = false
     this.dx = 0
+    this.samples = [{ t: event.timeStamp, x: event.clientX }]
     this.settleCleanup?.()
     this.cardTarget.classList.remove("swipe-settling")
     this.rails().forEach((rail) => rail.classList.remove("swipe-settling"))
@@ -41,6 +42,8 @@ export default class extends Controller {
 
     const dx = event.clientX - this.startX
     const dy = event.clientY - this.startY
+    this.samples.push({ t: event.timeStamp, x: event.clientX })
+    this.samples = this.samples.filter((sample) => sample.t >= event.timeStamp - this.flickWindowMsValue)
     if (!this.horizontal) {
       if (Math.abs(dy) > LOCK_PX && Math.abs(dy) >= Math.abs(dx)) {
         this.tracking = false
@@ -63,18 +66,32 @@ export default class extends Controller {
     this.tracking = false
     if (!this.horizontal) return
 
-    if (this.dx !== 0 && Math.abs(this.dx) >= this.threshold()) {
+    // pointercancel はスクロール等でも起こるため、速さによる払い判定は pointerup に限る。
+    const flicked = event.type === "pointerup" && this.flicked(event.timeStamp)
+    if (this.dx !== 0 && (Math.abs(this.dx) >= this.threshold() || flicked)) {
       this.flyOut(Math.sign(this.dx))
     } else {
       this.settle(0)
     }
   }
 
-  cancel(event) {
-    if (!this.tracking || event.pointerId !== this.pointerId) return
+  // 離す直前に、引いた向きへ速く動いていたか。指を止めると pointermove は来ないので、時間は離した時刻まで数える
+  flicked(now) {
+    if (!(this.flickVelocityValue > 0) || !(this.flickWindowMsValue > 0) || Math.abs(this.dx) < this.flickMinPxValue) return false
 
-    this.tracking = false
-    if (this.horizontal) this.settle(0)
+    const recent = this.samples.filter((sample) => sample.t >= now - this.flickWindowMsValue)
+    const first = recent[0]
+    const last = recent[recent.length - 1]
+    const elapsed = now - first?.t
+    // 時刻の差が無い動きは測れない（一度の跳びを払いにしない）
+    if (recent.length < 2 || !(elapsed > 0)) return false
+
+    // 離す直前に戻していたら払いではない（平均はまだ引いた向きでも、指は戻ろうとしている）
+    const lastStep = last.x - recent[recent.length - 2].x
+    if (Math.sign(lastStep) === -Math.sign(this.dx)) return false
+
+    const velocity = (last.x - first.x) / elapsed
+    return Math.sign(velocity) === Math.sign(this.dx) && Math.abs(velocity) >= this.flickVelocityValue
   }
 
   capture() {
