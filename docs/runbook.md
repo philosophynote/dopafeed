@@ -465,7 +465,9 @@ main に push（PR のマージ）すると、Actions の Deploy が CI を通�
 3. PR をマージする。Actions の Deploy が CI → deploy の順に走る（ビルドのキャッシュ無しで 5〜10 分）
 4. 緑になったら `curl -sI https://dopafeed.dev/up` が 200、iPhone で新しい版を見る
 5. GHCR のパッケージを public にする: https://github.com/users/philosophynote/packages/container/dopafeed/settings → Change visibility → Public
-6. ロールバックを一度試す: Mac で `kamal app containers` を打って一つ前の版（40 桁の SHA）を見て、Actions → Rollback → Run workflow にその SHA。戻ったら Deploy を Run workflow で最新に戻す
+6. ロールバックは、GHCR から配った版が二つ揃ってから試す（次のマージの後）。Kamal の rollback は古いコンテナが残っていても、今の `image`（GHCR）の名前で `docker run` し直すので、
+   GHCR に切り替える前の版（`localhost:5555` から作ったもの）へは戻れない。Mac で `kamal app containers` を打って一つ前の版（40 桁の SHA）を見て、
+   Actions → Rollback → Run workflow にその SHA。戻ったら Deploy を Run workflow で最新に戻す
 7. Mac から `kamal deploy` が Tailscale 経由で通ることを確かめる（4.2 のあと）
 
 ### 4.4 22 番を閉じる（4.3 の 3〜7 が全部通ってから）
@@ -476,9 +478,10 @@ main に push（PR のマージ）すると、Actions の Deploy が CI を通�
 4. 退路: Tailscale が落ちて入れないときは、規則を消していればコンソールで SSH の規則を作り直してブラウザ SSH から入る
 
 ### 4.5 日々の運用
-- 止める: Actions → Deploy → 右上の「…」→ Disable workflow。Mac の `kamal deploy` は使える
+- 止める: Actions → Deploy → 右上の「…」→ Disable workflow。無効にしても、待っている・走っている run は止まらないので、Deploy と Rollback の一覧で
+  「Queued」「In progress」の run を開いて Cancel workflow を押す。走っている途中で取り消したら、下の「失敗した」のロックの確認へ進む。Mac の `kamal deploy` は使える
 - 続けてマージした: Deploy と Rollback は同じ順番待ちを使い、待ちは最新の一つしか残らない（古い待ちは取り消される）。
-  CI が後から終わった古い commit は、main の先端でなければ配らずに緑で終わる（「Check that this is still the tip of main」の行に出る）
+  CI が後から終わった古い commit は、main の先端でなければ配らずに緑で終わる（「Check that this is still the tip of main」の行に出る）。手動の Run workflow でも同じ
 - 失敗した: Actions のログを見る。CI が赤なら deploy は走らない。Kamal は例外で抜けるとき自分のロックを外す。
   ジョブを途中で取り消した・タイムアウトしたときだけロックが残るので、`kamal lock status` を見て Actions のもの（`Locked by:` が空か runner）なら `kamal lock release`
 - 戻す: Actions の Rollback（4.3 の 6）か、Mac の `kamal rollback <SHA>`。DB の migration は戻らないので、壊す migration を含む版の後は戻せないことがある
