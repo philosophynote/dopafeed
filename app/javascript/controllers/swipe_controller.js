@@ -32,7 +32,7 @@ export default class extends Controller {
     this.tracking = true
     this.horizontal = false
     this.dx = 0
-    this.armed = false
+    this.swipeSounded = false
     this.samples = [{ t: event.timeStamp, x: event.clientX }]
     this.settleCleanup?.()
     this.cardTarget.classList.remove("swipe-settling")
@@ -123,10 +123,11 @@ export default class extends Controller {
       rail.style.width = `${shown ? Math.abs(dx) : 0}px`
       rail.classList.toggle("swipe-armed", shown && progress >= 1)
     })
-    // 鳴らすのは指が閾値を越えた瞬間だけ（離して流れ出す間や戻る間に鳴り直さない）
-    const armed = this.tracking && progress >= 1
-    if (armed && !this.armed) play("swipe")
-    this.armed = armed
+    // 鳴らすのは 1 回の引きで最初に閾値を越えた瞬間だけ（戻して越え直す間や、離して流れ出す間に鳴り直さない）
+    if (this.tracking && progress >= 1 && !this.swipeSounded) {
+      this.swipeSounded = true
+      play("swipe")
+    }
   }
 
   // 長さを固定すると reduced motion や CSS の変更に追従しないため、CSS から読む。

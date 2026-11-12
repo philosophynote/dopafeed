@@ -72,6 +72,61 @@ RSpec.describe "効果音", type: :system do
     expect(wait_for_sfx(3)).to eq(%w[tap rare tap])
   end
 
+  it "再読込してから同じ行を広げ直しても、抽選し直していない出目の音は鳴り直さない" do
+    allow(RarityDraw).to receive(:draw).and_return(rare)
+    create(:article, title: "レアの記事")
+    sign_in
+
+    expand("レアの記事")
+    expect(wait_for_sfx(2)).to eq(%w[tap rare])
+
+    page.refresh
+    expand("レアの記事")
+    sleep 0.3
+    expect(sfx_log).to eq(%w[tap rare tap])
+  end
+
+  it "応答を待つ間に別の行を押して、畳まれたまま届いた行の出目の音は鳴らない" do
+    allow(RarityDraw).to receive(:draw).and_return(rare)
+    create(:article, title: "先に押す記事", published_at: 1.hour.ago)
+    create(:article, title: "後に押す記事", published_at: 2.hours.ago)
+    sign_in
+    # 先の行の応答だけを遅らせる（後の行は送信の列で先の応答を待つので、先の行の欄が届く前に後の行を押した状態になる）
+    page.execute_script(<<~JS)
+      const original = window.fetch
+      window.fetch = (...args) => {
+        const body = args[1]?.body
+        const slow = String(args[0]).includes("/reading") && !window.__slowed
+        if (slow) window.__slowed = true
+        return slow ? new Promise((resolve) => setTimeout(() => resolve(original(...args)), 500)) : original(...args)
+      }
+    JS
+
+    find("article", text: "先に押す記事").find_button("読む").click
+    find("article", text: "後に押す記事").find_button("読む").click
+    expect(page).to have_link("記事に遷移", count: 1)
+    sleep 0.5
+    expect(sfx_log).to eq(%w[tap tap rare])
+  end
+
+  it "動きを減らす設定では、ルーレットが止まって見えるのと同時に鳴る" do
+    page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: [ { name: "prefers-reduced-motion", value: "reduce" } ])
+    allow(RarityDraw).to receive(:draw).and_return(rare)
+    create(:article, title: "レアの記事").bookmark!
+    sign_in
+    visit saved_path
+
+    button = find("article", text: "レアの記事").find_button("読む")
+    elapsed = page.evaluate_async_script(<<~JS, button.native)
+      const [button, done] = arguments
+      const start = performance.now()
+      button.click()
+      const poll = () => (sessionStorage.getItem("sfx-log") || "").includes("rare") ? done(performance.now() - start) : setTimeout(poll, 10)
+      poll()
+    JS
+    expect(elapsed).to be < Dopamine.settings.dig(:cards, :reveal_duration_ms) * 0.7
+  end
+
   it "一覧で未完なら煙、完読ならめくりの音が鳴り、Turbo の履歴で戻っても再読込しても鳴り直さない" do
     allow(RarityDraw).to receive(:draw).and_return(common)
     create(:article, title: "読む記事", summary: "・要約")
@@ -125,13 +180,16 @@ RSpec.describe "効果音", type: :system do
     expect(sfx_log).to eq(%w[tap rare tap])
   end
 
-  it "スワイプが閾値を越えた瞬間に 1 回だけ鳴る" do
+  it "スワイプが閾値を越えた瞬間に 1 回だけ鳴り、同じ指で閾値の手前へ戻して越え直しても鳴り直さない" do
     create(:article, title: "払う記事")
     sign_in
     width = card_width("払う記事")
 
+    # 続けて動かすときの座標は、動いた後のカードの左端が基準（system_swipe.rb）
     drag_card("払う記事", from: [ width - 20, 30 ], to: [ 20, 30 ], steps: 8, release: false)
-    drag_card("払う記事", from: [ 20, 30 ], to: [ 10, 30 ], steps: 2, release: false, down: false)
+    drag_card("払う記事", from: [ width - 20, 30 ], to: [ (2 * width) - 70, 30 ], steps: 4, release: false, down: false)
+    expect(card_shift("払う記事")).to be > -(width * 0.2)
+    drag_card("払う記事", from: [ width - 20, 30 ], to: [ 10, 30 ], steps: 4, release: false, down: false)
     expect(sfx_log).to eq([ "swipe" ])
   end
 
