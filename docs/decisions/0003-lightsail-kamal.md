@@ -40,3 +40,8 @@ Puma 1 worker + Solid Queue 1 プロセス + SQLite を一コンテナで。`kam
 - `servers.web` は IP でなく `dopafeed.dev` を書く。サーバーを作り直して IP が変わっても A レコードを直すだけでコミットが要らず、
   プレースホルダの IP を置き換え忘れることもない（DNS only なので IP を隠す効果は無い）。AAAA を置くなら、作り直しで IPv6 が変わるたびに書き換え、
   ファイアウォールの IPv6 の 22 番も IPv4 と同じく絞る（ssh が IPv6 を先に試す）
+
+追記 2026-11-12（ADR 0021）:
+- `kamal deploy` は main へのマージで GitHub Actions が打つ。Mac からも打てるが、その時は Tailscale 経由で入り、`DEPLOY_HOST` と GHCR の PAT が要る
+- 上の「22 は Mac の IP だけ」「レジストリは `localhost:5555`」「`servers.web` は `dopafeed.dev`」は ADR 0021 で改めた（22 は Tailscale からだけ、GHCR、`DEPLOY_HOST`）
+- tailscaled の常駐は RSS 37 MB。入れた後も available 391 MB で、1 GB のままでよい
