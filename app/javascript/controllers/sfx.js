@@ -1,14 +1,18 @@
 // 効果音はその場で合成する。音源ファイルを置かないので、ライセンスも読み込み待ちも無い（ADR 0021）。
-// iOS は利用者の操作の中でしか音を出させないため、最初の pointerdown / keydown で AudioContext を作って起こす。それより前の音は捨てる。
+// iOS は利用者の操作の中でしか音を出させない。指の pointerdown はその操作に数えられない（数えるのは pointerup・touchend・click・keydown）ため、
+// それらを capture で聞いて AudioContext を作り、起こす。最初の操作より前の音は捨てる。
 // "ambient" は消音スイッチに従い、聴いている音楽も止めない。"playback" にすると消音を越えて鳴り、音楽も止まる。
 const STORAGE_KEY = "sfx"
 const LOG_KEY = "sfx-log"
 
 let context = null
+// localStorage に書けない端末でも、この画面を開いている間は切り替えを効かせる
+let memoryEnabled = null
 
 const recording = () => document.querySelector("meta[name='sfx-record']") !== null
 
 export function enabled() {
+  if (memoryEnabled !== null) return memoryEnabled
   try {
     return localStorage.getItem(STORAGE_KEY) !== "off"
   } catch {
@@ -19,8 +23,9 @@ export function enabled() {
 export function setEnabled(on) {
   try {
     on ? localStorage.removeItem(STORAGE_KEY) : localStorage.setItem(STORAGE_KEY, "off")
+    memoryEnabled = null
   } catch {
-    // 保存できない（プライベートブラウズ等）なら、この画面の間だけ切り替わる
+    memoryEnabled = on
   }
 }
 
@@ -36,11 +41,20 @@ function unlock() {
       return
     }
   }
-  if (context.state === "suspended") context.resume().catch(() => {})
+  // "interrupted"（iOS でバックグラウンドへ移った後や着信の後）も起こし直す
+  if (context.state === "running") return
+
+  context.resume().catch(() => {})
+  // 操作の中で一度音を流しておかないと、後から setTimeout で鳴らす音を通さない WebKit がある
+  const silent = context.createBufferSource()
+  silent.buffer = context.createBuffer(1, 1, context.sampleRate)
+  silent.connect(context.destination)
+  silent.start()
 }
 
-document.addEventListener("pointerdown", unlock, { capture: true, passive: true })
-document.addEventListener("keydown", unlock, { capture: true, passive: true })
+for (const type of [ "pointerup", "touchend", "click", "keydown" ]) {
+  document.addEventListener(type, unlock, { capture: true, passive: true })
+}
 
 function record(cue) {
   try {

@@ -39,7 +39,7 @@ RSpec.describe "効果音", type: :system do
     click_on "読み終えた"
   end
 
-  it "設定画面の「効果音」は初めはオンで、切り替えると再読込しても残る" do
+  it "設定画面の「効果音」は初めはオンで、切り替えると再読込しても残り、オンに戻したときだけ試しに 1 回鳴る" do
     sign_in
     visit learning_path
 
@@ -54,7 +54,7 @@ RSpec.describe "効果音", type: :system do
 
     sound_switch.click
     expect(sound_switch["aria-checked"]).to eq("true")
-    expect(sfx_log).to eq([ "tap" ]) # オンに戻したときだけ試しに鳴らす
+    expect(sfx_log).to eq([ "tap" ])
     screenshot!("on")
   end
 
@@ -72,7 +72,7 @@ RSpec.describe "効果音", type: :system do
     expect(wait_for_sfx(3)).to eq(%w[tap rare tap])
   end
 
-  it "一覧で未完なら煙、完読ならめくりの音が鳴り、履歴で戻っても鳴り直さない" do
+  it "一覧で未完なら煙、完読ならめくりの音が鳴り、Turbo の履歴で戻っても再読込しても鳴り直さない" do
     allow(RarityDraw).to receive(:draw).and_return(common)
     create(:article, title: "読む記事", summary: "・要約")
     sign_in
@@ -86,11 +86,43 @@ RSpec.describe "効果音", type: :system do
     expect(page).to have_css("section[aria-label='判定']", text: "を手に入れた！")
     expect(wait_for_sfx(3)).to eq(%w[tap puff card])
 
-    visit learning_path
+    # visit だとブラウザの遷移になり、Turbo のスナップショットを通らない
+    find("a[aria-label='設定']").click
+    expect(page).to have_css("button[role='switch']", text: "効果音")
     page.go_back
     expect(page).to have_css("section[aria-label='判定']", text: "を手に入れた！")
     sleep 0.3
     expect(sfx_log).to eq(%w[tap puff card])
+
+    page.refresh
+    expect(page).to have_css("article", text: "読む記事", count: 0)
+    sleep 0.3
+    expect(sfx_log).to eq(%w[tap puff card])
+  end
+
+  it "Main の欄で金のカードを手に入れても、全画面は出ないのでめくりの音が鳴る" do
+    allow(RarityDraw).to receive(:draw).and_return(jackpot)
+    create(:article, title: "金の記事", summary: "・要約")
+    sign_in
+
+    expand("金の記事")
+    read_in_list("金の記事", dwell: threshold + 5)
+    expect(page).to have_css("section[aria-label='判定']", text: "金のカードを手に入れた！")
+    expect(wait_for_sfx(3)).to eq(%w[tap gold card])
+  end
+
+  it "Saved のルーレットはレアで止まった瞬間にだけ鳴り、通常では鳴らない" do
+    rare_article = create(:article, title: "レアの記事", published_at: 1.hour.ago)
+    common_article = create(:article, title: "通常の記事", published_at: 2.hours.ago)
+    sign_in
+    allow(RarityDraw).to receive(:draw).and_return(rare)
+    read_from_saved(rare_article)
+    expect(wait_for_sfx(2)).to eq(%w[tap rare])
+
+    allow(RarityDraw).to receive(:draw).and_return(common)
+    read_from_saved(common_article)
+    sleep 0.3
+    expect(sfx_log).to eq(%w[tap rare tap])
   end
 
   it "スワイプが閾値を越えた瞬間に 1 回だけ鳴る" do
@@ -103,7 +135,7 @@ RSpec.describe "効果音", type: :system do
     expect(sfx_log).to eq([ "swipe" ])
   end
 
-  it "Saved から金を引くと、タップの音、出目が止まって金の音、Jackpot でファンファーレ。完読すると全画面の開封のファンファーレだけが鳴る" do
+  it "Saved から金を引くと、出目の和音は鳴らさず Jackpot のファンファーレだけ。完読すると全画面の開封のファンファーレだけが鳴る" do
     allow(RarityDraw).to receive(:draw).and_return(jackpot)
     article = create(:article, title: "金の記事", url: "#{Capybara.current_session.server.base_url}/up?gold", summary: "・要約")
     article.bookmark!
@@ -112,7 +144,7 @@ RSpec.describe "効果音", type: :system do
 
     within("article", text: "金の記事") { click_on "読む" }
     expect(page).to have_link("読んで手に入れる")
-    expect(wait_for_sfx(3)).to eq(%w[tap gold fanfare])
+    expect(wait_for_sfx(2)).to eq(%w[tap fanfare])
 
     click_on "読んで手に入れる"
     page.execute_script(<<~JS)
@@ -126,14 +158,19 @@ RSpec.describe "効果音", type: :system do
     click_on "読み終えた"
 
     expect(page).to have_css("[role='dialog'][aria-label='金のカードの開封']")
-    expect(wait_for_sfx(4)).to eq(%w[tap gold fanfare fanfare])
+    expect(wait_for_sfx(3)).to eq(%w[tap fanfare fanfare])
   end
 
-  it "ゴールを達成した日に宝箱を開くと宝箱の音が鳴る" do
-    goal_articles.times { create(:reading, :completed, opened_at: Time.current - 1.hour) }
+  it "宝箱の音は、ゴールを達成した日に宝箱を開いたときだけ鳴る" do
+    (goal_articles - 1).times { create(:reading, :completed, opened_at: Time.current - 1.hour) }
     sign_in
     visit daily_goal_path
+    expect(page).to have_text("あと 1 本で宝箱")
+    sleep 0.3
+    expect(sfx_log).to be_empty
 
+    create(:reading, :completed, opened_at: Time.current - 1.hour)
+    visit daily_goal_path
     expect(page).to have_text("読み切った！")
     expect(wait_for_sfx(1)).to eq([ "chest" ])
   end

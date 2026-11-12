@@ -2,7 +2,8 @@
     色は段が上がるほど目立たせる（レアは橙、頂点の金は金色）。現れた瞬間に光るのは通常以外だけ（毎回光ると慣れる） %>
 <% band = rarity_tone(reading.tier, base: "bg-orange-50 text-orange-700") %>
 <% band = "tier-glow #{band}" unless base_rarity?(reading.tier) %>
-<%# 鳴らすのは行を広げた瞬間だけ（sfx: true）。Reader の帯はルーレットが止まったときに鳴らし済み %>
+<%# 鳴らすのは Main で行を広げた瞬間だけ（sfx: true）。Reader の帯は、最初の 1 本ならルーレットが止まったときに鳴らし済みで、
+    継ぎ足した次の記事なら同じ瞬間に区切りの音が鳴るので、一番大きい 1 つに譲る %>
 <% cue = rarity_cue(reading.tier) if local_assigns[:sfx] %>
 <p class="inline-block rounded-full px-3 py-1 text-xs font-semibold <%= band %>" data-tier="<%= reading.tier %>">
   <%= sfx_cue(cue) %>
