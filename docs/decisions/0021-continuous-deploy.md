@@ -6,14 +6,15 @@
 22 番を Mac の IP だけに絞っていたので、モバイルルーターを替えるたびにファイアウォールを直す必要があった（2026-11-08 に一度止まった）。
 
 ## 決めたこと
-- **流れ**: main への push で `deploy.yml` が `ci.yml` を `workflow_call` で呼び、通ったら同じ run の deploy ジョブが `bin/kamal deploy` を打つ。CI が検証した commit をそのまま配る。`ci.yml` の `push: main` は外し、main で CI が二度走らないようにする
+- **流れ**: main への push で `deploy.yml` が `ci.yml` を `workflow_call` で呼び、通ったら同じ run の deploy ジョブが `bin/kamal deploy` を打つ。CI が検証した commit をそのまま配る。`ci.yml` の `push: main` は外し、main で CI が二度走らないようにする。concurrency は順番を守らないので、配る直前に main の先端か確かめ、古ければ配らない
+- **外部の action は commit で固定する**: 秘密・OIDC・packages:write に触れるジョブなので、タグの差し替えに巻き込まれないよう SHA で書き、版はコメントに残す。`docker/setup-buildx-action` は使わない（Kamal が自分で builder を作る）
 - **入口**: runner はジョブの間だけ Tailscale の使い捨てノード（`tag:ci`）として tailnet に入り、サーバー（`tag:prod`）の OpenSSH に繋ぐ。policy は `autogroup:member` と `tag:ci` から `tag:prod` の 22 番だけ。Tailscale SSH・Serve・Funnel は使わない（2026 年の脆弱性公告がこの機能に集中した）。サーバーの Tailscale は 1.104.4 以上、自動更新
 - **Tailscale の認証**: workload identity federation（GitHub の OIDC）。subject は `repo:philosophynote/dopafeed:environment:production`。Tailscale の秘密を GitHub に置かない
-- **レジストリ**: GHCR（`ghcr.io/philosophynote/dopafeed`）。CI は `GITHUB_TOKEN`、Mac は `write:packages` の PAT。パッケージは public（private は無料枠の転送が月 1 GB で、サーバーの pull で数回のうちに尽きる。中身は public なリポジトリのコードと gem で、master.key は `.dockerignore` で外れる）
+- **レジストリ**: GHCR（`ghcr.io/philosophynote/dopafeed`）。CI は `GITHUB_TOKEN`、Mac は `write:packages` だけの classic PAT（`export` せず、`kamal` を打つ時だけ渡す）。パッケージは public（private は無料枠の転送が月 1 GB で、サーバーの pull で数回のうちに尽きる。中身は public なリポジトリのコードと gem で、master.key は `.dockerignore` で外れる）
 - **宛先**: `servers.web` は `DEPLOY_HOST`（サーバーの Tailscale IP）を ERB で読む。IP をリポジトリに載せない（nao の希望）。CI は Environment の変数、Mac は `~/.zshrc` で渡す。DNS と `proxy.host` は dopafeed.dev のまま
 - **秘密**: Environment `production`（main のみ）に `RAILS_MASTER_KEY`・`SSH_PRIVATE_KEY`（デプロイ専用の ed25519）・`TS_OAUTH_CLIENT_ID`、変数に `TS_AUDIENCE`・`DEPLOY_HOST`。Repository secrets には置かない。`.kamal/secrets` は既存の行を残して `KAMAL_REGISTRY_PASSWORD` を 1 行足すだけ。CI は `config/master.key` を書き、既存の `credentials:fetch` をそのまま動かす
 - **二重実行**: deploy と rollback で concurrency `production-deploy` を共有し、途中で取り消さない。Mac から同時に打った時は Kamal のロックで片方が止まる。失敗時の `kamal lock release` は workflow に置かない（指示書から変えた）。Kamal は例外で抜ける時に自分のロックを外す。外から release すると、Mac が持つロックで弾かれた時にそれを奪ってしまう
-- **戻し方**: `rollback.yml`（`workflow_dispatch`、戻す版はサーバーに残るコンテナのもの）。Mac の `kamal rollback` も使える
+- **戻し方**: `rollback.yml`（`workflow_dispatch`、戻す版はサーバーに残るコンテナのもの）。`kamal rollback` は版が見つからなくても 0 で抜けるので、40 桁の SHA かを先に検め、後で走っている版を照らす。Mac の `kamal rollback` も使える
 - **22 番**: 自動デプロイと Mac からの Tailscale 経由の両方が通ってから、公開側の 22 番を閉じる。Lightsail ブラウザ SSH の分だけ残せるなら残す（Tailscale が落ちた時の退路）
 - **承認ボタンは付けない**: マージが承認。Environment の Required reviewers を足すと、同じ判断を二度押すことになる
 - **エージェントは起こさない**: エージェントが本番を動かせるのは nao のマージを通してだけ。Deploy / Rollback の手動実行もしない（AGENTS.md の禁止）

@@ -2,7 +2,7 @@ service: dopafeed
 
 image: philosophynote/dopafeed
 
-# サーバーの Tailscale IP をリポジトリに載せないため環境変数で受ける（ADR 0021）。無ければ Kamal が KeyError で止まる
+# サーバーの Tailscale IP を public なリポジトリに載せないため、環境変数で受ける（ADR 0021）
 servers:
   web:
     - <%= ENV.fetch("DEPLOY_HOST") %>

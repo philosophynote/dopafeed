@@ -179,6 +179,9 @@
 4-c. プランを上げる（Nano → Micro は 2026-11-07 に実施。ADR 0003 の基準に当たったら）
    **新旧 2 台のアプリを同時に動かさない。** 両方が同じ S3 のパスへ複製してバックアップが壊れ、定期ジョブと Push が二重になり、
    Claude の日次予算も DB ごとに数えるので倍使える。
+   **§4.4 で 22 番を閉じた後は、下の 3・5・6 を読み替える**: 3 では 22 番を開けない（ブラウザ SSH だけ）。5 は `ssh-keygen -R <100.x>` のあと `ssh ubuntu@$DEPLOY_HOST`。
+   スナップショットには Tailscale の状態も写るので、古い方を止めてから新しい方を起こせば同じ 100.x で tailnet に戻るはず（`tailscale status` で確かめる。
+   戻らなければブラウザ SSH から §4.1 の 2 をやり直し、Environment の `DEPLOY_HOST` と Mac の `~/.zshrc` を新しい値にする）。6 は `servers.web` ではなく `DEPLOY_HOST` を見る
    1. `kamal app stop` で必ず止めてから、Lightsail でインスタンスの手動スナップショットを撮る（DB が静止した状態で写る。
       止めたコンテナはスナップショットから作った新しい方でも勝手には上がらない）
    2. スナップショットから新しいインスタンスを作る。プランだけ上のもの（2026-11-07 は $7 Micro）を選び、名前は新しく付ける（例: `dopafeed-tokyo-2`）
@@ -200,6 +203,8 @@
 ## 1. 復元
 
 ### 1-a. サーバーを作り直す（自動復元）
+§4.4 で 22 番を閉じた後は、新しいインスタンスにはブラウザ SSH で入り、§0 4-a の 3 では 22 番を開けず、先に §4.1 の 2・3・5 をやって
+Environment の `DEPLOY_HOST` と Mac の `~/.zshrc` を新しい 100.x にしてから `kamal setup` を打つ。
 新しいインスタンスで §0 4-a の 1〜4 をやり直す（静的 IP は古い方から外して付け替え、Mac でホスト鍵を消す（4-c-5）。`ssh.user: ubuntu` なので Kamal は
 Docker を入れてくれない。swap とファイアウォールも手で入れる）。そのうえで `kamal setup`（デプロイを含む。`kamal deploy` を
 別に打つ必要は無い）。volume が空なので entrypoint の
@@ -402,6 +407,7 @@ main に push（PR のマージ）すると、Actions の Deploy が CI を通�
 イメージは GHCR（`ghcr.io/philosophynote/dopafeed`）。ワークフローは `.github/workflows/{ci,deploy,rollback}.yml`（GitHub App に workflows 権限が無いので nao が置く）。
 
 ### 4.1 下準備（一度だけ。2026-11-12 に済んだもの）
+0. Mac に Tailscale を入れ、同じ口座でログインする（5 と §4.2 で tailnet 越しに入るため）
 1. Tailscale の Access controls（JSON editor）を次にする。既定の全許可と `ssh` の段は消す:
    ```json
    {
@@ -427,39 +433,42 @@ main に push（PR のマージ）すると、Actions の Deploy が CI を通�
 5. デプロイ専用の鍵（Mac で）。個人の鍵は流用しない:
    ```sh
    ssh-keygen -t ed25519 -f ~/.ssh/dopafeed_deploy -N "" -C github-actions-deploy
-   ssh ubuntu@$DEPLOY_HOST 'cat >> ~/.ssh/authorized_keys' < ~/.ssh/dopafeed_deploy.pub
+   ssh ubuntu@<2 で出た 100.x> 'cat >> ~/.ssh/authorized_keys' < ~/.ssh/dopafeed_deploy.pub
    ```
 6. GitHub のリポジトリ Settings → Environments で `production` を作り、Deployment branches を `main` だけにする。
    Secrets: `RAILS_MASTER_KEY`・`SSH_PRIVATE_KEY`（`~/.ssh/dopafeed_deploy` の中身）・`TS_OAUTH_CLIENT_ID`。Variables: `TS_AUDIENCE`・`DEPLOY_HOST`。
    Repository secrets には置かない（Environment の「main だけ」が掛からない）
 
 ### 4.2 Mac から打てるようにする（一度だけ）
-1. Mac に Tailscale を入れ、同じ口座でログインする。`kamal` と `ssh` を使う間は「接続」にしておく
-2. GHCR 用の PAT を作る（GitHub → Settings → Developer settings → Personal access tokens (classic)、scope は `write:packages`）。キーチェーンに入れる:
+1. Mac の Tailscale は、`kamal` と `ssh` を使う間「接続」にしておく
+2. GHCR 用の PAT を作る（GitHub → Settings → Developer settings → Personal access tokens (classic)）。scope は `write:packages` だけ
+   （`repo` に勝手に印が付いていたら外す。付いたまま漏れると main へ push でき、そのまま自動デプロイに乗る）。有効期限を付ける。キーチェーンに入れる:
    ```sh
    security add-generic-password -a "$USER" -s dopafeed-ghcr -w    # PAT を貼る
    ```
-3. `~/.zshrc` に足す:
+3. `~/.zshrc` に足す。PAT は `export` しない（そのシェルから起こす全部のプロセス、Claude Code のシェルにも渡ってしまう）。`kamal` を打つ時だけ渡す:
    ```sh
    export DEPLOY_HOST=<サーバーの 100.x>
-   export KAMAL_REGISTRY_PASSWORD="$(security find-generic-password -s dopafeed-ghcr -w 2>/dev/null)"
+   kamal() { KAMAL_REGISTRY_PASSWORD="$(security find-generic-password -s dopafeed-ghcr -w)" command kamal "$@"; }
    ```
-4. `.kamal/secrets` に 1 行足す（既存の 9 行は消さない。消すと `Secret '...' not found` で止まる）:
-   ```
-   KAMAL_REGISTRY_PASSWORD=$KAMAL_REGISTRY_PASSWORD
-   ```
-5. `DEPLOY_HOST` が無いまま `kamal` を打つと `key not found: "DEPLOY_HOST"` で止まる。新しい端末を開き直すか `source ~/.zshrc`
+4. `DEPLOY_HOST` が無いまま `kamal` を打つと `key not found: "DEPLOY_HOST"` で止まる。新しい端末を開き直すか `source ~/.zshrc`
+5. Mac から deploy すると、Kamal はサーバーで `docker login` するので PAT がサーバーの `~/.docker/config.json` に残る（Actions から deploy した後は期限切れの GITHUB_TOKEN に置き換わる）。
+   PAT を捨てる時は GitHub で Revoke する
 
 ### 4.3 初回（ワークフローを置くとき）
-1. ADR 0021 の PR のブランチに、GitHub の Web 画面で `.github/workflows/ci.yml` を直し（`on:` の `push: main` を `workflow_call:` に替える）、`deploy.yml`・`rollback.yml` を足す（中身は PR 本文）
-2. PR をマージする。Actions の Deploy が CI → deploy の順に走る（ビルドのキャッシュ無しで 5〜10 分）
-3. 緑になったら `curl -sI https://dopafeed.dev/up` が 200、iPhone で新しい版を見る
-4. GHCR のパッケージを public にする: https://github.com/users/philosophynote/packages/container/dopafeed/settings → Change visibility → Public。
-   最初の push を Mac からした場合はパッケージがリポジトリに紐づかず Actions が push できないので、同じ画面の Manage Actions access で `dopafeed` に Write を足す
-5. ロールバックを一度試す: Mac で `kamal app containers` を打って一つ前の版（SHA）を見て、Actions → Rollback → Run workflow にその SHA。戻ったら Deploy を Run workflow で最新に戻す
-6. Mac から `kamal deploy` が Tailscale 経由で通ることを確かめる（4.2 のあと）
+1. GHCR に `dopafeed` のパッケージがまだ無いことを https://github.com/philosophynote?tab=packages で見る。
+   既にあれば、パッケージの設定の Manage Actions access で `dopafeed` リポジトリに Write を足しておく（無いと Actions の push が 403 で落ちる）
+2. ADR 0021 の PR のブランチに、GitHub の Web 画面で次を入れる（中身は PR 本文）。**`.kamal/secrets` の 1 行が無いままマージすると、最初の自動デプロイが `Secret 'KAMAL_REGISTRY_PASSWORD' not found` で落ちる**（Kamal は secrets を `.kamal/secrets` からしか引かず、環境変数を直接は見ない）
+   - `.kamal/secrets` の末尾に `KAMAL_REGISTRY_PASSWORD=$KAMAL_REGISTRY_PASSWORD`（既存の 9 行は消さない）
+   - `.github/workflows/ci.yml` の `on:` の `push: main` を `workflow_call:` に替える
+   - `.github/workflows/deploy.yml`・`rollback.yml` を足す
+3. PR をマージする。Actions の Deploy が CI → deploy の順に走る（ビルドのキャッシュ無しで 5〜10 分）
+4. 緑になったら `curl -sI https://dopafeed.dev/up` が 200、iPhone で新しい版を見る
+5. GHCR のパッケージを public にする: https://github.com/users/philosophynote/packages/container/dopafeed/settings → Change visibility → Public
+6. ロールバックを一度試す: Mac で `kamal app containers` を打って一つ前の版（40 桁の SHA）を見て、Actions → Rollback → Run workflow にその SHA。戻ったら Deploy を Run workflow で最新に戻す
+7. Mac から `kamal deploy` が Tailscale 経由で通ることを確かめる（4.2 のあと）
 
-### 4.4 22 番を閉じる（4.3 の 2〜6 が全部通ってから）
+### 4.4 22 番を閉じる（4.3 の 3〜7 が全部通ってから）
 1. Lightsail コンソール → dopafeed-tokyo-2 → ネットワーキング。IPv4 の SSH の規則から Mac の IP を外す。
    「Lightsail ブラウザ SSH を許可」だけ残せるなら残す（Tailscale が落ちた時の退路）。IP が一つも無いと保存できないなら規則ごと消す
 2. IPv6 の SSH の規則も消す。80 / 443 は IPv4・IPv6 とも残す。CLI の `put-instance-public-ports` は使わない（全規則の置き換えになり 80 / 443 も消える）
@@ -468,8 +477,10 @@ main に push（PR のマージ）すると、Actions の Deploy が CI を通�
 
 ### 4.5 日々の運用
 - 止める: Actions → Deploy → 右上の「…」→ Disable workflow。Mac の `kamal deploy` は使える
+- 続けてマージした: Deploy と Rollback は同じ順番待ちを使い、待ちは最新の一つしか残らない（古い待ちは取り消される）。
+  CI が後から終わった古い commit は、main の先端でなければ配らずに緑で終わる（「Check that this is still the tip of main」の行に出る）
 - 失敗した: Actions のログを見る。CI が赤なら deploy は走らない。Kamal は例外で抜けるとき自分のロックを外す。
   ジョブを途中で取り消した・タイムアウトしたときだけロックが残るので、`kamal lock status` を見て Actions のもの（`Locked by:` が空か runner）なら `kamal lock release`
-- 戻す: Actions の Rollback（4.3 の 5）か、Mac の `kamal rollback <SHA>`。DB の migration は戻らないので、壊す migration を含む版の後は戻せないことがある
+- 戻す: Actions の Rollback（4.3 の 6）か、Mac の `kamal rollback <SHA>`。DB の migration は戻らないので、壊す migration を含む版の後は戻せないことがある
 - 鍵が漏れた疑い: `~/.ssh/authorized_keys` から `github-actions-deploy` の行を消し、4.1 の 5 と Secrets を作り直す。Tailscale の federated identity は管理画面で消して作り直す
 - サーバーを作り直したとき（§1-a・§0 4-c）: 新しいサーバーで 4.1 の 2・3・5 をやり直す。Tailscale IP が変わるので、Environment の `DEPLOY_HOST` と Mac の `~/.zshrc` を直す。管理画面から古いマシンを消す
