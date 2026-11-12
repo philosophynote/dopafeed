@@ -16,6 +16,7 @@
 5. 「ホーム画面に追加 ・ 通知の許可」（→ Install）
 6. ボタン「古い未読 64 本を一掃」（Swipe と同じ処理）、「学習をリセット（新鮮さを戻す）」（未決 2）
 7. サインアウト（モックに無いが Unit 0 の仮 root にある。ここに置く）
+8. 「効果音」トグル（#100、ADR 0021。モックに無い）。端末ごと（localStorage）で、初期値はオン。補足「消音スイッチが ON のときは鳴らない」。オンに戻すと試しに 1 回鳴る
 
 ## 遷移
 - Main の歯車 → Learning（full page）
@@ -25,6 +26,7 @@
 - Given 通知トグルを切り替えた When 保存 Then 設定が DB に残り、Job は送信前にこの設定を見る
 - Given claude_api_calls が今月 212 件 When Learning を開く Then 「要約 212 回」が出る
 - Given 「学習をリセット」When 確認して実行 Then フィード重みが初期値に戻り、読了・いいねの記録は消えない
+- Given 初めて開いた When 「効果音」を見る Then オン。切り替えると再読込しても残り、オフならどの画面でも鳴らない（#100）
 
 ## 使う設定の鍵
 dopamine.yml: `claude.summary_model`, `claude.daily_call_limit`

@@ -2,6 +2,9 @@
     色は段が上がるほど目立たせる（レアは橙、頂点の金は金色）。現れた瞬間に光るのは通常以外だけ（毎回光ると慣れる） %>
 <% band = rarity_tone(reading.tier, base: "bg-orange-50 text-orange-700") %>
 <% band = "tier-glow #{band}" unless base_rarity?(reading.tier) %>
+<%# 鳴らすのは行を広げた瞬間だけ（sfx: true）。Reader の帯はルーレットが止まったときに鳴らし済み %>
+<% cue = rarity_cue(reading.tier) if local_assigns[:sfx] %>
 <p class="inline-block rounded-full px-3 py-1 text-xs font-semibold <%= band %>" data-tier="<%= reading.tier %>">
+  <%= sfx_cue(cue) %>
   出目 <%= rarity_label(reading.tier) %> ・ 完読で<%= card_name(reading.tier) %>
 </p>

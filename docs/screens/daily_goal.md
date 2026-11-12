@@ -6,7 +6,7 @@ SNS には無い「止まり所」。今日の 5 本を読み切ったら宝箱�
 
 ## 要素
 1. 「DAILY GOAL」「今日の 5 本、読み切った！」（`daily_goal.articles`）
-2. 宝箱（CSS / SVG。固定）
+2. 宝箱（CSS / SVG。固定）。達成後に開くと宝箱の音が鳴る（合成音。#100、ADR 0021）
 3. 「宝箱の中身」
    - ~~「ゴール達成ボーナス +100 XP」~~ → 「今日のカード N 枚」と、今日手に入れたカード（`cards/_card`。3 列に並び、開くたびに順に裏からめくれる。DB: `DailySummary#cards`。#106）
    - 「ストリーク 4 日目 確定」（DB: ストリーク）
@@ -35,7 +35,7 @@ SNS には無い「止まり所」。今日の 5 本を読み切ったら宝箱�
 - Given ゴール未達 When Main のゴール表示をタップ Then 宝箱は閉じたまま「あと N 本」が出る
 
 ## 使う設定の鍵
-dopamine.yml: `daily_goal.articles`, `daily_goal.reset_hour`, `cards.reveal_duration_ms`（カードのめくり）, `cards.reveal_stagger_ms`（1 枚ずつずらす幅。鍵が無ければずらさず一斉にめくれる。#109 で提案）
+dopamine.yml: `daily_goal.articles`, `daily_goal.reset_hour`, `cards.reveal_duration_ms`（カードのめくり）, `cards.reveal_stagger_ms`（1 枚ずつずらす幅。鍵が無ければずらさず一斉にめくれる。#109 で提案、#100 で nao が採用）
 personas.yml: なし
 
 ## 外部 API

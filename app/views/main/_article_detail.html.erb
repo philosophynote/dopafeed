@@ -2,7 +2,7 @@
 <% article = reading.article %>
 <div id="<%= dom_id(article, :detail) %>" class="bg-white px-4 pb-4" data-swipe-target="detail"
      data-controller="sheet" data-sheet-start-url-value="<%= start_reading_path(reading, from: "main") %>">
-  <%= render "readings/rarity_band", reading: reading %>
+  <%= render "readings/rarity_band", reading: reading, sfx: true %>
   <%= render "articles/summary", article: article %>
   <%= link_to "記事に遷移", article.url, target: "_blank", rel: "noopener noreferrer", data: { action: "sheet#open" },
               class: "mt-3 flex h-12 w-full items-center justify-center rounded-full bg-orange-500 text-base font-bold text-white active:bg-orange-600" %>

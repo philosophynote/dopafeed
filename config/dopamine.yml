@@ -4,6 +4,7 @@ shared:
     complete_after_seconds: 20
   cards:
     reveal_duration_ms: 500
+    reveal_stagger_ms: 120
     rarities:
       - { name: common, probability: 0.70 }
       - { name: rare, probability: 0.25 }

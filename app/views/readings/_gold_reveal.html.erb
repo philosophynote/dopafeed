@@ -4,6 +4,7 @@
     data-turbo-temporary: 閉じ忘れたまま画面を移って戻っても、スナップショットから全画面が蘇らないように %>
 <div class="fixed inset-0 z-50 overflow-hidden bg-[#141416]/95 text-white" role="dialog" aria-modal="true" aria-label="金のカードの開封"
      data-controller="reveal" data-action="click->reveal#close keydown.esc@document->reveal#close keydown.tab@document->reveal#trap keydown.shift+tab@document->reveal#trap" data-turbo-temporary>
+  <%= sfx_cue("fanfare") %>
   <div class="confetti" aria-hidden="true"><% 12.times { |i| %><span style="--i: <%= i %>"></span><% } %></div>
   <div class="relative mx-auto flex h-full w-full max-w-md flex-col items-center justify-center px-6 text-center">
     <p class="text-sm font-bold tracking-[0.3em] text-yellow-200/80">JACKPOT</p>

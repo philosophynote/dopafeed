@@ -33,7 +33,7 @@
 - Given Roulette が止まった When reveal_duration_ms 経過 Then 記事が開く（Stimulus の timeout。テストでは即時）
 - Given 抽選結果 When 記事を開く前にページを閉じた Then 結果は保存済みで、同じ記事を再度「読む」しても再抽選されない（冪等。未決 2）
 - Given JS が動かない When 「読む」の form を POST Then 演出なしで redirect され記事が開く（通常の form POST → redirect）
-- Given 効果音 When 結果が出る Then 1 回だけ鳴る（音源は未決 3。設定で切れる）
+- Given 効果音がオン When レア・金で止まる Then 止まった瞬間に 1 回だけ鳴る。通常では鳴らない。設定で切れば鳴らない（未決 3、ADR 0021）
 
 ## 使う設定の鍵
 dopamine.yml: `cards.reveal_duration_ms`, `cards.rarities`
@@ -49,6 +49,7 @@ personas.yml: なし
    → **決定（Unit 2、ADR 0006）**: タップ時。`readings`（1 記事 1 行、article_id unique）に `opened_at` と `tier` を保存し、完読時に `xp` を確定。未完なら xp は 0 のまま、同じ記事を再度「読む」しても行は 1 つで前回の tier を使い回す
 3. 効果音の音源と形式、ミュート設定の置き場所（Learning）
    → **Unit 6（#42）**: 音源とミュートの置き場（ユーザー設定は第二の陣）が未決のまま鳴らさない。持ち越し Issue に切る。注記は「止まると記事がアプリ内で開きます」にして、効果音には触れない
+   → **決定（#100、ADR 0021）**: Web Audio でその場で合成し、音源は置かない。止まった瞬間（`cards.reveal_duration_ms` 後）にレアはチャイム、金は和音を 1 回。通常は鳴らさない。切り替えは Learning の「効果音」トグル（端末ごと）。iPhone の消音スイッチに従う
 4. 激レア（1.5% +50 XP 紫の全画面）を tier として持つか。yml には無い
    → **決定（Unit 6、#42）**: 持たない。全画面に進む出目は `Dopamine.jackpot_tier`（倍率が最も高い tier）の 1 つだけ → ADR 0020 で `Dopamine.top_rarity`（yml の最後の段）に改めた
 5. 実装の形（Unit 6、#42）: 「読む」は Turbo の POST。サーバーが抽選済みの `readings.tier` を埋めたモーダルを Turbo Stream で layout の `#roulette` に差し込む。帯は CSS の `@keyframes`（長さと止まる行は CSS 変数で yml の値を渡す）、Stimulus `roulette` は `roulette_duration_ms` 経過で結果のリンク（記事 or Jackpot）を踏むだけ。JS 無しの POST は今までどおり記事へ redirect。記事へ出る印（`reading-return`）は「読む」の submit ではなく、このリンクの click で付ける（Jackpot から戻るで Main に帰っただけの人を読了扱いにしないため）。`prefers-reduced-motion` なら帯は回さず結果だけ出す
