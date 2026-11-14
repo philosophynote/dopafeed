@@ -326,7 +326,7 @@ RSpec.describe "Main", type: :system do
 
       expand("手で送る記事")
       reading = open_link("手で送る記事")
-      click_on "読み終えた" # 戻りの合図が来ない端末
+      native_click(find_button("読み終えた")) # 戻りの合図が来ない端末
 
       expect(page).to have_css("section[aria-label='判定']", text: "カードにならなかった")
       expect(page).to have_no_button("読み終えた")

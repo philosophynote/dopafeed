@@ -3,8 +3,12 @@
 // run は前が終わってから呼ばれ、返した Promise が解けるまで次を待たせる。列を止めないよう、run は必ず解ける Promise を返すこと
 let tail = Promise.resolve()
 
+// 列が空いていると、run は押した form の submit をブラウザが配っている最中のマイクロタスクで呼ばれる。その間の requestSubmit は仕様どおり黙って無視される。
+// 指やキーで押した submit で起きる（JS の click() で押すと、配り終えてからマイクロタスクが回るので起きない）
+const nextTask = () => new Promise((resolve) => setTimeout(resolve))
+
 export function enqueue(run) {
-  tail = tail.then(run)
+  tail = tail.then(nextTask).then(run)
   return tail
 }
 
