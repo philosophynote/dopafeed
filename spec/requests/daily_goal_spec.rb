@@ -61,6 +61,7 @@ RSpec.describe "DailyGoal", type: :request do
       expect(page).to have_css("ul.card-deck li.card-reveal", count: goal_articles)
       expect(page.all("section[aria-label='宝箱の中身'] .finale-drop").map { |row| row["style"][/--i: (\d+)/, 1] }).to eq(%w[0 1 2])
       expect(DailyGoal.find_by(day: today).chest_opened_at).to be_present
+      expect(page.find("[data-finale]")["style"]).to include("--reveal-start:", "--lid-delay:", "--fireworks-start:") # カードは蓋が開き終えてから
 
       travel_to(noon + 1.minute) { get daily_goal_path }
       expect(page).to have_css("svg[data-chest=open]")
@@ -89,6 +90,7 @@ RSpec.describe "DailyGoal", type: :request do
     it "Main のステータス行からの入口は先読みしない（先読みだけでフィナーレを使い切らない）" do
       travel_to(noon) { get root_path }
       expect(page).to have_css("a[href='#{daily_goal_path}'][data-turbo-prefetch='false']")
+      expect(page.find("a[href='#{daily_goal_path}']")[:class]).to include("[-webkit-touch-callout:none]") # iOS の長押しのプレビューも宛先を読み込む
     end
 
     it "yml に cards.reveal_stagger_ms があれば、その幅で 1 枚ずつずらしてめくる" do

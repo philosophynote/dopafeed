@@ -608,6 +608,7 @@ RSpec.describe "Readings", type: :request do
         expect(divider).to have_text("今日のゴール #{goal_articles} / #{goal_articles} ・ 読み切った！")
         expect(divider).to have_link("宝箱を開く", href: daily_goal_path)
         expect(divider).to have_css("a[href='#{daily_goal_path}'][data-turbo-prefetch='false']") # 先読みだけでフィナーレを使い切らない
+        expect(divider.find_link("宝箱を開く")[:class]).to include("[-webkit-touch-callout:none]") # 長押しのプレビューでも使い切らない
         expect(DailyGoal.find_by(day: ReadingDay.of(noon))).to be_achieved
 
         travel_to(noon + threshold * 2) { post_turbo(sixth.reload.reading) }

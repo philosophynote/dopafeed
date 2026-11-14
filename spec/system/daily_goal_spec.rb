@@ -56,7 +56,7 @@ RSpec.describe "DailyGoal", type: :system do
     expect(page).to have_css("ul.card-deck li h3", text: "今日の最後の 1 本")
     expect(page).to have_text("#{goal_articles} 本 ・")
     expect(page).to have_no_button("もう 1 本だけ")
-    expect(page).to have_css("[data-finale] .fireworks")
+    expect(page).to have_css("[data-finale] .fireworks span", visible: :all, count: 12)
     screenshot!("finale")
     # めくりの途中では回転でカードの幅が縮むため、有限の演出が終わってからタップ領域を測る。
     page.evaluate_async_script(<<~JS)
@@ -96,7 +96,7 @@ RSpec.describe "DailyGoal", type: :system do
     it "フィナーレの途中で別の画面へ移って履歴で戻っても、やり直さない" do
       sign_in
       visit daily_goal_path
-      expect(page).to have_css("[data-finale] .fireworks")
+      expect(page).to have_css("[data-finale] .fireworks span", visible: :all, count: 12)
 
       click_on "今日はここまで"
       expect(page).to have_current_path(root_path)

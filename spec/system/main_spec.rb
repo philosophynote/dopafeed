@@ -454,6 +454,10 @@ RSpec.describe "Main", type: :system do
         document.querySelector(".reel-gold").getAnimations().filter((a) => a.animationName === "tier-glow").map((a) => a.effect.getTiming().delay)
       JS
       expect(glow).to eq([ Dopamine.settings.dig(:cards, :reveal_duration_ms) ]), "金の帯もリールが止まってから光る"
+      sweep = page.evaluate_script(<<~JS)
+        document.querySelector(".reel-gold").getAnimations().filter((a) => a.animationName === "reel-gold-sweep").map((a) => a.effect.getTiming().delay)
+      JS
+      expect(sweep).to eq([ Dopamine.settings.dig(:cards, :reveal_duration_ms) ]), "金の光の筋もリールが止まってから走る"
       ax_names = page.driver.browser.execute_cdp("Accessibility.getFullAXTree")["nodes"].filter_map { |node| node.dig("name", "value") }
       expect(ax_names.grep(/通常.*レア|レア.*通常/m)).to be_empty, "回る途中の札を読み上げない"
       screenshot!("jackpot")

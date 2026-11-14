@@ -10,8 +10,8 @@ RSpec.describe "効果音", type: :system do
     page.evaluate_script('JSON.parse(sessionStorage.getItem("sfx-log") || "[]")')
   end
 
-  def wait_for_sfx(count)
-    Timeout.timeout(Capybara.default_max_wait_time) { sleep 0.05 until sfx_log.size >= count }
+  def wait_for_sfx(count, within: Capybara.default_max_wait_time)
+    Timeout.timeout(within) { sleep 0.05 until sfx_log.size >= count }
     sfx_log
   rescue Timeout::Error
     sfx_log
@@ -214,7 +214,8 @@ RSpec.describe "効果音", type: :system do
     create(:daily_goal, :achieved, day: ReadingDay.of)
     visit daily_goal_path
     expect(page).to have_text("読み切った！")
-    expect(wait_for_sfx(2)).to eq(%w[chest fanfare]) # 蓋が開く音と、花火のファンファーレ
+    # ファンファーレは蓋・カード・行の後なので、既定の待ち時間より遅れて鳴る
+    expect(wait_for_sfx(2, within: 5)).to eq(%w[chest fanfare])
 
     page.refresh
     expect(page).to have_text("読み切った！")

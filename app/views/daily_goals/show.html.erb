@@ -4,7 +4,7 @@
 <% timing = finale_timing(card_count: @summary.count, row_count: 3) if @finale %>
 <%# 履歴で戻ったときにフィナーレをやり直さないよう、スナップショットの前に止める %>
 <div class="-mx-4 -mt-4 -mb-24 flex min-h-dvh flex-col items-center gap-5 bg-[#FFF8EC] px-7 pb-10 pt-16 text-center"
-     <%= tag.attributes(data: { finale: true, controller: "fanfare", action: "turbo:before-cache@document->fanfare#skip" }, style: "--finale-start: #{timing[:rows_start]}ms; --finale-step: #{timing[:row_step]}ms; --fireworks-start: #{timing[:fireworks_start]}ms") if @finale %>>
+     <%= tag.attributes(data: { finale: true, controller: "fanfare", action: "turbo:before-cache@document->fanfare#skip" }, style: finale_style(timing)) if @finale %>>
   <p class="text-xs font-bold tracking-widest text-amber-700">DAILY GOAL</p>
   <% if achieved %>
     <h1 class="text-balance text-3xl font-black leading-tight tracking-tight">今日の <%= @summary.goal %> 本、読み切った！</h1>
