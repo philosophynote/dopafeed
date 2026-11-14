@@ -22,4 +22,7 @@ Rails.application.configure do
   config.active_support.deprecation = :stderr
 
   config.action_controller.raise_on_missing_callback_actions = true
+
+  # system spec では音を出さず、鳴らした音の名前を記録させる（app/javascript/controllers/sfx.js）
+  config.x.sfx_record = true
 end

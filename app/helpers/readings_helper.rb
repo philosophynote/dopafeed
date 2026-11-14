@@ -26,6 +26,13 @@ module ReadingsHelper
     end
   end
 
+  # 通常の出目は鳴らさない（毎回鳴ると、上の段が出たときに効かなくなる）
+  def rarity_cue(name)
+    if name == Dopamine.top_rarity[:name] then "gold"
+    elsif !base_rarity?(name) then "rare"
+    end
+  end
+
   def rarity_percent(rarity)
     number_with_precision(rarity[:probability] * 100, precision: 1, strip_insignificant_zeros: true)
   end

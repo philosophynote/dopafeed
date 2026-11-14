@@ -6,6 +6,8 @@
 <div class="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-label="ルーレット"
      style="--roulette-duration: <%= duration %>ms"
      data-controller="roulette" data-roulette-duration-value="<%= duration %>" data-tier="<%= reading.tier %>" data-turbo-temporary>
+  <%# 金なら直後の Jackpot がファンファーレを鳴らすので、ここでは鳴らさない（重ねると濁る） %>
+  <%= sfx_cue(rarity_cue(reading.tier), delay: duration) unless reading.jackpot? %>
   <div class="w-full max-w-md rounded-[28px] bg-white p-5 shadow-2xl">
     <p class="text-center text-xs font-semibold text-gray-500">「読む」を押した <%= reveal_seconds %> 秒間</p>
 

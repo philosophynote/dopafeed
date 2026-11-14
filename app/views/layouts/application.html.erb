@@ -9,6 +9,7 @@
     <meta name="theme-color" content="#f3f4f6">
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
+    <%= tag.meta name: "sfx-record" if Rails.configuration.x.sfx_record %>
 
     <%= yield :head %>
 

@@ -39,6 +39,7 @@
           <%= render "cards/card", card: card, reveal_order: i %>
         <% end %>
       </ul>
+      <%= sfx_cue("chest") %>
     <% else %>
       <p class="text-base font-bold">あと <%= @summary.remaining %> 本で宝箱</p>
       <p class="mt-1 text-sm text-gray-600">今日の合計 <%= @summary.count %> 本 ・ <%= @summary.dwell_seconds / 60 %> 分</p>

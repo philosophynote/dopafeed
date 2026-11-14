@@ -2,6 +2,7 @@ import { Controller } from "@hotwired/stimulus"
 import { Turbo } from "@hotwired/turbo-rails"
 import { EDGE_PX, LOCK_PX } from "controllers/swipe_thresholds"
 import { enqueue as enqueueSubmission, noteSwipeFailed, noteSwipeSent } from "controllers/submission_queue"
+import { play } from "controllers/sfx"
 
 const FLY_OUT_RATIO = 1.2
 // transitionend を待つ上限に足す余裕。合図が来なくても止まった頃に次へ進むため
@@ -31,6 +32,7 @@ export default class extends Controller {
     this.tracking = true
     this.horizontal = false
     this.dx = 0
+    this.swipeSounded = false
     this.samples = [{ t: event.timeStamp, x: event.clientX }]
     this.settleCleanup?.()
     this.cardTarget.classList.remove("swipe-settling")
@@ -121,6 +123,11 @@ export default class extends Controller {
       rail.style.width = `${shown ? Math.abs(dx) : 0}px`
       rail.classList.toggle("swipe-armed", shown && progress >= 1)
     })
+    // 鳴らすのは 1 回の引きで最初に閾値を越えた瞬間だけ（戻して越え直す間や、離して流れ出す間に鳴り直さない）
+    if (this.tracking && progress >= 1 && !this.swipeSounded) {
+      this.swipeSounded = true
+      play("swipe")
+    }
   }
 
   // 長さを固定すると reduced motion や CSS の変更に追従しないため、CSS から読む。
@@ -219,6 +226,7 @@ export default class extends Controller {
     event.preventDefault()
     if (swiped || this.flying || this.opening || this.awaiting) return
 
+    play("tap")
     if (this.readTarget.tagName === "A") {
       const href = this.readTarget.href
       enqueueSubmission(() => Turbo.visit(href))
