@@ -21,6 +21,10 @@ RSpec.describe "区切りの見せ場", type: :system do
     count.times { |i| card_at(start + (step * (i + 1))) }
   end
 
+  def folded_to_one_line?(element)
+    page.evaluate_script("(s => s.whiteSpace === 'nowrap' && s.textOverflow === 'ellipsis' && s.overflow === 'hidden')(getComputedStyle(arguments[0]))", element)
+  end
+
   def animation_of(selector)
     page.evaluate_script("getComputedStyle(document.querySelector(#{selector.to_json})).animationName")
   end
@@ -150,10 +154,12 @@ RSpec.describe "区切りの見せ場", type: :system do
 
     overlay = find("[role='dialog'][aria-label='金のカードの開封']")
     expect(overlay.find("[data-highlight-rest]")).to have_text("NEW RECORD! 4 連続 ・ 4 連続！")
+    expect(folded_to_one_line?(overlay.find("[data-highlight-rest]"))).to be(true), "重なりが多くても 1 行に収める"
     screenshot!("gold")
     overlay.click
     expect(banner["data-highlight"]).to eq("new_record")
     expect(banner.find("[data-highlight-rest]")).to have_text("金のカード！ ・ 4 連続！")
+    expect(folded_to_one_line?(banner.find("[data-highlight-rest]"))).to be(true), "重なりが多くても 1 行に収める"
   end
 
   it "判定済みの区切りを再読込しても、見せ場は出ない（数えるのは判定した直後だけ）" do

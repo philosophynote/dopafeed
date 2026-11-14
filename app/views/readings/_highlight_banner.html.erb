@@ -8,6 +8,6 @@
   <% end %>
   <p class="highlight-lead relative text-2xl font-black tracking-tight"><%= highlight_label(lead, highlights) %></p>
   <% if highlights.rest.any? %>
-    <p class="relative text-xs font-bold opacity-90" data-highlight-rest><%= highlights.rest.map { |kind| highlight_label(kind, highlights) }.join(" ・ ") %></p>
+    <p class="relative truncate text-xs font-bold opacity-90" data-highlight-rest><%= highlights.rest.map { |kind| highlight_label(kind, highlights) }.join(" ・ ") %></p>
   <% end %>
 </div>
