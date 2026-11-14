@@ -5,6 +5,8 @@ shared:
   cards:
     reveal_duration_ms: 500
     reveal_stagger_ms: 120
+    fever_combo: 5
+    record_floor: 2
     rarities:
       - { name: common, probability: 0.70 }
       - { name: rare, probability: 0.25 }

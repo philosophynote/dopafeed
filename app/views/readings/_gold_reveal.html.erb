@@ -9,6 +9,10 @@
   <div class="relative mx-auto flex h-full w-full max-w-md flex-col items-center justify-center px-6 text-center">
     <p class="text-sm font-bold tracking-[0.3em] text-yellow-200/80">JACKPOT</p>
     <p class="mt-2 text-balance text-2xl font-black text-[#FFD166]"><%= card_name(reading.tier) %>を手に入れた！</p>
+    <% others = (local_assigns[:highlights]&.kinds || []) - [ :jackpot ] %>
+    <% if others.any? %>
+      <p class="mt-1 truncate text-sm font-bold text-yellow-100" data-highlight-rest><%= others.map { |kind| highlight_label(kind, highlights) }.join(" ・ ") %></p>
+    <% end %>
     <ul class="card-deck mt-6 w-48"><%= render "cards/card", card: reading, reveal_order: 0, id: nil, link: false %></ul>
     <p class="mt-4 text-sm text-gray-300">図鑑に残った</p>
     <button type="button" class="mt-6 flex h-12 w-full items-center justify-center rounded-full bg-[#FFD166] text-base font-bold text-gray-900 active:bg-yellow-300" data-reveal-target="close">閉じる</button>

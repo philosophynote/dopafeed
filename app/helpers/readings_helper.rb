@@ -33,6 +33,23 @@ module ReadingsHelper
     end
   end
 
+  def highlight_label(kind, highlights)
+    case kind
+    when :new_record then "NEW RECORD! #{highlights.combo} 連続"
+    when :jackpot then "#{card_name(Dopamine.top_rarity[:name])}！"
+    when :comeback then "COMEBACK!"
+    when :recovered then "取り返した！"
+    when :new_feed then "NEW FEED!"
+    when :first_card then "FIRST CARD!"
+    when :fever then "FEVER! #{highlights.combo} 連続"
+    when :combo then "#{highlights.combo} 連続！"
+    end
+  end
+
+  def highlight_cue(highlights)
+    { small: "card", medium: "combo", large: "highlight", huge: "fanfare" }.fetch(highlights.tier)
+  end
+
   def rarity_percent(rarity)
     number_with_precision(rarity[:probability] * 100, precision: 1, strip_insignificant_zeros: true)
   end

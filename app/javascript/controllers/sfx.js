@@ -114,6 +114,14 @@ const CUES = {
     noise({ length: 0.14, volume: 0.1, filter: "bandpass", from: 600, to: 3000 })
     tone(180, { at: 0.12, length: 0.12, slideTo: 70, volume: 0.25 })
   },
+  // 連続が伸びるほど半音ずつ上がる。上がり過ぎて耳に痛くならないよう 1 オクターブで止める
+  combo: (level = 2) => {
+    const step = Math.min(Math.max(level - 2, 0), 12)
+    const base = NOTE.E5 * 2 ** (step / 12)
+    tone(base, { length: 0.1, type: "square", volume: 0.06 })
+    tone(base * 1.5, { at: 0.08, length: 0.2, type: "triangle", volume: 0.1 })
+  },
+  highlight: () => [ NOTE.C6, NOTE.E6, NOTE.G6, NOTE.C6 * 2 ].forEach((f, i) => tone(f, { at: i * 0.07, length: 0.3, type: "triangle", volume: 0.1 })),
   puff: () => noise({ length: 0.3, volume: 0.06, filter: "lowpass", from: 900, to: 200 }),
   fanfare: () => {
     [ NOTE.C5, NOTE.E5, NOTE.G5 ].forEach((f, i) => tone(f, { at: i * 0.09, length: 0.16, type: "square", volume: 0.06 }))
@@ -125,12 +133,12 @@ const CUES = {
   }
 }
 
-export function play(cue) {
+export function play(cue, level) {
   if (!CUES[cue] || !enabled()) return
   if (recording()) return record(cue)
   if (!context) return
-  if (context.state === "running") return CUES[cue]()
+  if (context.state === "running") return CUES[cue](level)
 
   // 起こした直後のタップでは、resume がまだ済んでいないことがある
-  context.resume().then(() => CUES[cue]()).catch(() => {})
+  context.resume().then(() => CUES[cue](level)).catch(() => {})
 }

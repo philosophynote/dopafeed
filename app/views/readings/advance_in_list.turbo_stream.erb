@@ -7,6 +7,6 @@
   <% end %>
 <% end %>
 <%= turbo_stream.replace "status-card" do %>
-  <%= render "main/status_card" %>
+  <%= render "main/status_card", pop: @reading.completed? %>
 <% end %>
 <%= render "shared/unread_count_streams", unread_count: @unread_count %>

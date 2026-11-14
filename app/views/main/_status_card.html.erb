@@ -10,9 +10,12 @@
       </ol>
       <span class="font-semibold"><span class="sr-only">今日のゴール </span><%= @today_count %> / <%= @goal_articles %><span class="sr-only">、</span></span>
     </span>
-    <span class="ml-auto min-w-0 truncate font-semibold text-gray-700"><span class="sr-only">図鑑 </span><%= number_with_delimiter(@cards_count) %> 枚</span>
+    <%# 弾ませた印のままスナップショットに残すと、履歴で戻るたびに弾み直す %>
+    <span class="ml-auto min-w-0 truncate font-semibold text-gray-700 <%= "count-pop" if local_assigns[:pop] %>" data-cards-count
+          <%= tag.attributes(data: { controller: "fanfare", action: "turbo:before-cache@document->fanfare#skip" }) if local_assigns[:pop] %>><span class="sr-only">図鑑 </span><%= number_with_delimiter(@cards_count) %> 枚</span>
     <% if @combo_count > 1 %>
-      <span class="shrink-0 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-700"><span class="sr-only">、</span><%= @combo_count %> 連続</span>
+      <% fever = Dopamine.settings.dig(:cards, :fever_combo) %>
+      <span class="shrink-0 rounded-full px-2 py-0.5 text-xs font-bold <%= fever && @combo_count >= fever ? "fever-badge text-white" : "bg-orange-100 text-orange-700" %>" data-combo><span class="sr-only">、</span><%= @combo_count %> 連続</span>
     <% end %>
     <span class="sr-only">。宝箱を見る</span>
   <% end %>

@@ -3,10 +3,13 @@
 <% fullscreen = local_assigns.fetch(:fullscreen, reveal) %>
 <% tone = completed ? rarity_tone(reading.tier, base: "bg-orange-500 text-white") : "bg-gray-200 text-gray-700" %>
 <% gold_reveal = fullscreen && completed && reading.jackpot? %>
-<%# 鳴らすのは判定した直後だけ。全画面の開封が出るときはそちらのファンファーレだけにする（重ねると濁る） %>
-<% cue = (completed ? "card" : "puff") if reveal && !gold_reveal %>
+<%# 何が起きたかを見せるのは判定した直後だけ。描き直し（再読込・履歴）では数えない %>
+<% highlights = CardHighlights.new(reading) if reveal && completed %>
+<%# 全画面の開封が出るときはそちらのファンファーレだけにする（重ねると濁る） %>
+<% cue = (highlights ? highlight_cue(highlights) : "puff") if reveal && !gold_reveal %>
 <section id="<%= dom_id(reading, :result) %>" class="rounded-2xl p-4 text-center <%= tone %>" aria-label="判定" data-tier="<%= reading.tier %>" data-completed="<%= completed %>">
-  <%= sfx_cue(cue) %>
+  <%= sfx_cue(cue, level: highlights&.combo) %>
+  <%= render "readings/highlight_banner", highlights: highlights if highlights&.lead %>
   <% if completed %>
     <p class="text-xs font-semibold opacity-90">読了</p>
     <p class="text-2xl font-black"><%= card_name(reading.tier) %>を手に入れた！</p>
@@ -14,6 +17,9 @@
     <ul class="card-deck mx-auto mt-3 w-32" data-controller="card-deck" data-action="turbo:before-cache@document->card-deck#settle"><%= render "cards/card", card: reading, reveal_order: (0 if reveal) %></ul>
     <p class="mt-3 text-sm">滞在 <%= dwell_in_words(reading.dwell_seconds) %> ・ <%= reading.combo_count %> 本連続</p>
   <% else %>
+    <% if reveal %>
+      <span class="smoke" aria-hidden="true" data-controller="fanfare" data-action="turbo:before-cache@document->fanfare#skip"><% 3.times { |i| %><span style="--i: <%= i %>"></span><% } %></span>
+    <% end %>
     <p class="text-2xl font-black">カードにならなかった</p>
     <p class="mt-1 text-sm">滞在 <%= dwell_in_words(reading.dwell_seconds) %>。<%= Dopamine.settings.dig(:read, :complete_after_seconds) %> 秒以上読むと手に入る</p>
   <% end %>
@@ -23,5 +29,5 @@
   <% if summary.day == ReadingDay.of && summary.achieved_by?(reading) %>
     <%= link_to "宝箱を開く", daily_goal_path, class: "mt-3 flex h-12 w-full items-center justify-center rounded-full bg-[#FFD166] text-base font-bold text-gray-900 active:bg-yellow-300" %>
   <% end %>
-  <%= render "readings/gold_reveal", reading: reading if gold_reveal %>
+  <%= render "readings/gold_reveal", reading: reading, highlights: highlights if gold_reveal %>
 </section>
