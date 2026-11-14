@@ -1,10 +1,9 @@
 # 段を二重管理しないよう、実行内容は config/ci.rb に集約する。
 name: CI
-
+# main への push では deploy.yml が workflow_call で呼ぶ。ここにも push を書くと main で二度走る
 on:
   pull_request:
-  push:
-    branches: [main]
+  workflow_call:
 
 jobs:
   ci:
