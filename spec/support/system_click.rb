@@ -17,3 +17,12 @@ module SystemJsClick
   end
 end
 Capybara::Selenium::Node.prepend(SystemJsClick)
+
+# 要素の click() は呼んだスクリプトが終わるまでマイクロタスクを回さないので、指で押したときと submit 中の動きが変わる。
+# 指で押す道を確かめる例だけ、chromedriver が合成するブラウザの click（中央を押す）で送る
+module SystemNativeClick
+  def native_click(node)
+    node.click(x: 0, y: 0)
+  end
+end
+RSpec.configure { |config| config.include SystemNativeClick, type: :system }
