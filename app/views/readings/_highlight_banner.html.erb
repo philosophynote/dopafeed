@@ -1,0 +1,14 @@
+<%# 一番大きい 1 つを大きく、残りは 1 行に畳む（ADR 0022）。押すと動きはすぐ止まり、文字は残る。
+    スナップショットを取る前にも止め、履歴で戻ったときに弾み直さない %>
+<% lead = highlights.lead %>
+<div class="highlight-banner highlight-<%= highlights.tier %> <%= "highlight-fever" if lead == :fever %> relative mb-3 overflow-hidden rounded-xl px-3 py-2"
+     role="status" data-highlight="<%= lead %>" data-tier="<%= highlights.tier %>"
+     data-controller="fanfare" data-action="click->fanfare#skip turbo:before-cache@document->fanfare#skip">
+  <% if highlights.tier == :huge %>
+    <span class="burst" aria-hidden="true"><% 10.times { |i| %><span style="--i: <%= i %>"></span><% } %></span>
+  <% end %>
+  <p class="highlight-lead relative text-2xl font-black tracking-tight"><%= highlight_label(lead, highlights) %></p>
+  <% if highlights.rest.any? %>
+    <p class="relative text-xs font-bold opacity-90" data-highlight-rest><%= highlights.rest.map { |kind| highlight_label(kind, highlights) }.join(" ・ ") %></p>
+  <% end %>
+</div>

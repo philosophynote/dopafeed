@@ -168,3 +168,97 @@ main:has(#toast > *) {
 .swipe-list:not(:has(> li:not([hidden]))) + .swipe-list-empty {
   display: block;
 }
+
+/* 区切りの見せ場（ADR 0022）。段が上がるほど大きく弾み、huge だけ欄の中で火花が散る。押すと is-settled で動きだけ止まる */
+.highlight-banner {
+  background: rgb(255 255 255 / 0.18);
+  animation: highlight-pop 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.3) both;
+}
+.highlight-medium .highlight-lead { font-size: 1.25rem; }
+.highlight-large { background: rgb(255 255 255 / 0.28); }
+.highlight-large .highlight-lead { animation: highlight-shine 1.2s ease-out 0.3s both; }
+.highlight-huge {
+  background: linear-gradient(135deg, #fff3c4, #ffd166 45%, #ff9f1c);
+  color: #3b2300;
+}
+.highlight-huge .highlight-lead { font-size: 1.75rem; }
+.highlight-fever .highlight-lead,
+.fever-badge {
+  background: linear-gradient(90deg, #ff2e6b, #ff9f1c, #ffd166, #34d399, #3b82f6, #8b5cf6, #ff2e6b);
+  background-size: 200% 100%;
+  animation: fever-flow 2s linear infinite;
+}
+.highlight-fever .highlight-lead {
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+@keyframes highlight-pop {
+  0% { opacity: 0; transform: scale(0.6); }
+  60% { opacity: 1; transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+@keyframes highlight-shine {
+  from { text-shadow: 0 0 0.75rem rgb(255 255 255 / 0.95); }
+  to { text-shadow: none; }
+}
+@keyframes fever-flow {
+  to { background-position: 200% 0; }
+}
+.burst span {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 9999px;
+  background: #ff2e6b;
+  animation: burst 0.9s ease-out both;
+  transform: rotate(calc(var(--i) * 36deg)) translateX(0);
+}
+.burst span:nth-child(2n) { background: #fff; }
+@keyframes burst {
+  to { transform: rotate(calc(var(--i) * 36deg)) translateX(9rem); opacity: 0; }
+}
+.highlight-banner.is-settled,
+.highlight-banner.is-settled * {
+  animation: none;
+}
+.highlight-banner.is-settled .burst { display: none; }
+
+/* カードにならなかったときの小さな煙。責めずに、空振りしたことだけを伝える */
+.smoke {
+  position: relative;
+  display: block;
+  height: 1.5rem;
+}
+.smoke span {
+  position: absolute;
+  left: calc(50% - 0.5rem + (var(--i) - 1) * 0.9rem);
+  bottom: 0;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 9999px;
+  background: rgb(107 114 128 / 0.35);
+  animation: smoke-rise 1.1s ease-out calc(var(--i) * 0.12s) both;
+}
+@keyframes smoke-rise {
+  from { opacity: 0.9; transform: translateY(0.5rem) scale(0.6); }
+  to { opacity: 0; transform: translateY(-1rem) scale(1.4); }
+}
+
+/* 図鑑の枚数がカードを手に入れた応答で +1 されたとき */
+.count-pop {
+  display: inline-block;
+  animation: count-pop 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.4) both;
+}
+@keyframes count-pop {
+  40% { transform: scale(1.35); color: #ea580c; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .highlight-banner, .highlight-banner *, .count-pop, .fever-badge { animation: none; }
+  .burst, .smoke { display: none; }
+}
+/* 橙の区切りの上では虹の文字が沈むので、FEVER だけ暗い地に載せる */
+.highlight-fever { background: #141416; }

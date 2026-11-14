@@ -21,24 +21,6 @@ RSpec.describe "効果音", type: :system do
     find("button[role='switch']", text: "効果音")
   end
 
-  def expand(title)
-    find("article", text: title).find_button("読む").click
-    expect(page).to have_link("記事に遷移")
-  end
-
-  # 別窓を開かせず、開いた時刻が届くのを待ってから滞在を作る
-  def read_in_list(title, dwell:)
-    page.execute_script(<<~JS)
-      document.addEventListener("click", (event) => { if (event.target.closest("a[target=_blank]")) event.preventDefault() }, true)
-    JS
-    reading = Article.find_by!(title: title).reading
-    since = reading.reload.opened_at
-    find("li", text: title).find_link("記事に遷移").click
-    Timeout.timeout(Capybara.default_max_wait_time) { sleep 0.05 until reading.reload.opened_at > since }
-    reading.update_columns(opened_at: Time.current - dwell)
-    click_on "読み終えた"
-  end
-
   it "設定画面の「効果音」は初めはオンで、切り替えると再読込しても残り、オンに戻したときだけ試しに 1 回鳴る" do
     sign_in
     visit learning_path
@@ -127,7 +109,7 @@ RSpec.describe "効果音", type: :system do
     expect(elapsed).to be < Dopamine.settings.dig(:cards, :reveal_duration_ms) * 0.7
   end
 
-  it "一覧で未完なら煙、完読ならめくりの音が鳴り、Turbo の履歴で戻っても再読込しても鳴り直さない" do
+  it "一覧で未完なら煙、完読なら段に応じた音（今日の 1 枚目は見せ場の音）が鳴り、Turbo の履歴で戻っても再読込しても鳴り直さない" do
     allow(RarityDraw).to receive(:draw).and_return(common)
     create(:article, title: "読む記事", summary: "・要約")
     sign_in
@@ -139,7 +121,7 @@ RSpec.describe "効果音", type: :system do
 
     read_in_list("読む記事", dwell: threshold + 5)
     expect(page).to have_css("section[aria-label='判定']", text: "を手に入れた！")
-    expect(wait_for_sfx(3)).to eq(%w[tap puff card])
+    expect(wait_for_sfx(3)).to eq(%w[tap puff highlight])
 
     # visit だとブラウザの遷移になり、Turbo のスナップショットを通らない
     find("a[aria-label='設定']").click
@@ -147,15 +129,15 @@ RSpec.describe "効果音", type: :system do
     page.go_back
     expect(page).to have_css("section[aria-label='判定']", text: "を手に入れた！")
     sleep 0.3
-    expect(sfx_log).to eq(%w[tap puff card])
+    expect(sfx_log).to eq(%w[tap puff highlight])
 
     page.refresh
     expect(page).to have_css("article", text: "読む記事", count: 0)
     sleep 0.3
-    expect(sfx_log).to eq(%w[tap puff card])
+    expect(sfx_log).to eq(%w[tap puff highlight])
   end
 
-  it "Main の欄で金のカードを手に入れても、全画面は出ないのでめくりの音が鳴る" do
+  it "Main の欄で金のカードを手に入れると、全画面は出ないが欄の中でファンファーレが鳴る" do
     allow(RarityDraw).to receive(:draw).and_return(jackpot)
     create(:article, title: "金の記事", summary: "・要約")
     sign_in
@@ -163,7 +145,7 @@ RSpec.describe "効果音", type: :system do
     expand("金の記事")
     read_in_list("金の記事", dwell: threshold + 5)
     expect(page).to have_css("section[aria-label='判定']", text: "金のカードを手に入れた！")
-    expect(wait_for_sfx(3)).to eq(%w[tap gold card])
+    expect(wait_for_sfx(3)).to eq(%w[tap gold fanfare])
   end
 
   it "Saved のルーレットはレアで止まった瞬間にだけ鳴り、通常では鳴らない" do
