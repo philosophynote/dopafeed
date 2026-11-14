@@ -18,7 +18,7 @@
 3. 「読み終えた」ボタン。「記事を開く」を押すまで隠す（JS が無いときは最初から見える）。判定が済むと区切りに置き換わる
 4. 区切り（判定）: 完読なら出目の色（通常・レアは橙、金は金色）で「読了」「レアカードを手に入れた！」、手に入れたカード（`cards/_card`。判定した直後の応答では裏（ロゴ）から表へめくれる。長さは `cards.reveal_duration_ms`。金はさらに全画面で開封し、どこを押しても Escape でも閉じる。再読込の描き直しではめくらず全画面も出さない。`prefers-reduced-motion` なら表のまま出す。#106 23c）、「滞在 X ・ n 本連続」、未完なら灰で「カードにならなかった」「滞在 X。S 秒以上読むと手に入る」（S = `read.complete_after_seconds`）。どちらも「今日のゴール n / 5 ・ あと m 本で宝箱」（`daily_goal.articles`）。完読数がちょうど 5 本目の区切りには金色の「宝箱を開く」（→ DailyGoal。Unit 7 #55）。判定した直後だけ効果音: 完読は見せ場の段に応じた音（下の「区切りの見せ場」。見せ場が無ければめくりの音）、未完は柔らかい煙の音、金の全画面ではファンファーレだけ（#100、ADR 0022）
    - 見せ場（#100 22b、ADR 0022。判定した直後だけ。再読込や履歴で戻った描き直しでは出さない）: 区切りの上に、起きたことのうち一番大きい 1 つを大きく出し、残りは 1 行に畳む（入りきらなければ末尾を省く）。押すと動きだけが止まり、文字は残る。判定はサーバー（`CardHighlights`）
-     - 特大: 「NEW RECORD! n 連続」（今日の連続が過去の最長を初めて超えた。過去の最長が 2 以上のときだけ）、「金のカード！」。欄の中で火花が散り、ファンファーレ
+     - 特大: 「NEW RECORD! n 連続」（今日の連続が過去の最長を初めて超えた。過去の最長が `cards.record_floor`（2）以上のときだけ。鍵が無ければ出さない）、「金のカード！」。欄の中で火花が散り、ファンファーレ
      - 大: 「COMEBACK!」（昨日 0 本で、それより前にカードがある日の 1 枚目）、「取り返した！」（同じ読書日の直前の判定が未完）、「NEW FEED!」（そのフィードで初めてのカード）、「FIRST CARD!」（今日の 1 枚目）。上がっていく和音
      - 中: 「n 連続！」。`cards.fever_combo` 本に届いたら「FEVER! n 連続」を虹色で出す（鍵が無ければ出さない）。連続が伸びるほど音が半音ずつ上がる
      - 小: 何も出さず、めくりの音だけ
@@ -62,7 +62,7 @@
 - Given 「読む」を押していない記事 When 新しい記事が取り込まれる Then 要約は作られない（API を呼ばない）
 
 ## 使う設定の鍵
-dopamine.yml: `read.complete_after_seconds`, `claude.daily_call_limit`, `cards.rarities`, `cards.reveal_duration_ms`（区切りのカードのめくり）, `cards.fever_combo`（FEVER になる連続の本数。#100）, `daily_goal.articles`
+dopamine.yml: `read.complete_after_seconds`, `claude.daily_call_limit`, `cards.rarities`, `cards.reveal_duration_ms`（区切りのカードのめくり）, `cards.fever_combo`（FEVER になる連続の本数。#100）, `cards.record_floor`（NEW RECORD と呼ぶ過去の最長の下限。#100）, `daily_goal.articles`
 personas.yml: なし
 
 ## 外部 API

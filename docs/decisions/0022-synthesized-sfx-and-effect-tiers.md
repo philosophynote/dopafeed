@@ -28,10 +28,10 @@ nao の決定（2026-11-08「ドーパミン成分が足りない、dopairb を�
 | 設定で効果音をオンに戻した | tap（試しに） |
 
 ## 見せ場の段（22b）
-`CardHighlights`（app/models）が、判定した Reading と過去の行から起きたことを段の大きい順に並べる。数字は既存の鍵と `cards.fever_combo`（nao が 5 で採用）からだけ導く。
+`CardHighlights`（app/models）が、判定した Reading と過去の行から起きたことを段の大きい順に並べる。数字は既存の鍵と `cards.fever_combo`（nao が 5 で採用）・`cards.record_floor`（nao が 2 で採用）からだけ導く。
 | 段 | 見せ場 | 音 |
 |---|---|---|
-| 特大 | NEW RECORD（今日の連続が過去の最長を初めて超えた。過去の最長が 2 以上のときだけ）、金のカード | fanfare |
+| 特大 | NEW RECORD（今日の連続が過去の最長を初めて超えた。過去の最長が `cards.record_floor` 以上のときだけ）、金のカード | fanfare |
 | 大 | COMEBACK、取り返した、NEW FEED、FIRST CARD | highlight |
 | 中 | FEVER（`cards.fever_combo` 以上）、n 連続（2 以上） | combo（連続で音程が上がる） |
 | 小 | なし | card |
