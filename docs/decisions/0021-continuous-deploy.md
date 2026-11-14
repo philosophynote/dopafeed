@@ -9,7 +9,7 @@
 - **流れ**: main への push で `deploy.yml` が `ci.yml` を `workflow_call` で呼び、通ったら同じ run の deploy ジョブが `bin/kamal deploy` を打つ。CI が検証した commit をそのまま配る。`ci.yml` の `push: main` は外し、main で CI が二度走らないようにする。concurrency は順番を守らないので、配る直前に main の先端か確かめ、古ければ配らない
 - **外部の action は commit で固定する**: 秘密・OIDC・packages:write に触れるジョブなので、タグの差し替えに巻き込まれないよう SHA で書き、版はコメントに残す。`docker/setup-buildx-action` は使わない（Kamal が自分で builder を作る）
 - **入口**: runner はジョブの間だけ Tailscale の使い捨てノード（`tag:ci`）として tailnet に入り、サーバー（`tag:prod`）の OpenSSH に繋ぐ。policy は `autogroup:member` と `tag:ci` から `tag:prod` の 22 番だけ。Tailscale SSH・Serve・Funnel は使わない（2026 年の脆弱性公告がこの機能に集中した）。サーバーの Tailscale は 1.104.4 以上、自動更新
-- **Tailscale の認証**: workload identity federation（GitHub の OIDC）。subject は `repo:philosophynote/dopafeed:environment:production`。Tailscale の秘密を GitHub に置かない
+- **Tailscale の認証**: workload identity federation（GitHub の OIDC）。subject は `repo:philosophynote@78991083/dopafeed@1429876541:environment:production`（GitHub が新しいリポジトリに出す、番号付きの形）。Tailscale の秘密を GitHub に置かない
 - **レジストリ**: GHCR（`ghcr.io/philosophynote/dopafeed`）。CI は `GITHUB_TOKEN`、Mac は `write:packages` だけの classic PAT（`export` せず、`kamal` を打つ時だけ渡す）。パッケージは public（private は無料枠の転送が月 1 GB で、サーバーの pull で数回のうちに尽きる。中身は public なリポジトリのコードと gem で、master.key は `.dockerignore` で外れる）
 - **宛先**: `servers.web` は `DEPLOY_HOST`（サーバーの Tailscale IP）を ERB で読む。IP をリポジトリに載せない（nao の希望）。CI は Environment の変数、Mac は `~/.zshrc` で渡す。DNS と `proxy.host` は dopafeed.dev のまま
 - **秘密**: Environment `production`（main のみ）に `RAILS_MASTER_KEY`・`SSH_PRIVATE_KEY`（デプロイ専用の ed25519）・`TS_OAUTH_CLIENT_ID`、変数に `TS_AUDIENCE`・`DEPLOY_HOST`。Repository secrets には置かない。`.kamal/secrets` は既存の行を残して `KAMAL_REGISTRY_PASSWORD` を 1 行足すだけ。CI は `config/master.key` を書き、既存の `credentials:fetch` をそのまま動かす
