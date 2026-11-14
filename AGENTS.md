@@ -61,3 +61,6 @@
 - GitHub Actions の Deploy / Rollback を手動で起こすな。本番に出るのは nao のマージと手動実行だけ（ADR 0021）
 - config/dopamine.yml の値を変えるな。変えたいなら PR 本文で提案せよ
 - 同じ修正に二度失敗したら止まって報告せよ
+
+## 規約
+回答は全て日本語にしてください
