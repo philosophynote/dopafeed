@@ -87,3 +87,29 @@ RSpec.describe DailyGoal, ".achieve_if_reached!" do
     expect(DailyGoal.achieve_if_reached!(at: at_reset + 5.minutes).day).to eq(today + 1)
   end
 end
+
+RSpec.describe DailyGoal, "#open_chest!" do
+  it "達成した日に初めて開いたときだけ true を返して時刻を残し、2 度目からは false で時刻を動かさない" do
+    goal = create(:daily_goal, :achieved)
+    at = goal.achieved_at + 1.hour
+
+    expect(goal.open_chest!(at: at)).to be(true)
+    expect(goal.reload.chest_opened_at).to be_within(1.second).of(at)
+    expect(goal.open_chest!(at: at + 1.hour)).to be(false)
+    expect(goal.reload.chest_opened_at).to be_within(1.second).of(at)
+  end
+
+  it "別の読み込みで先に開かれていたら、古い行から開いても false で上書きしない（2 つの画面で同時に開いてもフィナーレは 1 回）" do
+    goal = create(:daily_goal, :achieved)
+    stale = DailyGoal.find(goal.id)
+
+    expect(goal.open_chest!).to be(true)
+    expect(stale.open_chest!).to be(false)
+  end
+
+  it "未達の行は開けない" do
+    goal = create(:daily_goal)
+    expect(goal.open_chest!).to be(false)
+    expect(goal.reload.chest_opened_at).to be_nil
+  end
+end

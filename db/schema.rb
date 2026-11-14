@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_08_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_14_000000) do
   create_table "articles", force: :cascade do |t|
     t.integer "feed_id", null: false
     t.string "title", null: false
@@ -51,6 +51,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_150000) do
     t.datetime "achieved_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "chest_opened_at"
     t.index ["day"], name: "index_daily_goals_on_day", unique: true
   end
 
