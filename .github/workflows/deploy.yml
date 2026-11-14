@@ -1,0 +1,78 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    needs: ci
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    # 途中で止めると kamal のロックと半端なコンテナが残るので、後の実行は待たせる
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    env:
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+    steps:
+      # 本番の秘密に触れるジョブなので、外部の action はタグでなく commit で固定する
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
+        with:
+          bundler-cache: true
+
+      - name: Join tailnet
+        uses: tailscale/github-action@064b10558093f38325e838ddea35486bdc6b1d5c # v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ vars.TS_AUDIENCE }}
+          tags: tag:ci
+          ping: ${{ vars.DEPLOY_HOST }}
+
+      - uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555 # v0.10.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      # 相手の正体は tailnet の WireGuard 鍵で確かめ済みなので、ホスト鍵は実行時に取ってよい
+      - name: Add host key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -t ed25519 "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      # .kamal/secrets は cat config/master.key と credentials:fetch で値を作るので、鍵ファイルを置けば既存の行が動く
+      - name: Write config/master.key
+        env:
+          RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+        run: |
+          umask 077
+          printf '%s' "$RAILS_MASTER_KEY" > config/master.key
+
+      # concurrency は順番を守らないので、CI が後から終わった古い commit が新しい commit の後に配られうる
+      - name: Check that this is still the tip of main
+        id: tip
+        run: |
+          tip=$(git ls-remote origin refs/heads/main | cut -f1)
+          if [ "$tip" != "$GITHUB_SHA" ]; then
+            echo "main は $tip に進んでいるので $GITHUB_SHA は配らない"
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy
+        if: steps.tip.outputs.stale != 'true'
+        env:
+          KAMAL_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: bin/kamal deploy

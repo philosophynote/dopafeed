@@ -99,6 +99,22 @@ RSpec.describe "Swipe", type: :system do
     expect(Article.find_by(title: "戻す記事")).not_to be_dismissed
   end
 
+  it "ブラウザが合成した click（指で押したとき）でも、「元に戻す」で行が戻る" do
+    create(:article, title: "上の記事", published_at: now - 1.hour)
+    create(:article, title: "戻す記事", published_at: now - 2.hours)
+    sign_in
+    width = card_width("戻す記事")
+
+    drag_card("戻す記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 1.3, 40 ])
+    toast = find("#toast [data-controller='toast']", text: "1 件を削除しました")
+    native_click(toast.find_button("元に戻す"))
+
+    expect(page).to have_css("article", count: 2)
+    expect(all("article h2").map(&:text)).to eq(%w[上の記事 戻す記事])
+    expect(page).to have_no_css("#toast [data-controller='toast']")
+    expect(Article.find_by(title: "戻す記事")).not_to be_dismissed
+  end
+
   it "トーストは yml の toast.visible_seconds が経つと消え、消えた後も記録は残る" do
     allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.deep_merge(toast: { visible_seconds: 1 }))
     create(:article, title: "消す記事", published_at: now - 1.hour)

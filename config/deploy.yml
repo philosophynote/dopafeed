@@ -1,17 +1,21 @@
 service: dopafeed
 
-image: dopafeed
+image: philosophynote/dopafeed
 
+# サーバーの Tailscale IP を public なリポジトリに載せないため、環境変数で受ける（ADR 0021）
 servers:
   web:
-    - dopafeed.dev
+    - <%= ENV.fetch("DEPLOY_HOST") %>
 
 proxy:
   ssl: true
   host: dopafeed.dev
 
 registry:
-  server: localhost:5555
+  server: ghcr.io
+  username: philosophynote
+  password:
+    - KAMAL_REGISTRY_PASSWORD
 
 env:
   secret:
