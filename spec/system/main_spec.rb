@@ -450,6 +450,12 @@ RSpec.describe "Main", type: :system do
       expect(page).to have_no_text("JACKPOT")
       expect(band).to have_css(".reel")
       expect(page).to have_css("li[id^='article_'] .coins span", minimum: 1)
+      glow = page.evaluate_script(<<~JS)
+        document.querySelector(".reel-gold").getAnimations().filter((a) => a.animationName === "tier-glow").map((a) => a.effect.getTiming().delay)
+      JS
+      expect(glow).to eq([ Dopamine.settings.dig(:cards, :reveal_duration_ms) ]), "金の帯もリールが止まってから光る"
+      ax_names = page.driver.browser.execute_cdp("Accessibility.getFullAXTree")["nodes"].filter_map { |node| node.dig("name", "value") }
+      expect(ax_names.grep(/通常.*レア|レア.*通常/m)).to be_empty, "回る途中の札を読み上げない"
       screenshot!("jackpot")
     end
 

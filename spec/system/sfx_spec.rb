@@ -214,12 +214,12 @@ RSpec.describe "効果音", type: :system do
     create(:daily_goal, :achieved, day: ReadingDay.of)
     visit daily_goal_path
     expect(page).to have_text("読み切った！")
-    expect(wait_for_sfx(1)).to eq([ "chest" ])
+    expect(wait_for_sfx(2)).to eq(%w[chest fanfare]) # 蓋が開く音と、花火のファンファーレ
 
     page.refresh
     expect(page).to have_text("読み切った！")
     sleep 0.3
-    expect(sfx_log).to eq([ "chest" ])
+    expect(sfx_log).to eq(%w[chest fanfare])
   end
 
   it "効果音を切ると、どこでも鳴らない" do

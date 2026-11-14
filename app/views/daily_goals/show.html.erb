@@ -1,10 +1,10 @@
 <% content_for :title, "今日のゴール" %>
 <% achieved = @summary.reached? %>
 <%# フィナーレは蓋 → カードを 1 枚ずつ → 中身の行 → 花火の順。行と花火はカードがめくり終わる時刻から始める %>
-<% cards_ms = Dopamine.settings.dig(:cards, :reveal_duration_ms) + (Dopamine.settings.dig(:cards, :reveal_stagger_ms).to_i * @summary.count) if @finale %>
+<% timing = finale_timing(card_count: @summary.count, row_count: 3) if @finale %>
 <%# 履歴で戻ったときにフィナーレをやり直さないよう、スナップショットの前に止める %>
 <div class="-mx-4 -mt-4 -mb-24 flex min-h-dvh flex-col items-center gap-5 bg-[#FFF8EC] px-7 pb-10 pt-16 text-center"
-     <%= tag.attributes(data: { finale: true, controller: "fanfare", action: "turbo:before-cache@document->fanfare#skip" }, style: "--finale-start: #{cards_ms}ms") if @finale %>>
+     <%= tag.attributes(data: { finale: true, controller: "fanfare", action: "turbo:before-cache@document->fanfare#skip" }, style: "--finale-start: #{timing[:rows_start]}ms; --finale-step: #{timing[:row_step]}ms; --fireworks-start: #{timing[:fireworks_start]}ms") if @finale %>>
   <p class="text-xs font-bold tracking-widest text-amber-700">DAILY GOAL</p>
   <% if achieved %>
     <h1 class="text-balance text-3xl font-black leading-tight tracking-tight">今日の <%= @summary.goal %> 本、読み切った！</h1>
@@ -50,7 +50,7 @@
       </ul>
       <% if @finale %>
         <%= sfx_cue("chest") %>
-        <%= sfx_cue("fanfare", delay: cards_ms + 450) %>
+        <%= sfx_cue("fanfare", delay: timing[:fireworks_start]) %>
       <% end %>
     <% else %>
       <p class="text-base font-bold">あと <%= @summary.remaining %> 本で宝箱</p>

@@ -266,6 +266,7 @@ RSpec.describe "Readings", type: :request do
         expect(reel.find(".reel-inner")["data-reel"].split("\n")).to eq(before_stop.map { |name| ApplicationController.helpers.rarity_label(name) })
         expect(reel["style"]).to include("--reel-steps: #{before_stop.size}", "--reel-duration: #{Dopamine.settings.dig(:cards, :reveal_duration_ms)}ms")
         expect(reel).to have_text("金")
+        expect(band.find("[data-sfx-cue-value='gold']", visible: :all)["data-sfx-delay-value"]).to eq(Dopamine.settings.dig(:cards, :reveal_duration_ms).to_s) # 止まった瞬間に鳴る
         expect(detail(article)).to have_css(".coins span", minimum: 1)
       end
 

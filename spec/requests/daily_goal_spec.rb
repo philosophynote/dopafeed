@@ -69,6 +69,14 @@ RSpec.describe "DailyGoal", type: :request do
       expect(page).to have_text("今日のカード #{goal_articles} 枚", normalize_ws: true)
     end
 
+    it "HEAD では開いたことにしない（描かない要求でフィナーレを使い切らない）" do
+      complete(goal_articles)
+      goal = create(:daily_goal, :achieved, day: today)
+
+      travel_to(noon) { head daily_goal_path }
+      expect(goal.reload.chest_opened_at).to be_nil
+    end
+
     it "未達なら開いた記録を残さず、フィナーレも出さない" do
       complete(2)
       goal = create(:daily_goal, day: today)

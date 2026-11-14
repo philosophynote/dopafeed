@@ -82,6 +82,46 @@ RSpec.describe "DailyGoal", type: :system do
     expect(page).to have_css(".goal-dot[data-filled=true]", count: goal_articles)
   end
 
+  describe "宝箱のフィナーレ" do
+    before do
+      goal_articles.times { create(:reading, :completed, opened_at: Time.current - 1.hour) }
+      create(:daily_goal, :achieved, day: ReadingDay.of)
+      create(:article, title: "まだ読んでいない記事")
+    end
+
+    def running_animations(except: [])
+      page.evaluate_script("document.getAnimations().filter((a) => a.playState === 'running').map((a) => a.animationName)") - except
+    end
+
+    it "フィナーレの途中で別の画面へ移って履歴で戻っても、やり直さない" do
+      sign_in
+      visit daily_goal_path
+      expect(page).to have_css("[data-finale] .fireworks")
+
+      click_on "今日はここまで"
+      expect(page).to have_current_path(root_path)
+      page.go_back
+
+      expect(page).to have_css("[data-finale].is-settled")
+      expect(page).to have_no_css("li.card-reveal")
+      expect(page).to have_no_css(".fireworks")
+      expect(running_animations).to be_empty
+    end
+
+    it "動きを減らす設定なら、蓋もカードも動かさずに開いた形で出し、花火も出さない" do
+      sign_in
+      page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: [ { name: "prefers-reduced-motion", value: "reduce" } ])
+      visit daily_goal_path
+
+      expect(page).to have_css("[data-finale]")
+      expect(page).to have_no_css(".fireworks")
+      expect(page).to have_css("section[aria-label='宝箱の中身'] .finale-drop", count: 3)
+      expect(running_animations(except: %w[chest-open])).to be_empty
+    ensure
+      page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: [])
+    end
+  end
+
   it "達成前に Main のゴール表示をタップすると、閉じた宝箱と「あと N 本」が出て、「読みに戻る」で Main へ" do
     2.times { create(:reading, :completed, opened_at: Time.current - 1.hour) }
     create(:article, title: "まだ読んでいない記事")
