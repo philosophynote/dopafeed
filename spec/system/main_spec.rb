@@ -448,7 +448,32 @@ RSpec.describe "Main", type: :system do
       expect(band[:class]).to include("tier-glow", "bg-amber-400")
       expect(page).to have_current_path(root_path)
       expect(page).to have_no_text("JACKPOT")
+      expect(band).to have_css(".reel")
+      expect(page).to have_css("li[id^='article_'] .coins span", minimum: 1)
       screenshot!("jackpot")
+    end
+
+    it "帯のリールは止まったら回り直さない（履歴で戻っても）。動きを減らす設定なら回さず、コインも出さない" do
+      allow(RarityDraw).to receive(:draw).and_return(rare[:name])
+      create(:article, title: "回る記事", summary: "・一", published_at: 1.hour.ago)
+      create(:article, title: "回らない記事", summary: "・二", published_at: 2.hours.ago)
+      sign_in
+
+      expand("回る記事")
+      expect(page).to have_css(".reel")
+      find("a[aria-label='設定']").click
+      expect(page).to have_no_css("#status-card")
+      page.go_back
+      expect(find("li[id^='article_']", text: "回る記事")).to have_css("[data-tier].is-settled .reel")
+
+      allow(RarityDraw).to receive(:draw).and_return(Dopamine.top_rarity[:name])
+      page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: [ { name: "prefers-reduced-motion", value: "reduce" } ])
+      expand("回らない記事")
+      expect(page).to have_css("li[id^='article_'] .reel-gold .reel")
+      expect(page.evaluate_script("getComputedStyle(document.querySelector('.reel-gold .reel-inner')).animationName")).to eq("none")
+      expect(page).to have_no_css(".coins span")
+    ensure
+      page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: [])
     end
   end
 

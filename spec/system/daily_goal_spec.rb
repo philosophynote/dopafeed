@@ -56,6 +56,8 @@ RSpec.describe "DailyGoal", type: :system do
     expect(page).to have_css("ul.card-deck li h3", text: "今日の最後の 1 本")
     expect(page).to have_text("#{goal_articles} 本 ・")
     expect(page).to have_no_button("もう 1 本だけ")
+    expect(page).to have_css("[data-finale] .fireworks")
+    screenshot!("finale")
     # めくりの途中では回転でカードの幅が縮むため、有限の演出が終わってからタップ領域を測る。
     page.evaluate_async_script(<<~JS)
       const done = arguments[0]
@@ -66,6 +68,13 @@ RSpec.describe "DailyGoal", type: :system do
     expect(small_tap_areas).to be_empty, "44px 未満のタップ領域: #{small_tap_areas.inspect}"
     expect(page.evaluate_script("getComputedStyle(document.querySelector('.chest-lid')).transform")).not_to eq("none")
     screenshot!("achieved")
+
+    page.refresh
+    expect(page).to have_text("今日の #{goal_articles} 本、読み切った！")
+    expect(page).to have_no_css("[data-finale], .fireworks, li.card-reveal")
+    expect(page).to have_css("ul.card-deck li[data-tier]", count: goal_articles)
+    expect(page.evaluate_script("getComputedStyle(document.querySelector('.chest-lid')).transform")).not_to eq("none"), "2 度目は蓋が開いたまま"
+    expect(page.evaluate_script("document.getAnimations().length")).to eq(0)
 
     click_on "今日はここまで"
 

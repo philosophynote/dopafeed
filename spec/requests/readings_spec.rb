@@ -253,6 +253,22 @@ RSpec.describe "Readings", type: :request do
         expect(form).to have_button("読み終えた")
       end
 
+      it "抽選した応答では、帯の出目がリールとして段を 2 周してから止まる（長さは cards.reveal_duration_ms）。金は金のリールと欄の中のコイン" do
+        article = create(:article)
+        allow(RarityDraw).to receive(:draw).and_return(jackpot[:name])
+
+        travel_to(noon) { post_expand(article) }
+
+        names = Dopamine.rarity_names
+        before_stop = names * 2 + names.take(names.index(jackpot[:name]))
+        band = detail(article).find("[data-tier='#{jackpot[:name]}'].reel-gold", text: "出目 金 ・ 完読で金のカード")
+        reel = band.find(".reel")
+        expect(reel.find(".reel-inner")["data-reel"].split("\n")).to eq(before_stop.map { |name| ApplicationController.helpers.rarity_label(name) })
+        expect(reel["style"]).to include("--reel-steps: #{before_stop.size}", "--reel-duration: #{Dopamine.settings.dig(:cards, :reveal_duration_ms)}ms")
+        expect(reel).to have_text("金")
+        expect(detail(article)).to have_css(".coins span", minimum: 1)
+      end
+
       it "要約待ちの記事なら要約の Job を積み、「作成中」と出来上がりの購読を出す（広げた記事だけ要約する。ADR 0015・0019）" do
         article = create(:article, :awaiting_summary)
 
@@ -270,6 +286,7 @@ RSpec.describe "Readings", type: :request do
         expect { post_expand(article) }.not_to have_enqueued_job(Claude::SummarizeArticleJob)
 
         expect(detail(article)).to have_css("[data-tier='#{rare[:name]}']", text: "出目 レア ・ 完読でレアカード")
+        expect(detail(article)).to have_no_css(".reel, .coins") # 抽選し直していないので回さない
         expect(Reading.count).to eq(1)
       end
 
@@ -589,6 +606,7 @@ RSpec.describe "Readings", type: :request do
         divider = page.find("turbo-stream[action='replace'][target='end_reading_#{reading.id}']")
         expect(divider).to have_text("今日のゴール #{goal_articles} / #{goal_articles} ・ 読み切った！")
         expect(divider).to have_link("宝箱を開く", href: daily_goal_path)
+        expect(divider).to have_css("a[href='#{daily_goal_path}'][data-turbo-prefetch='false']") # 先読みだけでフィナーレを使い切らない
         expect(DailyGoal.find_by(day: ReadingDay.of(noon))).to be_achieved
 
         travel_to(noon + threshold * 2) { post_turbo(sixth.reload.reading) }

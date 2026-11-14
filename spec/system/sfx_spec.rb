@@ -143,6 +143,7 @@ RSpec.describe "効果音", type: :system do
     sign_in
 
     expand("金の記事")
+    expect(wait_for_sfx(2)).to eq(%w[tap gold]) # 帯のリールが止まった瞬間
     read_in_list("金の記事", dwell: threshold + 5)
     expect(page).to have_css("section[aria-label='判定']", text: "金のカードを手に入れた！")
     expect(wait_for_sfx(3)).to eq(%w[tap gold fanfare])
@@ -201,7 +202,7 @@ RSpec.describe "効果音", type: :system do
     expect(wait_for_sfx(3)).to eq(%w[tap fanfare fanfare])
   end
 
-  it "宝箱の音は、ゴールを達成した日に宝箱を開いたときだけ鳴る" do
+  it "宝箱の音は、ゴールを達成した日に宝箱を初めて開いたときだけ鳴る。2 度目からは鳴らない" do
     (goal_articles - 1).times { create(:reading, :completed, opened_at: Time.current - 1.hour) }
     sign_in
     visit daily_goal_path
@@ -210,9 +211,15 @@ RSpec.describe "効果音", type: :system do
     expect(sfx_log).to be_empty
 
     create(:reading, :completed, opened_at: Time.current - 1.hour)
+    create(:daily_goal, :achieved, day: ReadingDay.of)
     visit daily_goal_path
     expect(page).to have_text("読み切った！")
     expect(wait_for_sfx(1)).to eq([ "chest" ])
+
+    page.refresh
+    expect(page).to have_text("読み切った！")
+    sleep 0.3
+    expect(sfx_log).to eq([ "chest" ])
   end
 
   it "効果音を切ると、どこでも鳴らない" do

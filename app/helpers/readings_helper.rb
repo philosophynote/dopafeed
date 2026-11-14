@@ -33,6 +33,12 @@ module ReadingsHelper
     end
   end
 
+  # 1 周だけだと金の手前で止まるとき回った感じが出ないので、段を 2 周させてから出目に止める
+  def reel_labels(tier)
+    names = Dopamine.rarity_names
+    (names * 2 + names.take(names.index(tier))).map { |name| rarity_label(name) }
+  end
+
   def highlight_label(kind, highlights)
     case kind
     when :new_record then "NEW RECORD! #{highlights.combo} 連続"

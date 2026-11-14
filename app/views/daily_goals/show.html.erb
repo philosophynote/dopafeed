@@ -1,6 +1,10 @@
 <% content_for :title, "今日のゴール" %>
 <% achieved = @summary.reached? %>
-<div class="-mx-4 -mt-4 -mb-24 flex min-h-dvh flex-col items-center gap-5 bg-[#FFF8EC] px-7 pb-10 pt-16 text-center">
+<%# フィナーレは蓋 → カードを 1 枚ずつ → 中身の行 → 花火の順。行と花火はカードがめくり終わる時刻から始める %>
+<% cards_ms = Dopamine.settings.dig(:cards, :reveal_duration_ms) + (Dopamine.settings.dig(:cards, :reveal_stagger_ms).to_i * @summary.count) if @finale %>
+<%# 履歴で戻ったときにフィナーレをやり直さないよう、スナップショットの前に止める %>
+<div class="-mx-4 -mt-4 -mb-24 flex min-h-dvh flex-col items-center gap-5 bg-[#FFF8EC] px-7 pb-10 pt-16 text-center"
+     <%= tag.attributes(data: { finale: true, controller: "fanfare", action: "turbo:before-cache@document->fanfare#skip" }, style: "--finale-start: #{cards_ms}ms") if @finale %>>
   <p class="text-xs font-bold tracking-widest text-amber-700">DAILY GOAL</p>
   <% if achieved %>
     <h1 class="text-balance text-3xl font-black leading-tight tracking-tight">今日の <%= @summary.goal %> 本、読み切った！</h1>
@@ -14,21 +18,26 @@
     <% end %>
   </ol>
 
-  <%= render "chest", open: achieved %>
+  <div class="relative">
+    <%= render "chest", open: achieved, finale: @finale %>
+    <% if @finale %>
+      <span class="fireworks" aria-hidden="true"><% 12.times { |i| %><span style="--i: <%= i %>"></span><% } %></span>
+    <% end %>
+  </div>
 
   <section class="w-full rounded-2xl bg-white p-4 text-left shadow-[0_8px_30px_rgba(180,83,9,0.12)]" aria-label="宝箱の中身">
     <% if achieved %>
       <p class="text-xs font-bold text-gray-500">宝箱の中身</p>
       <dl class="mt-2 flex flex-col gap-2.5 text-sm">
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between <%= "finale-drop" if @finale %>" <%= tag.attributes(style: ("--i: 0" if @finale)) %>>
           <dt class="font-semibold">今日のカード</dt>
           <dd class="font-black text-amber-700"><%= @summary.count %> 枚</dd>
         </div>
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between <%= "finale-drop" if @finale %>" <%= tag.attributes(style: ("--i: 1" if @finale)) %>>
           <dt class="font-semibold">ストリーク <%= @summary.streak_days %> 日目 確定</dt>
           <dd aria-hidden="true">🔥</dd>
         </div>
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between <%= "finale-drop" if @finale %>" <%= tag.attributes(style: ("--i: 2" if @finale)) %>>
           <dt class="font-semibold">今日の合計</dt>
           <dd class="font-bold text-gray-600"><%= @summary.count %> 本 ・ <%= @summary.dwell_seconds / 60 %> 分</dd>
         </div>
@@ -36,10 +45,13 @@
       <%# 履歴で戻るたびに開封し直さないよう、スナップショットを取る前に演出の印を落とす %>
       <ul class="card-deck mt-3 grid grid-cols-3 gap-2" aria-label="カードの一覧" data-controller="card-deck" data-action="turbo:before-cache@document->card-deck#settle">
         <% @summary.cards.each_with_index do |card, i| %>
-          <%= render "cards/card", card: card, reveal_order: i %>
+          <%= render "cards/card", card: card, reveal_order: (i if @finale) %>
         <% end %>
       </ul>
-      <%= sfx_cue("chest") %>
+      <% if @finale %>
+        <%= sfx_cue("chest") %>
+        <%= sfx_cue("fanfare", delay: cards_ms + 450) %>
+      <% end %>
     <% else %>
       <p class="text-base font-bold">あと <%= @summary.remaining %> 本で宝箱</p>
       <p class="mt-1 text-sm text-gray-600">今日の合計 <%= @summary.count %> 本 ・ <%= @summary.dwell_seconds / 60 %> 分</p>

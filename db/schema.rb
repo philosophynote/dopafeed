@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_08_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_14_000000) do
   create_table "articles", force: :cascade do |t|
     t.integer "feed_id", null: false
     t.string "title", null: false
@@ -29,13 +29,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_150000) do
     t.string "summary_error"
     t.datetime "dismissed_at"
     t.string "image_url"
-    t.index ["bookmarked_at"], name: "index_articles_on_bookmarked_at"
-    t.index ["dismissed_at"], name: "index_articles_on_dismissed_at"
-    t.index ["feed_id", "guid"], name: "index_articles_on_feed_id_and_guid", unique: true
-    t.index ["feed_id"], name: "index_articles_on_feed_id"
-    t.index ["liked_at"], name: "index_articles_on_liked_at"
-    t.index ["published_at"], name: "index_articles_on_published_at"
-    t.index ["url"], name: "index_articles_on_url", unique: true
+    t.index [ "bookmarked_at" ], name: "index_articles_on_bookmarked_at"
+    t.index [ "dismissed_at" ], name: "index_articles_on_dismissed_at"
+    t.index [ "feed_id", "guid" ], name: "index_articles_on_feed_id_and_guid", unique: true
+    t.index [ "feed_id" ], name: "index_articles_on_feed_id"
+    t.index [ "liked_at" ], name: "index_articles_on_liked_at"
+    t.index [ "published_at" ], name: "index_articles_on_published_at"
+    t.index [ "url" ], name: "index_articles_on_url", unique: true
   end
 
   create_table "claude_api_calls", force: :cascade do |t|
@@ -43,7 +43,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_150000) do
     t.string "model", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["created_at"], name: "index_claude_api_calls_on_created_at"
+    t.index [ "created_at" ], name: "index_claude_api_calls_on_created_at"
   end
 
   create_table "daily_goals", force: :cascade do |t|
@@ -51,7 +51,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_150000) do
     t.datetime "achieved_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["day"], name: "index_daily_goals_on_day", unique: true
+    t.datetime "chest_opened_at"
+    t.index [ "day" ], name: "index_daily_goals_on_day", unique: true
   end
 
   create_table "feeds", force: :cascade do |t|
@@ -64,7 +65,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_150000) do
     t.string "last_error"
     t.string "etag"
     t.string "last_modified"
-    t.index ["url"], name: "index_feeds_on_url", unique: true
+    t.index [ "url" ], name: "index_feeds_on_url", unique: true
   end
 
   create_table "push_subscriptions", force: :cascade do |t|
@@ -76,7 +77,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_150000) do
     t.date "streak_warning_sent_on"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["endpoint"], name: "index_push_subscriptions_on_endpoint", unique: true
+    t.index [ "endpoint" ], name: "index_push_subscriptions_on_endpoint", unique: true
   end
 
   create_table "readings", force: :cascade do |t|
@@ -88,8 +89,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_150000) do
     t.text "note"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["article_id"], name: "index_readings_on_article_id", unique: true
-    t.index ["completed_at"], name: "index_readings_on_completed_at"
+    t.index [ "article_id" ], name: "index_readings_on_article_id", unique: true
+    t.index [ "completed_at" ], name: "index_readings_on_completed_at"
   end
 
   create_table "sessions", force: :cascade do |t|
@@ -98,7 +99,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_150000) do
     t.string "user_agent"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["user_id"], name: "index_sessions_on_user_id"
+    t.index [ "user_id" ], name: "index_sessions_on_user_id"
   end
 
   create_table "users", force: :cascade do |t|
@@ -106,7 +107,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_150000) do
     t.string "password_digest", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["email_address"], name: "index_users_on_email_address", unique: true
+    t.index [ "email_address" ], name: "index_users_on_email_address", unique: true
   end
 
   add_foreign_key "articles", "feeds"
