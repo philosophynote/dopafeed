@@ -74,7 +74,7 @@ RSpec.describe CardHighlights do
       Array.new(count) { |i| card(start + (i * 10).minutes) }
     end
 
-    it "過去の最長（2 以上）を今日の連続が初めて超えた 1 枚でだけ出る" do
+    it "過去の最長（鍵 cards.record_floor 以上）を今日の連続が初めて超えた 1 枚でだけ出る" do
       run(noon - 2.days, 3)
       run(noon, 3)
       expect(highlights(card(noon + 30.minutes)).kinds.first).to eq(:new_record)
@@ -87,9 +87,24 @@ RSpec.describe CardHighlights do
       expect(highlights(card(noon + 20.minutes)).kinds).not_to include(:new_record)
     end
 
-    it "過去の最長が 1 なら出ない（読み始めの数日は毎回記録になってしまう）" do
-      card(noon - 2.days)
-      card(noon - 10.minutes)
+    it "過去の最長が鍵 cards.record_floor に届かなければ出ない（読み始めの数日は毎回記録になってしまう）" do
+      floor = Dopamine.settings.dig(:cards, :record_floor)
+      run(noon - 2.days, floor - 1)
+      run(noon - (floor * 10).minutes, floor - 1)
+      expect(highlights(card(noon)).kinds).not_to include(:new_record)
+    end
+
+    it "鍵の値を上げると、その本数に届かない過去の最長では出ない" do
+      allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.deep_merge(cards: { record_floor: 4 }))
+      run(noon - 2.days, 3)
+      run(noon - 30.minutes, 3)
+      expect(highlights(card(noon)).kinds).not_to include(:new_record)
+    end
+
+    it "鍵が無ければ NEW RECORD は出ない" do
+      allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.deep_merge(cards: { record_floor: nil }))
+      run(noon - 2.days, 3)
+      run(noon - 30.minutes, 3)
       expect(highlights(card(noon)).kinds).not_to include(:new_record)
     end
   end

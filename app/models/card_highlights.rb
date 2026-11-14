@@ -4,9 +4,6 @@ class CardHighlights
     large: %i[comeback recovered new_feed first_card],
     medium: %i[fever combo]
   }.freeze
-  # 過去の最長がこれ未満なら記録と呼ばない（読み始めの数日は毎回記録になってしまう）
-  RECORD_FLOOR = 2
-
   def initialize(reading)
     @reading = reading
   end
@@ -44,12 +41,13 @@ class CardHighlights
     Reading.completed.where(completed_at.lt(@reading.completed_at).or(completed_at.eq(@reading.completed_at).and(id.lt(@reading.id))))
   end
 
-  # 記録を超えるには連続が床より長い必要があるので、それまでは全履歴を読まずに済ませる
+  # 記録を超えるには連続が下限より長い必要があるので、それまでは全履歴を読まずに済ませる
   def new_record?
-    return false if combo <= RECORD_FLOOR
+    floor = Dopamine.settings.dig(:cards, :record_floor)
+    return false if floor.nil? || combo <= floor
 
     record = longest_combo_before(chain_start)
-    record >= RECORD_FLOOR && combo == record + 1
+    record >= floor && combo == record + 1
   end
 
   def jackpot?
