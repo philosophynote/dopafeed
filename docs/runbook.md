@@ -429,7 +429,7 @@ main に push（PR のマージ）すると、Actions の Deploy が CI を通�
    ```
    管理画面の Machines で `dopafeed-tokyo-2` が `tag:prod`・Expiry disabled になっていることを見る
 3. sshd: `PasswordAuthentication no`（Lightsail の既定）、`PermitRootLogin no`（`/etc/ssh/sshd_config.d/10-no-root.conf`）。`sudo sshd -T | grep -E '^(passwordauthentication|permitrootlogin)'` で両方 `no`
-4. Tailscale の Settings で GitHub Actions 用の federated identity を作る。Subject `repo:philosophynote/dopafeed:environment:production`、scope は `auth_keys` の書き込み、tag は `tag:ci`。Client ID と Audience が出る
+4. Tailscale の Settings で GitHub Actions 用の federated identity を作る。Subject `repo:philosophynote@78991083/dopafeed@1429876541:environment:production`（2026 年夏より後に作ったリポジトリは、名前の後ろに持ち主とリポジトリの番号が付く形で GitHub が身分証を出す。番号は `curl -s https://api.github.com/repos/philosophynote/dopafeed` の `owner.id` と `id`。名前だけの形では Cannot validate subject で弾かれる）、scope は `auth_keys` の書き込み、tag は `tag:ci`。Client ID と Audience が出る
 5. デプロイ専用の鍵（Mac で）。個人の鍵は流用しない:
    ```sh
    ssh-keygen -t ed25519 -f ~/.ssh/dopafeed_deploy -N "" -C github-actions-deploy
