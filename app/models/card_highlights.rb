@@ -1,10 +1,11 @@
-# 演出は一番大きい 1 つだけを見せ、残りは副題に畳む（ADR 0022）。並びの先頭が見せる 1 つ。
 class CardHighlights
   TIERS = {
     huge: %i[new_record jackpot],
     large: %i[comeback recovered new_feed first_card],
     medium: %i[fever combo]
   }.freeze
+  # 過去の最長がこれ未満なら記録と呼ばない（読み始めの数日は毎回記録になってしまう）
+  RECORD_FLOOR = 2
 
   def initialize(reading)
     @reading = reading
@@ -43,9 +44,12 @@ class CardHighlights
     Reading.completed.where(completed_at.lt(@reading.completed_at).or(completed_at.eq(@reading.completed_at).and(id.lt(@reading.id))))
   end
 
+  # 記録を超えるには連続が床より長い必要があるので、それまでは全履歴を読まずに済ませる
   def new_record?
+    return false if combo <= RECORD_FLOOR
+
     record = longest_combo_before(chain_start)
-    record >= 2 && combo == record + 1
+    record >= RECORD_FLOOR && combo == record + 1
   end
 
   def jackpot?
@@ -84,10 +88,18 @@ class CardHighlights
            .order(returned_at: :desc).limit(combo - 1).pluck(:returned_at).last || @reading.returned_at
   end
 
+  # 行ごとに読書日へ直すと件数ぶん in_time_zone が走るので、日の終わりを越えたときだけ求め直す
   def longest_combo_before(time)
-    rows = Reading.where(returned_at: ...time).order(:returned_at).pluck(:returned_at, :completed_at)
-    rows.chunk_while { |(a, _), (b, _)| ReadingDay.of(a) == ReadingDay.of(b) }.flat_map do |rows_of_day|
-      rows_of_day.chunk_while { |(_, a), (_, b)| a && b }.map { |run| run.first.last ? run.size : 0 }
-    end.max || 0
+    best = run = 0
+    day_end = nil
+    Reading.where(returned_at: ...time).order(:returned_at).pluck(:returned_at, :completed_at).each do |returned_at, completed_at|
+      if day_end.nil? || returned_at >= day_end
+        day_end = ReadingDay.range(ReadingDay.of(returned_at)).end
+        run = 0
+      end
+      run = completed_at ? run + 1 : 0
+      best = run if run > best
+    end
+    best
   end
 end

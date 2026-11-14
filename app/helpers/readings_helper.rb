@@ -46,7 +46,6 @@ module ReadingsHelper
     end
   end
 
-  # 段が上がるほど派手な音にする。金の全画面の開封が出るときは、そちらのファンファーレだけにする
   def highlight_cue(highlights)
     { small: "card", medium: "combo", large: "highlight", huge: "fanfare" }.fetch(highlights.tier)
   end

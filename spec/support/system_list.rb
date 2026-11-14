@@ -1,4 +1,4 @@
-# Main の一覧で行を広げて、欄の中で読む。別窓は開かせず、開いた時刻が届くのを待ってから滞在を作る
+# 別窓は開かせず、開いた時刻が届くのを待ってから滞在を作る（待たないと開いた時刻の書き込みが滞在を上書きする）
 module SystemList
   def expand(title)
     find("article", text: title).find_button("読む").click
