@@ -18,7 +18,6 @@ RSpec.describe "Save swipe", type: :system do
     expect(rail.evaluate_script("this.getBoundingClientRect().width")).to be_within(16).of(pull)
     expect(rail.evaluate_script("this.getBoundingClientRect().left")).to be < width / 4
     expect(rail[:class]).not_to include("swipe-armed")
-    expect(swipe_rail("あとで読む記事").evaluate_script("parseFloat(getComputedStyle(this).opacity)")).to eq(0)
     expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "引いている間に横スクロールが出ている"
     screenshot!("pulling")
 

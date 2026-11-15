@@ -169,10 +169,10 @@ RSpec.describe "効果音", type: :system do
     width = card_width("払う記事")
 
     # 続けて動かすときの座標は、動いた後のカードの左端が基準（system_swipe.rb）
-    drag_card("払う記事", from: [ width - 20, 30 ], to: [ 20, 30 ], steps: 8, release: false)
-    drag_card("払う記事", from: [ width - 20, 30 ], to: [ (2 * width) - 70, 30 ], steps: 4, release: false, down: false)
-    expect(card_shift("払う記事")).to be > -(width * 0.2)
-    drag_card("払う記事", from: [ width - 20, 30 ], to: [ 10, 30 ], steps: 4, release: false, down: false)
+    drag_card("払う記事", from: [ 20, 30 ], to: [ width - 20, 30 ], steps: 8, release: false)
+    drag_card("払う記事", from: [ 20, 30 ], to: [ 70 - width, 30 ], steps: 4, release: false, down: false)
+    expect(card_shift("払う記事")).to be < width * 0.2
+    drag_card("払う記事", from: [ 20, 30 ], to: [ width - 10, 30 ], steps: 4, release: false, down: false)
     expect(sfx_log).to eq([ "swipe" ])
   end
 

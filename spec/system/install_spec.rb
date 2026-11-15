@@ -189,13 +189,13 @@ RSpec.describe "Install", type: :system do
     end
   end
 
-  it "「興味なし」で未読が減ると、アイコンのバッジも書き直す" do
+  it "削除で未読が減ると、アイコンのバッジも書き直す" do
     create_list(:article, 2)
     emulate_standalone!
 
     sign_in
     expect_last_badge(2)
-    page.execute_script("document.querySelector('article form[data-swipe-target=form]').requestSubmit()")
+    page.execute_script(%q(document.querySelector("article form[action$='/dismissal']").requestSubmit()))
 
     expect(page).to have_text("元に戻す")
     expect_last_badge(1)

@@ -45,8 +45,19 @@ module SystemSwipe
     find("article", text: title).evaluate_script("new DOMMatrixReadOnly(getComputedStyle(this).transform).m41")
   end
 
-  def rail_opacity(title)
-    find("article", text: title).evaluate_script("parseFloat(getComputedStyle(this.parentElement.querySelector('[data-swipe-target=rail]')).opacity)")
+  def rail_opacity(title, target = "rail")
+    find("article", text: title).evaluate_script("parseFloat(getComputedStyle(this.parentElement.querySelector('[data-swipe-target=#{target}]')).opacity)")
+  end
+
+  def enter_delete_mode
+    choose "削除", allow_label_click: true
+    expect(page).to have_button("削除")
+  end
+
+  # 削除モードの行のボタンを押す。native は chromedriver が合成する click（指で押したときと同じ submit の配り方）
+  def delete_row(title, native: false)
+    button = find("li", text: title).find_button("削除")
+    native ? native_click(button) : button.click
   end
   # 戻りの transition が終わる前に測ると、途中の移動量を読んでしまう。
   def settled_shift(title)

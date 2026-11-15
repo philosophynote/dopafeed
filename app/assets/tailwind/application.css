@@ -75,6 +75,16 @@
 .swipe-rail.swipe-settling {
   transition: width 200ms ease-out, opacity 200ms ease-out;
 }
+.delete-mode-only {
+  display: none;
+}
+[data-delete-mode] .delete-mode-only {
+  display: block;
+}
+/* 削除モードでは行のタップを「読む」にしない。ボタンを連打する指が少しずれても、読みと抽選に化けない */
+[data-delete-mode] [data-swipe-target="read"] {
+  pointer-events: none;
+}
 
 .tier-glow {
   animation: tier-glow 900ms ease-out var(--glow-delay, 0ms) 2;
