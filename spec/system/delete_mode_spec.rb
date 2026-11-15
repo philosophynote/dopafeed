@@ -15,6 +15,7 @@ RSpec.describe "Delete mode", type: :system do
 
     enter_delete_mode
     expect(page).to have_button("削除", count: 3)
+    expect(page).to have_css("button[data-swipe-target='read'][inert]", visible: :all, count: 3)
     button = find("li", text: "消す記事").find_button("削除")
     rect = button.evaluate_script("this.getBoundingClientRect().toJSON()")
     expect([ rect["width"], rect["height"] ].min).to be >= 44
@@ -43,10 +44,13 @@ RSpec.describe "Delete mode", type: :system do
     expect(page).to have_css("article", count: 3)
     expect(all("article h2").map(&:text)).to eq(%w[上の記事 消す記事 下の記事])
     expect(page).to have_button("削除", count: 3)
+    expect(page).to have_css("button[data-swipe-target='read'][inert]", visible: :all, count: 3)
     expect(Article.find_by!(title: "消す記事")).not_to be_dismissed
 
     choose "読む", allow_label_click: true
     expect(page).to have_no_button("削除")
+    expect(page).to have_no_css("button[data-swipe-target='read'][inert]", visible: :all)
+    expect(page).to have_button("「消す記事」を読む")
   end
 
   it "続けて押すと押した分だけ消える（送信は 1 本ずつ）。指で押しても送られる" do

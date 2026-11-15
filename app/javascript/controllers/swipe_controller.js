@@ -116,6 +116,10 @@ export default class extends Controller {
     return this.element.closest("[data-delete-mode]") !== null
   }
 
+  readTargetConnected(button) {
+    button.inert = this.deleting()
+  }
+
   render(dx) {
     const progress = Math.min(1, Math.abs(dx) / this.threshold())
     const active = dx < 0 && this.hasRailTarget ? this.railTarget : dx > 0 && this.hasSaveRailTarget ? this.saveRailTarget : null
