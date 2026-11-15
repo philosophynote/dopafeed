@@ -35,6 +35,7 @@ export default class extends Controller {
       this.swipeOutlets.forEach((row) => row.collapse())
       this.startedAt = performance.now()
       this.counted = new Set()
+      this.late = new Set()
       this.setCombo(0)
     } else if (this.combo > 0) {
       this.showResult(this.combo, performance.now() - this.startedAt)
@@ -45,6 +46,7 @@ export default class extends Controller {
   removed({ detail: { form } }) {
     if (!this.deleting) return
 
+    this.late.delete(this.key(form))
     this.counted.add(this.key(form))
     this.setCombo(this.combo + 1)
     // sfx の combo は 2 から上がり始める
@@ -54,23 +56,30 @@ export default class extends Controller {
     this.countTarget.classList.add("combo-pop")
   }
 
-  // 「元に戻す」は列で飛ばされることがあるので応答で引く。数えた回の削除だけを引き、前の回のトーストで今の回のコンボは減らさない
+  // 待ちの上限を越えた送信は止めずに列だけ進めるので、失敗に見えた削除の成功が後から届くことがある。そのときは数え直す
   removeFailed({ detail: { form } }) {
-    this.uncount(form)
+    if (this.uncount(form)) this.late.add(this.key(form))
   }
 
-  undone(event) {
+  // 「元に戻す」は列で飛ばされることがあるので応答で引く。数えた回の削除だけを引き、前の回のトーストで今の回のコンボは減らさない
+  submitted(event) {
     const form = event.target
-    if (!event.detail.success || !(form instanceof HTMLFormElement)) return
-    if (form.querySelector("input[name='_method']")?.value !== "delete") return
+    if (!this.deleting || !event.detail.success || !(form instanceof HTMLFormElement)) return
+    if (!new URL(form.action).pathname.endsWith("/dismissal")) return
 
-    this.uncount(form)
+    if (form.querySelector("input[name='_method']")?.value === "delete") {
+      this.uncount(form)
+    } else if (this.late.delete(this.key(form))) {
+      this.counted.add(this.key(form))
+      this.setCombo(this.combo + 1)
+    }
   }
 
   uncount(form) {
-    if (!this.deleting || !this.counted.delete(this.key(form))) return
+    if (!this.deleting || !this.counted.delete(this.key(form))) return false
 
     this.setCombo(this.combo - 1)
+    return true
   }
 
   key(form) {
@@ -120,6 +129,7 @@ export default class extends Controller {
     if (read) read.checked = true
     this.deleting = false
     this.counted = new Set()
+    this.late = new Set()
     this.setCombo(0)
     this.element.removeAttribute("data-delete-mode")
     if (this.hasResultTarget && this.resultTarget.open) this.resultTarget.close()

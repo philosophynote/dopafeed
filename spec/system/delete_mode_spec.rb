@@ -326,6 +326,23 @@ RSpec.describe "Delete mode", type: :system do
       expect(combo).to have_text("1 COMBO", normalize_ws: true)
     end
 
+    it "待ちの上限を越えて失敗に見えた削除も、後から成功が届けばコンボに数え直す" do
+      allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.deep_merge(swipe: { submit_timeout_seconds: 1 }))
+      sign_in
+      enter_delete_mode
+      page.execute_script(<<~JS)
+        const original = window.fetch
+        window.fetch = (url, options) => (options?.method || "GET").toUpperCase() === "POST"
+          ? new Promise((resolve) => setTimeout(() => resolve(original(url, options)), 2500))
+          : original(url, options)
+      JS
+
+      delete_row("一本目")
+      expect(combo).to have_text("0 COMBO", normalize_ws: true, wait: 2)
+      expect(page).to have_css("article", count: 3, wait: 5)
+      expect(combo).to have_text("1 COMBO", normalize_ws: true)
+    end
+
     it "1 件も消さずに「読む」に戻すとリザルトは出ない。1 分に満たなければ秒だけ出す" do
       sign_in
       freeze_clock
