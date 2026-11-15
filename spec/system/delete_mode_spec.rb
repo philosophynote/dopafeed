@@ -23,11 +23,21 @@ RSpec.describe "Delete mode", type: :system do
 
     delete_row("消す記事")
 
-    expect(page).to have_css("#toast [data-controller='toast']", text: "1 件を削除しました")
+    toast = find("#toast [data-controller='toast']", text: "1 件を削除しました")
     expect(page).to have_no_css("article", text: "消す記事")
     expect(page).to have_css("[data-unread-badge]", text: "2")
     expect(Article.find_by!(title: "消す記事")).to be_dismissed
     expect(Reading.count).to eq(0)
+    toast_rect = toast.evaluate_script("this.getBoundingClientRect().toJSON()")
+    nav_top = find("nav[aria-label='タブバー']").evaluate_script("this.getBoundingClientRect().top")
+    expect(toast_rect["bottom"]).to be <= nav_top
+    expect(toast_rect["left"]).to be >= 0
+    expect(toast_rect["right"]).to be <= page.evaluate_script("document.documentElement.clientWidth")
+    expect(toast.find_button("元に戻す").evaluate_script("this.getBoundingClientRect().height")).to be >= 44
+    screenshot!("deleted")
+    # yml に toast.visible_seconds が無ければ、トーストは時間では消えない
+    sleep 1.5
+    expect(page).to have_css("#toast [data-controller='toast']", wait: 0)
 
     find("#toast").click_on("元に戻す")
     expect(page).to have_css("article", count: 3)
@@ -50,7 +60,9 @@ RSpec.describe "Delete mode", type: :system do
     delete_row("三本目")
 
     expect(page).to have_css("article", count: 1)
+    third = Article.find_by!(title: "三本目")
     expect(page).to have_css("#toast [data-controller='toast']", count: 1)
+    expect(page).to have_css("#toast form[action='#{article_dismissal_path(third)}']")
     expect(page).to have_css("[data-unread-badge]", text: "1")
     expect(Article.where.not(dismissed_at: nil).pluck(:title)).to match_array(%w[一本目 二本目 三本目])
   end
@@ -65,7 +77,11 @@ RSpec.describe "Delete mode", type: :system do
     enter_delete_mode
     expect(page).to have_no_link("記事に遷移")
 
-    find("article", text: "触る記事").find_button("読む", visible: :all).execute_script("this.click()")
+    page.execute_script("window.__starts = 0; document.addEventListener('turbo:submit-start', () => window.__starts++)")
+    native_click(find("article", text: "触る記事"))
+    sleep 0.5
+    expect(page.evaluate_script("window.__starts")).to eq(0)
+    expect(page).to have_no_link("記事に遷移")
     width = card_width("触る記事")
     drag_card("触る記事", from: [ width / 2, 40 ], to: [ width / 2 + width * ratio * 1.3, 40 ], release: false)
     expect(card_shift("触る記事")).to eq(0)
@@ -74,6 +90,52 @@ RSpec.describe "Delete mode", type: :system do
     expect(page).to have_css("article", count: 2)
     expect(Article.find_by!(title: "触る記事").reading).to be_nil
     expect(Article.find_by!(title: "触る記事")).not_to be_bookmarked
+  end
+
+  it "同じ削除ボタンを続けて押しても送信は 1 本" do
+    create(:article, title: "二度押す記事", published_at: now - 1.hour)
+    create(:article, title: "残る記事", published_at: now - 2.hours)
+    sign_in
+    enter_delete_mode
+    # 応答の描画を遅らせ、押した行がまだ画面にある間にもう一度押す
+    page.execute_script(<<~JS)
+      window.__starts = 0
+      document.addEventListener("turbo:submit-start", () => window.__starts++)
+      document.addEventListener("turbo:before-stream-render", (event) => {
+        const render = event.detail.render
+        event.detail.render = (stream) => new Promise((resolve) => setTimeout(() => resolve(render(stream)), 500))
+      })
+    JS
+
+    button = find("li", text: "二度押す記事").find_button("削除")
+    native_click(button)
+    native_click(button)
+
+    expect(page).to have_css("#toast [data-controller='toast'][data-toast-swipe-value='1']")
+    expect(page).to have_css("article", count: 1)
+    expect(page.evaluate_script("window.__starts")).to eq(1)
+  end
+
+  it "「読む」の応答を待つ間に「削除」へ切り替えたら、届いた応答で行は開かない" do
+    create(:article, title: "待つ記事", summary: "・要約", published_at: now - 1.hour)
+    sign_in
+    # POST の応答を、切り替えた後まで手で止めておく
+    page.execute_script(<<~JS)
+      window.__fetch = window.fetch
+      window.fetch = (url, options) => (options?.method || "GET").toUpperCase() === "POST"
+        ? new Promise((resolve) => { window.__release = () => resolve(window.__fetch(url, options)) })
+        : window.__fetch(url, options)
+    JS
+
+    read_button = find("article", text: "待つ記事").find_button("読む")
+    read_button.execute_script("this.click()")
+    page.document.synchronize { raise Capybara::ElementNotFound, "「読む」が送られない" unless page.evaluate_script("typeof window.__release") == "function" }
+    enter_delete_mode
+    page.execute_script("window.__release()")
+
+    expect(page).to have_css("[data-swipe-target='detail'] *", visible: :all, wait: 5)
+    expect(page).to have_no_link("記事に遷移")
+    expect(read_button["aria-expanded"]).to eq("false")
   end
 
   it "画面を移って戻る・再読込すると「読む」で始まる" do

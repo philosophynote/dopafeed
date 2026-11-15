@@ -1,6 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 
-// モードは画面に残さない。Turbo の写しやブラウザの復元から戻ると、一覧は読むモードで始まる
+// 戻ってきたときは読むつもりのことが多いので、モードを写し・bfcache・ブラウザのフォーム復元に持ち越さない
 export default class extends Controller {
   static targets = ["list"]
   static outlets = ["swipe"]

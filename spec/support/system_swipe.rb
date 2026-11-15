@@ -54,7 +54,7 @@ module SystemSwipe
     expect(page).to have_button("削除")
   end
 
-  # 削除モードの行のボタンを押す。native は chromedriver が合成する click（指で押したときと同じ submit の配り方）
+  # native は chromedriver が合成する click（指で押したときと同じ submit の配り方）
   def delete_row(title, native: false)
     button = find("li", text: title).find_button("削除")
     native ? native_click(button) : button.click

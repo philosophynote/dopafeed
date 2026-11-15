@@ -176,8 +176,8 @@ export default class extends Controller {
     this.enqueue(form, null, done, { send: () => { this.stamp(form, noteSwipeSent()); form.requestSubmit() } })
   }
 
-  // 削除モードのボタンの submit。Turbo より先に止めて行の送信の列に並べ、順番が来たら送り直す（送り直しの submit はそのまま Turbo に渡す）。
-  // 並べずに連打すると、Turbo が前の行の送信を止めて応答を捨て、消したはずの行が画面に残る
+  // 並べずに連打すると、Turbo が前の行の送信を止めて応答を捨て、消したはずの行が画面に残る。
+  // 送り直しの submit（releasing）は止めずに Turbo へ渡す
   remove(event) {
     if (this.releasing) return
 
