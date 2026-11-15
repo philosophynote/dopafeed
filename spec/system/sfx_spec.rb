@@ -107,6 +107,8 @@ RSpec.describe "効果音", type: :system do
       poll()
     JS
     expect(elapsed).to be < Dopamine.settings.dig(:cards, :reveal_duration_ms) * 0.7
+  ensure
+    page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: [])
   end
 
   it "一覧で未完なら煙、完読なら段に応じた音（今日の 1 枚目は見せ場の音）が鳴り、Turbo の履歴で戻っても再読込しても鳴り直さない" do
