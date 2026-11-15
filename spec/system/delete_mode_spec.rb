@@ -159,6 +159,24 @@ RSpec.describe "Delete mode", type: :system do
     expect(page).to have_no_button("削除")
   end
 
+  it "削除モードで最後の 1 本を消しても切り替えは残り、「読む」に戻すと空状態とともに切り替えが消える。元に戻せばまた出る" do
+    create(:article, title: "最後の記事", published_at: now - 1.hour)
+    sign_in
+    enter_delete_mode
+
+    delete_row("最後の記事")
+    expect(page).to have_text("全部読んだ。")
+    expect(page).to have_css("fieldset.delete-mode-switch")
+
+    choose "読む", allow_label_click: true
+    expect(page).to have_no_css("fieldset.delete-mode-switch")
+    expect(page).to have_link("設定")
+
+    find("#toast").click_on("元に戻す")
+    expect(page).to have_css("article", text: "最後の記事")
+    expect(page).to have_css("fieldset.delete-mode-switch")
+  end
+
   it "未読が 0 本ならモードの切り替えは出ない" do
     sign_in
     expect(page).to have_text("全部読んだ。")

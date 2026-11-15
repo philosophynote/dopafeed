@@ -5,7 +5,7 @@
     <span class="text-orange-500">Dopa</span>Feed
   </h1>
   <% unless @articles.empty? %>
-    <fieldset class="ml-auto flex rounded-xl bg-gray-200/70 p-0.5 text-sm font-bold text-gray-600" data-action="change->delete-mode#toggle">
+    <fieldset class="delete-mode-switch ml-auto flex rounded-xl bg-gray-200/70 p-0.5 text-sm font-bold text-gray-600 [&[hidden]]:hidden" data-delete-mode-target="switch" data-action="change->delete-mode#toggle">
       <legend class="sr-only">モード</legend>
       <% [ %w[read 読む], %w[delete 削除] ].each do |value, label| %>
         <label class="flex h-11 w-14 cursor-pointer items-center justify-center rounded-[10px] has-checked:bg-white has-checked:text-gray-900 has-checked:shadow-sm has-focus-visible:outline-2 has-focus-visible:outline-orange-500">
