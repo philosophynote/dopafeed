@@ -105,7 +105,13 @@ function noise({ at = 0, length = 0.15, volume = 0.15, filter = "bandpass", from
 }
 
 // 音程は平均律の音名で持つ（C5 = 523.25Hz）。和音が濁らないように同じ調の中で選ぶ
-const NOTE = { C5: 523.25, E5: 659.25, G5: 783.99, C6: 1046.5, E6: 1318.5, G6: 1568, B6: 1975.5 }
+const NOTE = { C5: 523.25, D5: 587.33, E5: 659.25, G5: 783.99, A5: 880, C6: 1046.5, D6: 1174.66, E6: 1318.5, G6: 1568, B6: 1975.5 }
+
+// ペンタトニックだけで組む。間合いが詰まって前の音の余韻と重なっても濁らない
+const MELODY = [
+  NOTE.C5, NOTE.E5, NOTE.G5, NOTE.E5, NOTE.A5, NOTE.G5, NOTE.E5, NOTE.G5,
+  NOTE.A5, NOTE.C6, NOTE.D6, NOTE.C6, NOTE.A5, NOTE.G5, NOTE.D5, NOTE.C5,
+]
 
 const CUES = {
   tap: () => tone(1800, { length: 0.03, type: "triangle", volume: 0.08 }),
@@ -125,6 +131,13 @@ const CUES = {
     const base = NOTE.E5 * 2 ** (step / 12)
     tone(base, { length: 0.1, type: "square", volume: 0.06 })
     tone(base * 1.5, { at: 0.08, length: 0.2, type: "triangle", volume: 0.1 })
+  },
+  melody: (note = 1) => {
+    const index = (Math.max(note, 1) - 1) % MELODY.length
+    const frequency = MELODY[index]
+    tone(150, { length: 0.08, slideTo: 60, volume: 0.2 })
+    tone(frequency, { length: 0.22, type: "triangle", volume: 0.14 })
+    if ((index + 1) % (MELODY.length / 2) === 0) tone(frequency * 1.5, { at: 0.02, length: 0.35, type: "triangle", volume: 0.08 })
   },
   highlight: () => [ NOTE.C6, NOTE.E6, NOTE.G6, NOTE.C6 * 2 ].forEach((f, i) => tone(f, { at: i * 0.07, length: 0.3, type: "triangle", volume: 0.1 })),
   puff: () => noise({ length: 0.3, volume: 0.06, filter: "lowpass", from: 900, to: 200 }),

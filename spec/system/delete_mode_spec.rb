@@ -189,9 +189,9 @@ RSpec.describe "Delete mode", type: :system do
       page.evaluate_script('JSON.parse(sessionStorage.getItem("sfx-log") || "[]")')
     end
 
-    def combo_levels
+    def melody_notes
       levels = page.evaluate_script('JSON.parse(sessionStorage.getItem("sfx-log-levels") || "[]")')
-      sfx_log.zip(levels).filter_map { |cue, level| level if cue == "combo" }
+      sfx_log.zip(levels).filter_map { |cue, level| level if cue == "melody" }
     end
 
     # 時間は performance.now で測る。秒を決めて検査するため、手で進める時計に差し替える
@@ -226,7 +226,7 @@ RSpec.describe "Delete mode", type: :system do
       %w[一本目 二本目 三本目 四本目].each_with_index { |title, i| create(:article, title: title, published_at: now - (i + 1).hours) }
     end
 
-    it "削除するたびにコンボが 1 増えて一段ずつ高い音が鳴り、元に戻すと 1 減る。コンボはステータスの行に重ね、行の高さも読了の「n 連続」も変えない" do
+    it "削除するたびにコンボが 1 増えてメロディの次の音が鳴り、元に戻すと 1 減って次は同じ音を鳴らし直す。コンボはステータスの行に重ね、行の高さも読了の「n 連続」も変えない" do
       2.times { |i| create(:reading, :completed, opened_at: now - (i + 1).minutes - 10.minutes) }
       sign_in
       status_top = find("section[aria-label='記事']").evaluate_script("this.getBoundingClientRect().top")
@@ -242,7 +242,8 @@ RSpec.describe "Delete mode", type: :system do
       delete_row("二本目")
       expect(combo).to have_text("2 COMBO", normalize_ws: true)
       expect(page).to have_css("article", count: 2)
-      expect(combo_levels).to eq([ 2, 3 ])
+      expect(melody_notes).to eq([ 1, 2 ])
+      expect(sfx_log).not_to include("combo")
       screenshot!("combo")
 
       find("#toast").click_on("元に戻す")
@@ -250,6 +251,11 @@ RSpec.describe "Delete mode", type: :system do
       expect(combo).to have_text("1 COMBO", normalize_ws: true)
       expect(Article.where.not(dismissed_at: nil).count).to eq(1)
       expect(page).to have_css("[data-combo]", text: "2 連続", visible: :all)
+      delete_row("二本目")
+      expect(combo).to have_text("2 COMBO", normalize_ws: true)
+      delete_row("三本目")
+      expect(combo).to have_text("3 COMBO", normalize_ws: true)
+      expect(melody_notes).to eq([ 1, 2, 2, 3 ])
 
       choose "読む", allow_label_click: true
       find("dialog[open]").click_on "閉じる"
