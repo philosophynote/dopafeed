@@ -190,11 +190,13 @@ export default class extends Controller {
 
     this.removing = true
     const form = event.target
+    this.dispatch("removed", { detail: { form } })
     this.enqueue(form, null, (success) => {
       if (success) return
 
       noteSwipeFailed()
       this.removing = false
+      this.dispatch("remove-failed", { detail: { form } })
     }, { send: () => {
       this.stamp(form, noteSwipeSent())
       this.releasing = true

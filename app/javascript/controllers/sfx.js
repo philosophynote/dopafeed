@@ -4,6 +4,7 @@
 // "ambient" は消音スイッチに従い、聴いている音楽も止めない。"playback" にすると消音を越えて鳴り、音楽も止まる。
 const STORAGE_KEY = "sfx"
 const LOG_KEY = "sfx-log"
+const LEVEL_LOG_KEY = "sfx-log-levels"
 
 let context = null
 // localStorage に書けない端末でも、この画面を開いている間は切り替えを効かせる
@@ -56,11 +57,15 @@ for (const type of [ "pointerup", "touchend", "click", "keydown" ]) {
   document.addEventListener(type, unlock, { capture: true, passive: true })
 }
 
-function record(cue) {
+// 高さ（level）は名前の列と別に残す。名前の列に混ぜると、level を渡すだけの音の検査がみな書き換わる
+function record(cue, level) {
   try {
     const log = JSON.parse(sessionStorage.getItem(LOG_KEY) || "[]")
     log.push(cue)
     sessionStorage.setItem(LOG_KEY, JSON.stringify(log))
+    const levels = JSON.parse(sessionStorage.getItem(LEVEL_LOG_KEY) || "[]")
+    levels.push(level ?? null)
+    sessionStorage.setItem(LEVEL_LOG_KEY, JSON.stringify(levels))
   } catch {
     // 記録できなくても画面は動かす
   }
@@ -135,7 +140,7 @@ const CUES = {
 
 export function play(cue, level) {
   if (!CUES[cue] || !enabled()) return
-  if (recording()) return record(cue)
+  if (recording()) return record(cue, level)
   if (!context) return
   if (context.state === "running") return CUES[cue](level)
 

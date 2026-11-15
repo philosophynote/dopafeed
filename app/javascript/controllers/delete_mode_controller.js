@@ -1,8 +1,12 @@
 import { Controller } from "@hotwired/stimulus"
+import { play } from "controllers/sfx"
 
-// 戻ってきたときは読むつもりのことが多いので、モードを写し・bfcache・ブラウザのフォーム復元に持ち越さない
+const COUNT_UP_MS = 600
+
+// 戻ってきたときは読むつもりのことが多いので、モードを写し・bfcache・ブラウザのフォーム復元に持ち越さない。
+// コンボはサーバーに残さない。読了の「n 連続」やストリークに混ぜると、消すだけで読書の報酬が増える
 export default class extends Controller {
-  static targets = ["list", "switch"]
+  static targets = ["list", "switch", "status", "combo", "count", "result", "resultCount", "resultTime", "resultPace"]
   static outlets = ["swipe"]
 
   connect() {
@@ -16,22 +20,111 @@ export default class extends Controller {
 
   disconnect() {
     this.observer?.disconnect()
+    cancelAnimationFrame(this.countUp)
   }
 
   toggle(event) {
     const deleting = event.target.value === "delete"
-    this.listTarget.toggleAttribute("data-delete-mode", deleting)
-    if (deleting) this.swipeOutlets.forEach((row) => row.collapse())
+    if (deleting === this.deleting) return
+
+    this.deleting = deleting
+    this.element.toggleAttribute("data-delete-mode", deleting)
     this.syncReadable(deleting)
     this.syncSwitch()
+    if (deleting) {
+      this.swipeOutlets.forEach((row) => row.collapse())
+      this.startedAt = performance.now()
+      this.counted = new Set()
+      this.setCombo(0)
+    } else if (this.combo > 0) {
+      this.showResult(this.combo, performance.now() - this.startedAt)
+    }
+  }
+
+  // 応答を待たずに押した時点で数える。応答で数えると、続けて押してすぐ「読む」に戻したとき、まだ列に並んでいる分がリザルトから抜ける
+  removed({ detail: { form } }) {
+    if (!this.deleting) return
+
+    this.counted.add(this.key(form))
+    this.setCombo(this.combo + 1)
+    // sfx の combo は 2 から上がり始める
+    play("combo", this.combo + 1)
+    this.countTarget.classList.remove("combo-pop")
+    void this.countTarget.offsetWidth
+    this.countTarget.classList.add("combo-pop")
+  }
+
+  // 「元に戻す」は列で飛ばされることがあるので応答で引く。数えた回の削除だけを引き、前の回のトーストで今の回のコンボは減らさない
+  removeFailed({ detail: { form } }) {
+    this.uncount(form)
+  }
+
+  undone(event) {
+    const form = event.target
+    if (!event.detail.success || !(form instanceof HTMLFormElement)) return
+    if (form.querySelector("input[name='_method']")?.value !== "delete") return
+
+    this.uncount(form)
+  }
+
+  uncount(form) {
+    if (!this.deleting || !this.counted.delete(this.key(form))) return
+
+    this.setCombo(this.combo - 1)
+  }
+
+  key(form) {
+    return new URL(form.action).pathname
+  }
+
+  setCombo(combo) {
+    this.combo = combo
+    if (this.hasCountTarget) this.countTarget.textContent = combo
+  }
+
+  showResult(count, elapsedMs) {
+    const seconds = Math.floor(elapsedMs / 1000)
+    const minutes = Math.floor(seconds / 60)
+    this.resultTimeTarget.textContent = minutes > 0 ? `${minutes} 分 ${seconds % 60} 秒` : `${seconds} 秒`
+    this.resultPaceTarget.textContent = `${(elapsedMs / 1000 / count).toFixed(1)} 秒`
+    this.resultTarget.showModal()
+    play("fanfare")
+    this.countUpTo(count)
+  }
+
+  countUpTo(count) {
+    cancelAnimationFrame(this.countUp)
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      this.resultCountTarget.textContent = count
+      return
+    }
+
+    let start
+    const step = (now) => {
+      start ??= now
+      const progress = Math.min(1, (now - start) / COUNT_UP_MS)
+      this.resultCountTarget.textContent = Math.round(count * progress)
+      if (progress < 1) this.countUp = requestAnimationFrame(step)
+    }
+    this.resultCountTarget.textContent = 0
+    this.countUp = requestAnimationFrame(step)
+  }
+
+  // 中身は余白ごと内側の要素が覆うので、dialog 自身に来る click は背景を押したときだけ
+  closeOnBackdrop(event) {
+    if (event.target === this.resultTarget) this.resultTarget.close()
   }
 
   reset() {
     const read = this.element.querySelector("input[name=mode][value=read]")
     if (read) read.checked = true
+    this.deleting = false
+    this.counted = new Set()
+    this.setCombo(0)
+    this.element.removeAttribute("data-delete-mode")
+    if (this.hasResultTarget && this.resultTarget.open) this.resultTarget.close()
     if (!this.hasListTarget) return
 
-    this.listTarget.removeAttribute("data-delete-mode")
     this.syncReadable(false)
     this.syncSwitch()
   }
@@ -41,12 +134,13 @@ export default class extends Controller {
     if (!this.hasSwitchTarget) return
 
     const empty = !this.listTarget.querySelector(":scope > li:not([hidden])")
-    this.switchTarget.hidden = empty && !this.listTarget.hasAttribute("data-delete-mode")
+    this.switchTarget.hidden = empty && !this.deleting
   }
 
   // pointer-events を止めるだけでは、Tab と VoiceOver に押しても何も起きない「読む」が行の数だけ残る。
-  // 後から差し込まれた行（取り消しで戻った行）は swipe が繋がったときに合わせる
+  // ステータスの行もコンボの下に隠れたまま押せる。後から差し込まれた行（取り消しで戻った行）は swipe が繋がったときに合わせる
   syncReadable(deleting) {
+    if (this.hasStatusTarget) this.statusTarget.inert = deleting
     this.listTarget.querySelectorAll("[data-swipe-target~='read']").forEach((button) => { button.inert = deleting })
   }
 }

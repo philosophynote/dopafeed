@@ -1,4 +1,4 @@
-<div data-controller="delete-mode" data-delete-mode-swipe-outlet="[data-controller~='swipe']" data-action="turbo:before-cache@document->delete-mode#reset pageshow@window->delete-mode#reset">
+<div data-controller="delete-mode" data-delete-mode-swipe-outlet="[data-controller~='swipe']" data-action="turbo:before-cache@document->delete-mode#reset pageshow@window->delete-mode#reset swipe:removed->delete-mode#removed swipe:remove-failed->delete-mode#removeFailed turbo:submit-end@document->delete-mode#undone">
 <%# 切り替えを別の行に置くと、一画面に入る記事の行が 1 本減る %>
 <header class="flex items-center justify-between gap-2">
   <h1 class="text-2xl font-black tracking-tight">
@@ -26,7 +26,18 @@
   </div>
 </header>
 
-<%= render "status_card" %>
+<%# 削除モードの間はステータスの行にコンボを重ねる。別の行を足すと、一画面に入る記事の行が減る %>
+<div class="relative">
+  <div data-delete-mode-target="status"><%= render "status_card" %></div>
+  <% unless @articles.empty? %>
+    <p class="delete-mode-only absolute inset-0" data-delete-mode-target="combo" aria-live="polite" aria-atomic="true">
+      <span class="flex h-full items-center justify-center gap-2 rounded-2xl bg-gray-900 text-white shadow-sm">
+        <span class="text-2xl font-black tabular-nums" data-delete-mode-target="count">0</span>
+        <span class="text-sm font-bold tracking-widest text-orange-300">COMBO</span>
+      </span>
+    </p>
+  <% end %>
+</div>
 
 <section class="mt-3" aria-label="記事">
   <% if @articles.empty? %>
@@ -41,6 +52,33 @@
     <div class="swipe-list-empty"><%= render "empty" %></div>
   <% end %>
 </section>
+
+<% unless @articles.empty? %>
+  <dialog class="delete-result m-auto w-[min(20rem,calc(100%-2rem))] rounded-3xl bg-white p-0 text-center text-gray-900 shadow-xl backdrop:bg-black/50"
+          data-delete-mode-target="result" data-action="click->delete-mode#closeOnBackdrop" aria-labelledby="delete-result-title">
+    <div class="p-6">
+      <h2 id="delete-result-title" class="text-sm font-bold tracking-widest text-orange-600">リザルト</h2>
+      <p class="mt-2 flex items-baseline justify-center gap-1">
+        <span class="text-6xl font-black tabular-nums" data-delete-mode-target="resultCount">0</span>
+        <span class="text-xl font-bold">件</span>
+      </p>
+      <p class="text-sm text-gray-500">削除した</p>
+      <dl class="mt-5 grid grid-cols-2 gap-2 text-left">
+        <div class="rounded-2xl bg-gray-100 px-3 py-2">
+          <dt class="text-xs text-gray-500">タイム</dt>
+          <dd class="text-lg font-bold tabular-nums" data-delete-mode-target="resultTime"></dd>
+        </div>
+        <div class="rounded-2xl bg-gray-100 px-3 py-2">
+          <dt class="text-xs text-gray-500">1 件あたり</dt>
+          <dd class="text-lg font-bold tabular-nums" data-delete-mode-target="resultPace"></dd>
+        </div>
+      </dl>
+      <form method="dialog" class="mt-5">
+        <button class="h-11 w-full rounded-xl bg-orange-500 font-bold text-white active:bg-orange-600">閉じる</button>
+      </form>
+    </div>
+  </dialog>
+<% end %>
 </div>
 
 <%= render "tab_bar" %>
