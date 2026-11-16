@@ -107,6 +107,8 @@ RSpec.describe "効果音", type: :system do
       poll()
     JS
     expect(elapsed).to be < Dopamine.settings.dig(:cards, :reveal_duration_ms) * 0.7
+  ensure
+    page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: [])
   end
 
   it "一覧で未完なら煙、完読なら段に応じた音（今日の 1 枚目は見せ場の音）が鳴り、Turbo の履歴で戻っても再読込しても鳴り直さない" do
@@ -169,10 +171,10 @@ RSpec.describe "効果音", type: :system do
     width = card_width("払う記事")
 
     # 続けて動かすときの座標は、動いた後のカードの左端が基準（system_swipe.rb）
-    drag_card("払う記事", from: [ width - 20, 30 ], to: [ 20, 30 ], steps: 8, release: false)
-    drag_card("払う記事", from: [ width - 20, 30 ], to: [ (2 * width) - 70, 30 ], steps: 4, release: false, down: false)
-    expect(card_shift("払う記事")).to be > -(width * 0.2)
-    drag_card("払う記事", from: [ width - 20, 30 ], to: [ 10, 30 ], steps: 4, release: false, down: false)
+    drag_card("払う記事", from: [ 20, 30 ], to: [ width - 20, 30 ], steps: 8, release: false)
+    drag_card("払う記事", from: [ 20, 30 ], to: [ 70 - width, 30 ], steps: 4, release: false, down: false)
+    expect(card_shift("払う記事")).to be < width * 0.2
+    drag_card("払う記事", from: [ 20, 30 ], to: [ width - 10, 30 ], steps: 4, release: false, down: false)
     expect(sfx_log).to eq([ "swipe" ])
   end
 

@@ -1,12 +1,29 @@
-<header class="flex items-center justify-between">
+<div data-controller="delete-mode" data-delete-mode-swipe-outlet="[data-controller~='swipe']" data-action="turbo:before-cache@document->delete-mode#reset pageshow@window->delete-mode#reset">
+<%# 切り替えを別の行に置くと、一画面に入る記事の行が 1 本減る %>
+<header class="flex items-center justify-between gap-2">
   <h1 class="text-2xl font-black tracking-tight">
     <span class="text-orange-500">Dopa</span>Feed
   </h1>
-  <%= link_to "フィードを追加", new_feed_path(from: "main"), class: "flex min-h-11 items-center px-3 text-sm text-orange-600", data: { turbo_frame: "turbo_add_feed" } %>
-  <%= link_to learning_path, class: "flex h-11 w-11 items-center justify-center rounded-full text-gray-600 hover:bg-white", "aria-label": "設定", title: "設定" do %>
-    <%= render "shared/icon_gear" %>
-    <span class="sr-only">設定</span>
+  <% unless @articles.empty? %>
+    <fieldset class="delete-mode-switch ml-auto flex rounded-xl bg-gray-200/70 p-0.5 text-sm font-bold text-gray-600 [&[hidden]]:hidden" data-delete-mode-target="switch" data-action="change->delete-mode#toggle">
+      <legend class="sr-only">モード</legend>
+      <% [ %w[read 読む], %w[delete 削除] ].each do |value, label| %>
+        <label class="flex h-11 w-14 cursor-pointer items-center justify-center rounded-[10px] has-checked:bg-white has-checked:text-gray-900 has-checked:shadow-sm has-focus-visible:outline-2 has-focus-visible:outline-orange-500">
+          <input type="radio" name="mode" value="<%= value %>" class="sr-only" autocomplete="off" <%= "checked" if value == "read" %>><%= label %>
+        </label>
+      <% end %>
+    </fieldset>
   <% end %>
+  <div class="flex shrink-0 items-center <%= "ml-auto" if @articles.empty? %>">
+    <%= link_to new_feed_path(from: "main"), class: "flex h-11 w-11 items-center justify-center rounded-full text-orange-600 hover:bg-white", title: "フィードを追加", data: { turbo_frame: "turbo_add_feed" } do %>
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="h-6 w-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+      <span class="sr-only">フィードを追加</span>
+    <% end %>
+    <%= link_to learning_path, class: "flex h-11 w-11 items-center justify-center rounded-full text-gray-600 hover:bg-white", "aria-label": "設定", title: "設定" do %>
+      <%= render "shared/icon_gear" %>
+      <span class="sr-only">設定</span>
+    <% end %>
+  </div>
 </header>
 
 <%= render "status_card" %>
@@ -15,7 +32,7 @@
   <% if @articles.empty? %>
     <%= render "empty" %>
   <% else %>
-    <ul class="swipe-list divide-y divide-gray-100 overflow-hidden rounded-2xl bg-white shadow-sm"
+    <ul class="swipe-list divide-y divide-gray-100 overflow-hidden rounded-2xl bg-white shadow-sm" data-delete-mode-target="list"
         data-controller="accordion" data-accordion-swipe-outlet="[data-controller~='swipe']" data-action="swipe:expanded->accordion#collapseOthers">
       <% @articles.each do |article| %>
         <%= render "article_card", article: article %>
@@ -24,5 +41,6 @@
     <div class="swipe-list-empty"><%= render "empty" %></div>
   <% end %>
 </section>
+</div>
 
 <%= render "tab_bar" %>

@@ -105,7 +105,7 @@ RSpec.describe "Dismissals", type: :request do
         card = page.find("turbo-stream[action='replace'][target='#{dom_id(article)}']")
         expect(card).to have_css("article h2", text: "戻す記事")
         expect(card).to have_button("「戻す記事」を読む")
-        expect(card).to have_css("form[hidden][action='#{article_dismissal_path(article)}']", visible: :all)
+        expect(card).to have_css("form.delete-mode-only[action='#{article_dismissal_path(article)}']")
         expect(card).to have_no_button("元に戻す")
         expect(page.find("turbo-stream[action='update'][target='toast']", visible: :all).text(:all)).to be_blank
         expect(page).to have_no_css("turbo-stream[target='unread-count']")

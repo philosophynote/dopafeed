@@ -22,7 +22,7 @@ export default class extends Controller {
 
   start(event) {
     this.swiped = false
-    if (this.flying || this.opening || !event.isPrimary || event.button !== 0 || event.clientX < EDGE_PX) return
+    if (this.deleting() || this.flying || this.opening || !event.isPrimary || event.button !== 0 || event.clientX < EDGE_PX) return
     const control = event.target.closest("a, button, input, select, textarea")
     if (control && control !== this.readTarget) return
 
@@ -109,12 +109,20 @@ export default class extends Controller {
   }
 
   rails() {
-    return this.hasSaveRailTarget ? [this.railTarget, this.saveRailTarget] : [this.railTarget]
+    return [this.hasRailTarget && this.railTarget, this.hasSaveRailTarget && this.saveRailTarget].filter(Boolean)
+  }
+
+  deleting() {
+    return this.element.closest("[data-delete-mode]") !== null
+  }
+
+  readTargetConnected(button) {
+    button.inert = this.deleting()
   }
 
   render(dx) {
     const progress = Math.min(1, Math.abs(dx) / this.threshold())
-    const active = dx < 0 ? this.railTarget : dx > 0 && this.hasSaveRailTarget ? this.saveRailTarget : null
+    const active = dx < 0 && this.hasRailTarget ? this.railTarget : dx > 0 && this.hasSaveRailTarget ? this.saveRailTarget : null
     // 一覧の行は横へ平らに滑らせる（傾けると隣の行と背景の丸に食い込む）
     this.cardTarget.style.transform = dx === 0 ? "" : `translateX(${dx}px)`
     this.rails().forEach((rail) => {
@@ -172,6 +180,29 @@ export default class extends Controller {
     this.enqueue(form, null, done, { send: () => { this.stamp(form, noteSwipeSent()); form.requestSubmit() } })
   }
 
+  // 並べずに連打すると、Turbo が前の行の送信を止めて応答を捨て、消したはずの行が画面に残る。
+  // 送り直しの submit（releasing）は止めずに Turbo へ渡す
+  remove(event) {
+    if (this.releasing) return
+
+    event.preventDefault()
+    if (this.removing) return
+
+    this.removing = true
+    const form = event.target
+    this.enqueue(form, null, (success) => {
+      if (success) return
+
+      noteSwipeFailed()
+      this.removing = false
+    }, { send: () => {
+      this.stamp(form, noteSwipeSent())
+      this.releasing = true
+      form.requestSubmit()
+      this.releasing = false
+    } })
+  }
+
   // 送った回数を送信に付ける。応答のトーストがそれを持ち、後から来た送信に置き換わる側かを見分ける（submission_queue）
   stamp(form, count) {
     let field = form.elements.namedItem("swipe")
@@ -224,7 +255,7 @@ export default class extends Controller {
     const swiped = this.swiped && event.detail > 0
     this.swiped = false
     event.preventDefault()
-    if (swiped || this.flying || this.opening || this.awaiting) return
+    if (swiped || this.deleting() || this.flying || this.opening || this.awaiting) return
 
     play("tap")
     if (this.readTarget.tagName === "A") {
@@ -247,7 +278,7 @@ export default class extends Controller {
   detailTargetConnected() {
     if (!this.loaded()) return
 
-    const open = (this.awaiting && this.tap === latestTap) || this.readTarget.getAttribute("aria-expanded") === "true"
+    const open = !this.deleting() && ((this.awaiting && this.tap === latestTap) || this.readTarget.getAttribute("aria-expanded") === "true")
     this.awaiting = false
     this.expand(open)
   }

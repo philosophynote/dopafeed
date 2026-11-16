@@ -352,7 +352,7 @@ RSpec.describe "Main", type: :system do
       open_link("読む記事")
       page.execute_script(<<~JS)
         const row = document.querySelector("li#article_#{Article.find_by!(title: "消す記事").id}")
-        window.Stimulus.getControllerForElementAndIdentifier(row, "swipe").submit(-1)
+        row.querySelector("form[action$='/dismissal']").requestSubmit()
       JS
       click_on "読み終えた"
 
@@ -376,7 +376,7 @@ RSpec.describe "Main", type: :system do
       open_link("読む記事")
       page.execute_script(<<~JS)
         const row = document.querySelector("li#article_#{Article.find_by!(title: "消す記事").id}")
-        window.Stimulus.getControllerForElementAndIdentifier(row, "swipe").submit(-1)
+        row.querySelector("form[action$='/dismissal']").requestSubmit()
       JS
       leave_and_return # 自動送信は興味なしの後ろで待つ
       click_on "読み終えた"
@@ -567,14 +567,14 @@ RSpec.describe "Main", type: :system do
         button: type === "pointermove" ? -1 : 0, buttons: 1, clientX: x, clientY: y
       }))
       fire("pointerdown", rect.left + rect.width * 0.5)
-      for (let i = 1; i <= 4; i++) fire("pointermove", rect.left + rect.width * 0.5 - 60 * i)
-      fire("pointerup", rect.left + rect.width * 0.5 - 240)
+      for (let i = 1; i <= 4; i++) fire("pointermove", rect.left + rect.width * 0.5 + 60 * i)
+      fire("pointerup", rect.left + rect.width * 0.5 + 240)
       return origin.tagName
       })()
     JS
     expect(touched).not_to eq("IMG"), "画像がポインタを受けている（iPhone では画像のドラッグや長押しでスワイプが切れる）"
     expect(page).to have_button("元に戻す")
-    expect(Article.find_by(title: "画像のある記事")).to be_dismissed
+    expect(Article.find_by(title: "画像のある記事")).to be_bookmarked
   end
 
   it "画面の外の行の画像は、読みに行く前に枠を外さず、スクロールして見えたら読む" do
