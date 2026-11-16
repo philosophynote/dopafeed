@@ -1,7 +1,8 @@
 class CreateArticleJudgments < ActiveRecord::Migration[8.1]
   def change
     create_table :article_judgments do |t|
-      t.references :article, null: false, foreign_key: true, index: { unique: true }
+      # 判定を知らない版へ戻しても記事とフィードを消せるよう、行の後始末を DB に持たせる。
+      t.references :article, null: false, foreign_key: { on_delete: :cascade }, index: { unique: true }
       t.float :originality
       t.float :depth
       t.float :practicality

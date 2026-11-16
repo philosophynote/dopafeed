@@ -37,6 +37,12 @@ RSpec.describe ArticleJudgment do
     expect { judgment.article.destroy! }.to change(described_class, :count).by(-1)
   end
 
+  it "モデルを通さずに記事を消しても判定が消える（判定を知らない版へ戻しても、記事とフィードを消せる）" do
+    judgment = create(:article_judgment)
+
+    expect { Article.where(id: judgment.article_id).delete_all }.to change(described_class, :count).by(-1)
+  end
+
   describe "Article.awaiting_judgment" do
     it "読むと決めた・本文取得を試し終えた・まだ判定の行が無い記事だけ" do
       target = create(:article, :awaiting_summary, :opened)

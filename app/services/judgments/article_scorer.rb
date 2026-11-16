@@ -9,7 +9,7 @@ module Judgments
 
     PURPOSE = "rarity_judgment".freeze
     PROVIDER = :openrouter
-    ACCOUNT_STATUSES = [ 401, 402, 403 ].freeze
+    ACCOUNT_STATUSES = [ 401, 402 ].freeze
     TRANSIENT_STATUSES = [ 408, 429 ].freeze
 
     Result = Data.define(:scores, :model, :input_tokens, :cost)
@@ -63,6 +63,7 @@ module Judgments
     end
 
     # gem の例外クラスは 408 や一覧に無い 5xx を素の Error にするので、状態で分ける。
+    # 403 は本文が内容の検査に掛かったときにも返る。鍵の失敗として行を残さないと、開き直すたびに同じ要求を送る。
     def classify(error)
       status = error.response&.status
       return TransientError.new("接続エラー (#{error.class.name.demodulize})") if status.nil?

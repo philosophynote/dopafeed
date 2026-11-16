@@ -34,10 +34,13 @@ RSpec.describe "judgments の rake" do
       expect(opened_only.reload.judgment).to be_nil
     end
 
-    it "本数が無ければ、何も呼ばずに使い方を出して止まる" do
+    it "本数が無い・0 以下・数でないなら、何も呼ばずに使い方を出して止まる（負の LIMIT は全件になる）" do
       completed_article("完読", Time.zone.local(2026, 10, 1, 9))
 
-      expect { backfill.invoke }.to raise_error(SystemExit).and output(/judgments:backfill\[20\]/).to_stderr
+      [ nil, "0", "-1", "abc" ].each do |limit|
+        expect { backfill.invoke(*limit) }.to raise_error(SystemExit).and output(/judgments:backfill\[20\]/).to_stderr
+        backfill.reenable
+      end
       expect(a_request(:post, JudgmentHelper::ENDPOINT)).not_to have_been_made
     end
 
@@ -63,7 +66,7 @@ RSpec.describe "judgments の rake" do
       create(:article, :awaiting_summary, :opened)
 
       expect { status.invoke }.to output(
-        /判定済み 2 ・ 失敗 1 ・ 待ち 1\n25 点: 1 本\n24 点: 1 本\n平均 独自性 4\.5 ・ 深掘り 4\.0 .*\n実費 \$0\.0008/m
+        /判定済み 2 ・ 失敗 1 ・ 待ち 1\n25 点: 1 本\n24 点: 1 本\n平均 独自性 4\.5 ・ 深掘り 4\.0 .*\n実費 \$0\.0008（入力 2400 トークン。判定済みのぶんだけ/m
       ).to_stdout
     end
 

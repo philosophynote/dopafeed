@@ -2,10 +2,12 @@ namespace :judgments do
   # 本数に既定値を置くと、引数を忘れただけで完読の全件ぶん API 料金が掛かる。
   desc "完読した未判定の記事を、完読の新しい順に指定の本数だけ判定する（例: bin/rails 'judgments:backfill[20]'）"
   task :backfill, [ :limit ] => :environment do |_, args|
-    abort "本数を指定せよ: bin/rails 'judgments:backfill[20]'" if args[:limit].blank?
+    # SQLite は LIMIT に負の数を渡すと全件を返す。
+    limit = Integer(args[:limit].presence || 0, exception: false)
+    abort "本数を 1 以上の整数で指定せよ: bin/rails 'judgments:backfill[20]'" unless limit&.positive?
     abort "config/dopamine.yml の judgment と OPENROUTER_API_KEY が要る" unless Judgments::ArticleScorer.configured?
 
-    articles = Article.awaiting_judgment.joins(:reading).merge(Reading.completed).order("readings.completed_at DESC").limit(Integer(args[:limit]))
+    articles = Article.awaiting_judgment.joins(:reading).merge(Reading.completed).order("readings.completed_at DESC").limit(limit)
     articles.each do |article|
       JudgeArticleJob.perform_now(article)
       judgment = article.reload.judgment
@@ -22,6 +24,6 @@ namespace :judgments do
     next if judged.empty?
 
     puts "平均 " + ArticleJudgment::AXES.map { |axis| "#{I18n.t(axis, scope: "judgment.axes", locale: :ja)} #{(judged.sum { |j| j.points[axis] } / judged.size.to_f).round(1)}" }.join(" ・ ")
-    puts "実費 $#{judged.sum { |j| j.cost.to_f }.round(4)}（入力 #{judged.sum { |j| j.input_tokens.to_i }} トークン）"
+    puts "実費 $#{judged.sum { |j| j.cost.to_f }.round(4)}（入力 #{judged.sum { |j| j.input_tokens.to_i }} トークン。判定済みのぶんだけで、失敗と再試行のぶんは含まない）"
   end
 end

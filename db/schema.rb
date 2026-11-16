@@ -129,7 +129,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_160000) do
     t.index ["email_address"], name: "index_users_on_email_address", unique: true
   end
 
-  add_foreign_key "article_judgments", "articles"
+  add_foreign_key "article_judgments", "articles", on_delete: :cascade
   add_foreign_key "articles", "feeds"
   add_foreign_key "readings", "articles"
   add_foreign_key "sessions", "users"
