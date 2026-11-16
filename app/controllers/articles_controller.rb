@@ -6,6 +6,7 @@ class ArticlesController < ApplicationController
 
     # 開くたびに要約待ちなら積み直す。予算切れで捨てた記事は、翌日に開き直しても誰も積まないため（要約済み・積み済みなら Job が何もしない）
     Claude::SummarizeArticleJob.enqueue_if_awaiting(@article)
+    JudgeArticleJob.enqueue_if_awaiting(@article)
   end
 
   def summary

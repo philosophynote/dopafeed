@@ -72,6 +72,14 @@ RSpec.describe FetchArticleContentJob, type: :job do
       expect(Claude::SummarizeArticleJob).to have_been_enqueued.with(article)
     end
 
+    it "判定も積む（本文取得を待っていた判定）" do
+      allow(Judgments::ArticleScorer).to receive(:configured?).and_return(true)
+
+      described_class.perform_now(article)
+
+      expect(JudgeArticleJob).to have_been_enqueued.with(article)
+    end
+
     it "本文の取得に失敗しても積む（フィードの本文で要約する）" do
       allow(fetcher).to receive(:call) { article.update!(content_fetched_at: Time.current, content_error: "本文を抽出できません") }
 

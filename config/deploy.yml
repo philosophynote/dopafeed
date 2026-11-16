@@ -28,6 +28,7 @@ env:
     - VAPID_PRIVATE_KEY
     - VAPID_SUBJECT
     - ANTHROPIC_API_KEY
+    - OPENROUTER_API_KEY
   clear:
     LITESTREAM_BUCKET: dopafeed-litestream
     LITESTREAM_REGION: ap-northeast-1

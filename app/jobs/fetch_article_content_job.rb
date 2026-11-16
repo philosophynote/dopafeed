@@ -10,7 +10,7 @@ class FetchArticleContentJob < ApplicationJob
   retry_on HttpGet::TransientError, wait: :polynomially_longer do |job, error|
     article = job.arguments.first
     ArticleContentFetcher.new(article).record_failure(error.message)
-    Claude::SummarizeArticleJob.enqueue_if_awaiting(article)
+    enqueue_waiting_jobs(article)
   end
 
   limits_concurrency key: ->(article) { FetchArticleContentJob.host_of(article) }
@@ -24,6 +24,11 @@ class FetchArticleContentJob < ApplicationJob
   def perform(article)
     return if article.content_fetched_at.present?
 
-    ArticleContentFetcher.new(article).call.tap { Claude::SummarizeArticleJob.enqueue_if_awaiting(article) }
+    ArticleContentFetcher.new(article).call.tap { self.class.enqueue_waiting_jobs(article) }
+  end
+
+  def self.enqueue_waiting_jobs(article)
+    Claude::SummarizeArticleJob.enqueue_if_awaiting(article)
+    JudgeArticleJob.enqueue_if_awaiting(article)
   end
 end

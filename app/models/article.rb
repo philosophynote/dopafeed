@@ -1,6 +1,7 @@
 class Article < ApplicationRecord
   belongs_to :feed
   has_one :reading, dependent: :destroy
+  has_one :judgment, class_name: "ArticleJudgment", dependent: :destroy
 
   validates :title, presence: true
   # URL はリンクの href に使うので、javascript: などを通さない。
@@ -11,6 +12,7 @@ class Article < ApplicationRecord
   scope :saved, -> { where.not(liked_at: nil).or(where.not(bookmarked_at: nil)) }
   scope :bookmarked, -> { where.not(bookmarked_at: nil).order(bookmarked_at: :desc, id: :desc) }
   scope :newest_first, -> { order(published_at: :desc, id: :desc) }
+  scope :awaiting_judgment, -> { where.not(content_fetched_at: nil).where(id: Reading.select(:article_id)).where.not(id: ArticleJudgment.select(:article_id)) }
   scope :awaiting_summary, -> { where(summary: nil, summary_failed_at: nil).where.not(content_fetched_at: nil).where(id: Reading.select(:article_id)) }
 
   # 新しい方へ戻ると、未完で区切った記事が同じ流れに再び出てしまう。
