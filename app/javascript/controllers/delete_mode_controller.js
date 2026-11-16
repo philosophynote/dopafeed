@@ -49,8 +49,7 @@ export default class extends Controller {
     this.late.delete(this.key(form))
     this.counted.add(this.key(form))
     this.setCombo(this.combo + 1)
-    // sfx の combo は 2 から上がり始める
-    play("combo", this.combo + 1)
+    play("melody", this.combo)
     this.countTarget.classList.remove("combo-pop")
     void this.countTarget.offsetWidth
     this.countTarget.classList.add("combo-pop")
