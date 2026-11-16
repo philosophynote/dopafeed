@@ -81,6 +81,16 @@
 [data-delete-mode] .delete-mode-only {
   display: block;
 }
+.combo-pop {
+  display: inline-block;
+  animation: combo-pop 240ms ease-out;
+}
+@keyframes combo-pop {
+  40% { transform: scale(1.5); color: var(--color-orange-300); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .combo-pop { animation: none; }
+}
 /* 削除モードでは行のタップを「読む」にしない。ボタンを連打する指が少しずれても、読みと抽選に化けない */
 [data-delete-mode] [data-swipe-target="read"] {
   pointer-events: none;

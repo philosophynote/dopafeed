@@ -169,6 +169,7 @@ RSpec.describe "Delete mode", type: :system do
     expect(page).to have_css("fieldset.delete-mode-switch")
 
     choose "読む", allow_label_click: true
+    find("dialog[open]").click_on "閉じる"
     expect(page).to have_no_css("fieldset.delete-mode-switch")
     expect(page).to have_link("設定")
 
@@ -181,5 +182,224 @@ RSpec.describe "Delete mode", type: :system do
     sign_in
     expect(page).to have_text("全部読んだ。")
     expect(page).to have_no_field("削除", visible: :all)
+  end
+
+  context "コンボとリザルト" do
+    def sfx_log
+      page.evaluate_script('JSON.parse(sessionStorage.getItem("sfx-log") || "[]")')
+    end
+
+    def combo_levels
+      levels = page.evaluate_script('JSON.parse(sessionStorage.getItem("sfx-log-levels") || "[]")')
+      sfx_log.zip(levels).filter_map { |cue, level| level if cue == "combo" }
+    end
+
+    # 時間は performance.now で測る。秒を決めて検査するため、手で進める時計に差し替える
+    def freeze_clock
+      page.execute_script("window.__now = 0; performance.now = () => window.__now")
+    end
+
+    def advance_clock(ms)
+      page.execute_script("window.__now += #{ms}")
+    end
+
+    # 削除の POST を、release_posts を呼ぶまで手で止めておく
+    def hold_posts
+      page.execute_script(<<~JS)
+        window.__fetch = window.fetch
+        window.__held = []
+        window.fetch = (url, options) => (options?.method || "GET").toUpperCase() === "POST" && !window.__open
+          ? new Promise((resolve) => window.__held.push(() => resolve(window.__fetch(url, options))))
+          : window.__fetch(url, options)
+      JS
+    end
+
+    def release_posts
+      page.execute_script("window.__open = true; window.__held.splice(0).forEach((send) => send())")
+    end
+
+    def combo
+      find("[data-delete-mode-target='combo']")
+    end
+
+    before do
+      %w[一本目 二本目 三本目 四本目].each_with_index { |title, i| create(:article, title: title, published_at: now - (i + 1).hours) }
+    end
+
+    it "削除するたびにコンボが 1 増えて一段ずつ高い音が鳴り、元に戻すと 1 減る。コンボはステータスの行に重ね、行の高さも読了の「n 連続」も変えない" do
+      2.times { |i| create(:reading, :completed, opened_at: now - (i + 1).minutes - 10.minutes) }
+      sign_in
+      status_top = find("section[aria-label='記事']").evaluate_script("this.getBoundingClientRect().top")
+      expect(page).to have_css("[data-combo]", text: "2 連続", visible: :all)
+      enter_delete_mode
+      expect(combo).to have_text("0 COMBO", normalize_ws: true)
+      expect(combo["aria-atomic"]).to eq("true")
+      expect(find("section[aria-label='記事']").evaluate_script("this.getBoundingClientRect().top")).to eq(status_top)
+      expect(page).to have_css("[inert] #status-card", visible: :all)
+
+      delete_row("一本目")
+      expect(combo).to have_text("1 COMBO", normalize_ws: true)
+      delete_row("二本目")
+      expect(combo).to have_text("2 COMBO", normalize_ws: true)
+      expect(page).to have_css("article", count: 2)
+      expect(combo_levels).to eq([ 2, 3 ])
+      screenshot!("combo")
+
+      find("#toast").click_on("元に戻す")
+      expect(page).to have_css("article", text: "二本目")
+      expect(combo).to have_text("1 COMBO", normalize_ws: true)
+      expect(Article.where.not(dismissed_at: nil).count).to eq(1)
+      expect(page).to have_css("[data-combo]", text: "2 連続", visible: :all)
+
+      choose "読む", allow_label_click: true
+      find("dialog[open]").click_on "閉じる"
+      expect(page).to have_no_css("[inert] #status-card", visible: :all)
+    end
+
+    it "「読む」に戻すと、かかった時間と件数と 1 件あたりの秒数のリザルトが重なって出て、ファンファーレが鳴る。閉じると次の回は 0 から" do
+      sign_in
+      freeze_clock
+      enter_delete_mode
+      delete_row("一本目")
+      delete_row("二本目")
+      delete_row("三本目")
+      expect(page).to have_css("article", count: 1)
+      advance_clock(83_000)
+
+      choose "読む", allow_label_click: true
+
+      result = find("dialog[open]", text: "リザルト")
+      expect(result).to have_text("3 件", normalize_ws: true)
+      expect(result).to have_text("1 分 23 秒", normalize_ws: true)
+      expect(result).to have_text("27.7 秒", normalize_ws: true)
+      expect(sfx_log.last).to eq("fanfare")
+      expect(result.find_button("閉じる").evaluate_script("this.getBoundingClientRect().height")).to be >= 44
+      screenshot!("result")
+
+      result.click_on "閉じる"
+      expect(page).to have_no_css("dialog[open]")
+      enter_delete_mode
+      expect(combo).to have_text("0 COMBO", normalize_ws: true)
+    end
+
+    it "続けて押してすぐ「読む」に戻しても、押した分がリザルトに入る。後から届いた応答は次の回のコンボに数えない" do
+      sign_in
+      enter_delete_mode
+      hold_posts
+      delete_row("一本目")
+      delete_row("二本目")
+      delete_row("三本目")
+      choose "読む", allow_label_click: true
+
+      expect(find("dialog[open]")).to have_text("3 件", normalize_ws: true)
+      find("dialog[open]").click_on "閉じる"
+      enter_delete_mode
+      release_posts
+
+      expect(page).to have_css("article", count: 1)
+      expect(Article.where.not(dismissed_at: nil).count).to eq(3)
+      find("#toast").click_on("元に戻す")
+      expect(page).to have_css("article", count: 2)
+      expect(combo).to have_text("0 COMBO", normalize_ws: true)
+    end
+
+    it "送れなかった削除はコンボから引く" do
+      sign_in
+      enter_delete_mode
+      # 圏外で送れなかったときと同じく、最初の削除の POST だけを失敗させる
+      page.execute_script(<<~JS)
+        const original = window.fetch
+        window.fetch = (url, options) => (options?.method || "GET").toUpperCase() === "POST" && !window.__failed
+          ? (window.__failed = true, Promise.reject(new TypeError("Failed to fetch")))
+          : original(url, options)
+        window.__ended = 0
+        document.addEventListener("turbo:submit-end", () => window.__ended++)
+      JS
+
+      delete_row("一本目")
+      page.document.synchronize { raise Capybara::ExpectationNotMet, "送信が終わらない" unless page.evaluate_script("window.__ended") == 1 }
+      expect(page).to have_css("article", count: 4)
+      expect(combo).to have_text("0 COMBO", normalize_ws: true)
+
+      delete_row("一本目")
+      expect(page).to have_css("article", count: 3)
+      expect(combo).to have_text("1 COMBO", normalize_ws: true)
+    end
+
+    it "待ちの上限を越えて失敗に見えた削除も、後から成功が届けばコンボに数え直す" do
+      allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.deep_merge(swipe: { submit_timeout_seconds: 1 }))
+      sign_in
+      enter_delete_mode
+      page.execute_script(<<~JS)
+        const original = window.fetch
+        window.fetch = (url, options) => (options?.method || "GET").toUpperCase() === "POST"
+          ? new Promise((resolve) => setTimeout(() => resolve(original(url, options)), 2500))
+          : original(url, options)
+      JS
+
+      delete_row("一本目")
+      expect(combo).to have_text("0 COMBO", normalize_ws: true, wait: 2)
+      expect(page).to have_css("article", count: 3, wait: 5)
+      expect(combo).to have_text("1 COMBO", normalize_ws: true)
+    end
+
+    it "1 件も消さずに「読む」に戻すとリザルトは出ない。1 分に満たなければ秒だけ出す" do
+      sign_in
+      freeze_clock
+      enter_delete_mode
+      choose "読む", allow_label_click: true
+      sleep 0.3
+      expect(page).to have_no_css("dialog[open]")
+
+      enter_delete_mode
+      delete_row("一本目")
+      expect(combo).to have_text("1 COMBO", normalize_ws: true)
+      advance_clock(9_500)
+      choose "読む", allow_label_click: true
+      result = find("dialog[open]")
+      expect(result).to have_text("1 件", normalize_ws: true)
+      expect(result).to have_text("9 秒", normalize_ws: true)
+      expect(result).to have_no_text("分")
+    end
+
+    it "リザルトは枠の外を押すと閉じ、枠の中の余白を押しても閉じない。開いたまま画面を移って戻ると閉じている" do
+      sign_in
+      enter_delete_mode
+      delete_row("一本目")
+      expect(combo).to have_text("1 COMBO", normalize_ws: true)
+      choose "読む", allow_label_click: true
+      result = find("dialog[open]")
+
+      rect = result.evaluate_script("this.getBoundingClientRect().toJSON()")
+      page.driver.browser.action.move_to_location(rect["left"] + rect["width"] / 2, rect["top"] + 4).click.perform
+      expect(page).to have_css("dialog[open]")
+      page.driver.browser.action.move_to_location(rect["left"] / 2, rect["top"] / 2).click.perform
+      expect(page).to have_no_css("dialog[open]")
+
+      enter_delete_mode
+      delete_row("二本目")
+      expect(combo).to have_text("1 COMBO", normalize_ws: true)
+      choose "読む", allow_label_click: true
+      expect(page).to have_css("dialog[open]")
+      page.execute_script("Turbo.visit('#{learning_path}')")
+      expect(page).to have_css("h1", text: "設定")
+      page.go_back
+      expect(page).to have_css("article", text: "三本目")
+      expect(page).to have_no_css("dialog[open]")
+    end
+
+    it "動きを減らす設定では、件数をカウントアップせずに最後の数で出す" do
+      sign_in
+      page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: [ { name: "prefers-reduced-motion", value: "reduce" } ])
+      enter_delete_mode
+      delete_row("一本目")
+      delete_row("二本目")
+      expect(combo).to have_text("2 COMBO", normalize_ws: true)
+
+      choose "読む", allow_label_click: true
+      expect(find("dialog[open] [data-delete-mode-target='resultCount']").text).to eq("2")
+    ensure
+      page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: [])
+    end
   end
 end
