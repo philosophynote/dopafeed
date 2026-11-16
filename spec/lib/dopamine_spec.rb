@@ -5,6 +5,17 @@ RSpec.describe Dopamine do
     expect(described_class.settings).to eq(yml)
   end
 
+  it "judgment の節があるなら、判定が読む鍵が揃い、待ち時間は同じ記事の判定 Job の重なり止めの期間より短い（節が無ければ判定は積まれない）" do
+    judgment = yml[:judgment]
+
+    if judgment
+      expect(judgment).to include(model: a_kind_of(String), input_chars: a_kind_of(Integer), timeout_seconds: a_kind_of(Numeric))
+      expect(judgment[:timeout_seconds].seconds).to be < JudgeArticleJob.concurrency_duration
+    else
+      expect(Judgments::ArticleScorer).not_to be_configured
+    end
+  end
+
   it "rarities は cards.rarities をそのまま、rarity_names はその name を順に返す" do
     expect(described_class.rarities).to eq(yml.dig(:cards, :rarities))
     expect(described_class.rarity_names).to eq(yml.dig(:cards, :rarities).map { |rarity| rarity[:name] })

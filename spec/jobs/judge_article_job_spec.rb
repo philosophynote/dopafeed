@@ -78,6 +78,30 @@ RSpec.describe JudgeArticleJob, type: :job do
     expect(Article.awaiting_judgment).to include(article)
   end
 
+  it "鍵の誤りや残高切れは捨てる。記事のせいではないので失敗を残さず、直した後に開き直せば積める" do
+    allow(scorer).to receive(:call).and_raise(Judgments::ArticleScorer::AccountError, "API エラー (HTTP 401)")
+
+    expect { described_class.perform_now(article) }.not_to raise_error
+
+    expect(article.reload.judgment).to be_nil
+  end
+
+  it "呼んでいる間に記事が消えていたら、何も残さず終わる" do
+    allow(scorer).to receive(:call) do
+      Article.find(article.id).destroy!
+      result
+    end
+
+    expect { described_class.perform_now(article) }.not_to raise_error
+  end
+
+  it "積んだ後に記事が消えていたら捨てる" do
+    described_class.perform_later(article)
+    article.destroy!
+
+    expect { perform_enqueued_jobs }.not_to raise_error
+  end
+
   describe ".enqueue_if_awaiting" do
     it "判定待ちの記事なら積む" do
       expect { described_class.enqueue_if_awaiting(article) }.to have_enqueued_job(described_class).with(article).on_queue("judgments")

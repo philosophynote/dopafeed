@@ -5,11 +5,12 @@ module Judgments
     class Error < StandardError; end
     class EmptyContent < Error; end
     class TransientError < Error; end
+    class AccountError < Error; end
 
     PURPOSE = "rarity_judgment".freeze
     PROVIDER = :openrouter
-    TRANSIENT = [ RubyLLM::ConnectionError, RubyLLM::RateLimitError, RubyLLM::ServerError,
-                  RubyLLM::ServiceUnavailableError, RubyLLM::OverloadedError ].freeze
+    ACCOUNT_STATUSES = [ 401, 402, 403 ].freeze
+    TRANSIENT_STATUSES = [ 408, 429 ].freeze
 
     Result = Data.define(:scores, :model, :input_tokens, :cost)
 
@@ -28,7 +29,7 @@ module Judgments
 
       context = build_context # API キーの無い箱で台帳だけ減っていかないよう、記録の前に作る
       budget.record!(purpose: PURPOSE, model: settings.fetch(:model))
-      result(judge({ title: article.title, body: body }, context))
+      score({ title: article.title, body: body }, context)
     end
 
     private
@@ -49,20 +50,28 @@ module Judgments
     end
 
     # 同梱のモデル一覧に無い新しい版を yml に書いても呼べるよう、一覧での存在確認は省く。
-    def judge(input, context)
-      ArticleRarityJudge.judge(input, model: settings.fetch(:model), provider: PROVIDER, assume_model_exists: true, context: context)
-    rescue *TRANSIENT => e
-      raise TransientError, describe(e)
+    # gem は usage の型が崩れた応答などで RubyLLM::Error 以外も上げる。そのまま外へ出すと、
+    # 台帳に記録済みのまま失敗を残せず、開き直すたびに払い直す。
+    def score(input, context)
+      result(ArticleRarityJudge.judge(input, model: settings.fetch(:model), provider: PROVIDER, assume_model_exists: true, context: context))
+    rescue Error
+      raise
     rescue RubyLLM::Error => e
-      raise Error, describe(e)
+      raise classify(e)
+    rescue StandardError => e
+      raise Error, "応答の形式が不正 (#{e.class.name.demodulize})"
     end
 
-    def describe(error)
+    # gem の例外クラスは 408 や一覧に無い 5xx を素の Error にするので、状態で分ける。
+    def classify(error)
       status = error.response&.status
-      return "API エラー (HTTP #{status})" if status && status >= 400
-      return "応答の形式が不正" if status
+      return TransientError.new("接続エラー (#{error.class.name.demodulize})") if status.nil?
+      return Error.new("判定として読めない応答 (HTTP #{status})") if status < 400
 
-      "接続エラー (#{error.class.name.demodulize})"
+      message = "API エラー (HTTP #{status})"
+      return AccountError.new(message) if ACCOUNT_STATUSES.include?(status)
+
+      (status >= 500 || TRANSIENT_STATUSES.include?(status) ? TransientError : Error).new(message)
     end
 
     # 段の範囲を外れた値を保存の検証で落とすと、Job が失敗を残せずに死ぬ。

@@ -63,8 +63,8 @@ RSpec.describe Judgments::ArticleScorer do
     end
   end
 
-  it "429 と 5xx は時間を置けば通りうるので TransientError。gem の中では再試行しない（HTTP 要求は 1 回）" do
-    [ 429, 500, 503 ].each do |status|
+  it "408・429 と 5xx（gem が名前を持たない 520 も）は時間を置けば通りうるので TransientError。gem の中では再試行しない（HTTP 要求は 1 回）" do
+    [ 408, 429, 500, 503, 520, 529 ].each do |status|
       WebMock.reset!
       stub_judgment(status: status, body: { error: { message: "fixture" } }.to_json)
 
@@ -88,10 +88,40 @@ RSpec.describe Judgments::ArticleScorer do
     }
   end
 
+  it "401・402・403 は鍵や残高の失敗で、記事の失敗と分ける（AccountError）" do
+    [ 401, 402, 403 ].each do |status|
+      WebMock.reset!
+      stub_judgment(status: status, body: { error: { message: "fixture" } }.to_json)
+
+      expect { described_class.new(article).call }.to raise_error(described_class::AccountError, "API エラー (HTTP #{status})")
+    end
+  end
+
   it "軸の欠けた応答は Error" do
     stub_judgment(body: judgment_response(scores.except(:insight)))
 
-    expect { described_class.new(article).call }.to raise_error(described_class::Error, /応答の形式が不正/)
+    expect { described_class.new(article).call }.to raise_error(described_class::Error, "判定として読めない応答 (HTTP 200)")
+  end
+
+  it "usage の型が崩れた応答で gem が TypeError などを上げても Error に包む（失敗を残せずに Job が死ぬと、開くたびに払い直す）" do
+    [ { cost: "0.1" }, { input_tokens: "12" } ].each do |usage|
+      WebMock.reset!
+      body = JSON.parse(judgment_response(scores))
+      stub_judgment(body: body.merge("usage" => body["usage"].merge(usage.stringify_keys)).to_json)
+
+      expect { described_class.new(article).call }.to raise_error(described_class::Error, /応答の形式が不正 \(\w+\)/)
+    end
+  end
+
+  it "待ちは yml の judgment.timeout_seconds で、gem には再試行させない" do
+    stub_judgment
+    allow(ArticleRarityJudge).to receive(:judge).and_call_original
+
+    described_class.new(article).call
+
+    expect(ArticleRarityJudge).to have_received(:judge) do |_input, context:, **|
+      expect(context.config).to have_attributes(request_timeout: JudgmentHelper::SETTINGS[:timeout_seconds], max_retries: 0)
+    end
   end
 
   it "段の範囲を外れた点や数でない点の応答は Error" do

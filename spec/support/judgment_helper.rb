@@ -1,4 +1,5 @@
-# config/dopamine.yml に judgment の鍵が入るまでは、判定を使う例だけ設定と API キーを差し込む。
+# 設定と API キーは対で揃えないと configured? が偽になり判定が積まれないので、判定を使う例にはまとめて差し込む。
+# yml の実物の鍵の名前は spec/lib/dopamine_spec.rb が見る。
 module JudgmentHelper
   SETTINGS = { model: "typesafe/jev-1.14", input_chars: 2000, timeout_seconds: 5 }.freeze
   ENDPOINT = "https://openrouter.ai/api/alpha/decisions".freeze

@@ -398,11 +398,11 @@ VAPID_SUBJECT=$(bin/rails credentials:fetch vapid.subject)
 
 記事の中身の採点（OpenRouter 経由の Jev）に要る。`config/dopamine.yml` に `judgment` の節が無い間は、鍵があっても判定は積まれない。
 
-OpenRouter で作った鍵を `EDITOR="zed --wait" bin/rails credentials:edit` で `openrouter:` の下に `api_key: "sk-or-..."` として入れ、`.kamal/secrets` に 1 行足す（config/deploy.yml の env.secret に名前は入っている。**無いと `kamal deploy` と main マージ後の自動デプロイが `Secret 'OPENROUTER_API_KEY' not found` で止まる**ので、deploy.yml にこの名前が入った版をマージする前に済ませる）:
+OpenRouter で作った鍵を `EDITOR="zed --wait" bin/rails credentials:edit` で `openrouter:` の下に `api_key: "sk-or-..."` として入れ、`.kamal/secrets` に 1 行足す。自動デプロイは main の `.kamal/secrets` と `config/credentials.yml.enc` を読むので、**config/deploy.yml の env.secret にこの名前が入る PR のブランチに、この 1 行と鍵を入れた credentials をコミットしてからマージする**（手元の編集だけでは足りない。無いまま main に入ると、自動デプロイが `Secret 'OPENROUTER_API_KEY' not found` で止まる。手順は 4 の `KAMAL_REGISTRY_PASSWORD` と同じ）:
 ```sh
 OPENROUTER_API_KEY=$(bin/rails credentials:fetch openrouter.api_key)
 ```
-確かめるのは `bin/rails 'judgments:backfill[3]'`（完読した未判定の記事を新しい順に 3 本採点し、点を出す。本番ではコンテナの中で打つ）と `bin/rails judgments:status`（合計点ごとの本数と実費）。失敗の理由は `ArticleJudgment.failed.pluck(:article_id, :error)`。やり直すにはその行を消して記事を開き直す。
+確かめるのは `bin/rails 'judgments:backfill[3]'`（完読した未判定の記事を新しい順に 3 本採点し、点を出す。本番ではコンテナの中で打つ）と `bin/rails judgments:status`（合計点ごとの本数と実費）。失敗の理由は `ArticleJudgment.failed.pluck(:article_id, :error)`。やり直すにはその行を消して記事を開き直す。鍵の誤り・残高切れ（401 / 402 / 403）と予算切れは行を残さず、`kamal logs` の `[judgments]` に出る（直せば、開き直した記事から判定される）。
 
 ## 3. よく使う
 ```sh

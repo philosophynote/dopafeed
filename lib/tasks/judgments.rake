@@ -9,7 +9,7 @@ namespace :judgments do
     articles.each do |article|
       JudgeArticleJob.perform_now(article)
       judgment = article.reload.judgment
-      line = judgment&.judged? ? "#{judgment.total} 点 #{judgment.points.values.join("/")}" : "失敗 #{judgment&.error || "判定を残せなかった（予算切れか再試行待ち）"}"
+      line = judgment&.judged? ? "#{judgment.total} 点 #{judgment.points.values.join("/")}" : "失敗 #{judgment&.error || "判定を残せなかった（予算切れ・鍵や残高の失敗・再試行待ち。ログの [judgments] を見よ）"}"
       puts "#{line} #{article.title}"
     end
   end
