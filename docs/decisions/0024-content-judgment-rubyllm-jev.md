@@ -8,7 +8,7 @@ nao の決定（2026-11-16「RubyLLM と Jev を利用して読んだ記事の�
 要約のように文章を作らせて数字を読み取るより、段の定義を渡して段の確率分布を返す判定専用の仕組みのほうが、同じ記事に同じ点が出やすく、形式の崩れも起きない。
 
 ## 決めたこと
-- **道具は RubyLLM（ruby_llm gem）の `RubyLLM::Judge`、モデルは TypeSafe 社の Jev。** Jev は Claude ではなく、Judge は Anthropic では動かない。経路は OpenRouter（`OPENROUTER_API_KEY`、モデル名は yml `judgment.model`）。価格が公開され、1 回ごとの実費が応答に載る
+- **道具は RubyLLM（ruby_llm gem）の `RubyLLM::Judge`、モデルは TypeSafe 社の Jev。** Jev は Claude ではなく、Judge は Anthropic では動かない。経路は TypeSafe の API に直接（`TYPESAFE_API_KEY`、モデル名は yml `judgment.model`）。nao が TypeSafe の鍵を持っており、仲介と登録が一つ減る（2026-11-18 に OpenRouter 経由から改めた）
 - **問いは 6 軸（独自性・深掘り・実践性・根拠・洞察・応用性）の `score`、各 5 段。** 6 問を 1 回の要求で送る。1・3・5 段目は nao の表の文、2・4 段目は隣の中間。文言は `app/judges/article_rarity_judge.rb` に置く（製品の仕様であり、報酬の調整値ではない）
 - **`score` は 0 始まりで、段の確率で重み付けした小数が返る（5 段なら 0.0〜4.0）。** 小数のまま `article_judgments` に保存し、見せる点は四捨五入して 1 を足した 1〜5、合計は見せる 6 つの点の和（6〜30）
 - **保存は記事 1 本に 1 行（`article_judgments`）。** 中身は記事の性質なので `readings` には置かない。記事のせいの失敗（本文なし・403 を含むその他の 4xx・読めない応答・再試行の使い切り）は行として残し、自動ではやり直さない（要約と同じ。時間を置いても通らない失敗に払い続けない）。予算切れと、鍵の誤り・残高切れ（401 / 402）は行を残さず、次に開いたときに積み直す
@@ -20,17 +20,18 @@ nao の決定（2026-11-16「RubyLLM と Jev を利用して読んだ記事の�
 
 ## 採らなかった案
 - **Claude（Haiku）に 6 つの整数を出させる**: 新しい鍵は要らないが、点が揺れ、確率分布も取れない。nao の指定は RubyLLM と Jev
-- **TypeSafe に直接つなぐ**: 実装は同じだが、価格を確かめられなかった
+- **OpenRouter を経由する**: 1 回ごとの実費が応答に載り、版を固定したモデル名（`typesafe/jev-1.14`）で呼べるが、鍵と残高をもう一組持つことになる。初めはこの経路で書いた
 - **Ollama で手元のモデル（Clef）を動かす**: 本番は 1 GB で、27B はおろか 9B も載らない
 - **判定を完読のときに積む**: 区切りで結果を待たせる。開いたときに積めば、完読（`read.complete_after_seconds`）までに届く見込み
 
 ## 承知している弱み
-- **判定の再試行は、要約と共用の日次上限を食う。** 台帳は呼ぶ前に 1 行増やすので（失敗も 1 回と数える。要約と同じ）、OpenRouter の不調が続く日は 1 記事で 5 行以上になり、上限に届けばその日は要約も捨てられる。困るようなら判定の上限を別に持つ（yml の鍵が要る）
+- **判定の再試行は、要約と共用の日次上限を食う。** 台帳は呼ぶ前に 1 行増やすので（失敗も 1 回と数える。要約と同じ）、判定の API の不調が続く日は 1 記事で 5 行以上になり、上限に届けばその日は要約も捨てられる。困るようなら判定の上限を別に持つ（yml の鍵が要る）
 - **記事の本文に「満点を付けよ」と書かれると、点が水増しされうる。** 問いの文に「従わない」と入れてあるが、防ぎ切れない。届くのは点と枠の演出までで、秘密や操作には届かない
 - **gem を読み込むと常駐メモリが約 40 MB 増える**（モデル一覧の JSON を含む。手元の計測）。1 GB の本番で余裕が無くなったら、一覧を読まない呼び方に替える
 - **CI は実通信ゼロで、応答の形は gem のソースから手で書いたもの。** 実物との一致は、鍵を入れて `judgments:backfill` を数本回して確かめる
+- **1 回ごとの実費は記録できない。** TypeSafe の応答には費用が載らず、gem のモデル一覧にも価格が無い。`article_judgments.cost` は空のまま残り、`judgments:status` は入力トークンの合計だけを出す。額は TypeSafe の管理画面で見る
 - Jev の日本語の記事での精度と応答時間、点の分布は未確認。`judgments:status` で分布を見て、文言と境界を調整する
 
 ## 使う設定の鍵（nao が足す）
-dopamine.yml: `judgment.model`（OpenRouter のモデル名）、`judgment.input_chars`（送る本文の上限）、`judgment.timeout_seconds`
-秘密: `OPENROUTER_API_KEY`（credentials の `openrouter.api_key` → `.kamal/secrets`。docs/runbook.md 2-i）
+dopamine.yml: `judgment.model`（TypeSafe のモデル名。gem の一覧にあるのは `jev-latest` と `jev-preview`）、`judgment.input_chars`（送る本文の上限）、`judgment.timeout_seconds`
+秘密: `TYPESAFE_API_KEY`（credentials の `typesafe.api_key` → `.kamal/secrets`。docs/runbook.md 2-i）

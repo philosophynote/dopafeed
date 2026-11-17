@@ -7,7 +7,7 @@ FactoryBot.define do
     evidence { 1.4 }
     insight { 2.5 }
     applicability { 0.4 }
-    model { "typesafe/jev-1.14" }
+    model { "jev-latest" }
     input_tokens { 1200 }
     cost { 0.0003 }
     judged_at { Time.zone.local(2026, 10, 6, 8) }

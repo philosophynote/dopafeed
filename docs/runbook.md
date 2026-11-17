@@ -396,13 +396,15 @@ VAPID_SUBJECT=$(bin/rails credentials:fetch vapid.subject)
 
 ## 2-i. 判定の API キー（ADR 0024）
 
-記事の中身の採点（OpenRouter 経由の Jev）に要る。`config/dopamine.yml` に `judgment` の節が無い間は、鍵があっても判定は積まれない。
+記事の中身の採点（TypeSafe の Jev）に要る。`config/dopamine.yml` に `judgment` の節が無い間は、鍵があっても判定は積まれない。
 
-OpenRouter で作った鍵を `EDITOR="zed --wait" bin/rails credentials:edit` で `openrouter:` の下に `api_key: "sk-or-..."` として入れ、`.kamal/secrets` に 1 行足す。自動デプロイは main の `.kamal/secrets` と `config/credentials.yml.enc` を読むので、**config/deploy.yml の env.secret にこの名前が入る PR のブランチに、この 1 行と鍵を入れた credentials をコミットしてからマージする**（手元の編集だけでは足りない。無いまま main に入ると、自動デプロイが `Secret 'OPENROUTER_API_KEY' not found` で止まる。手順は 4 の `KAMAL_REGISTRY_PASSWORD` と同じ）:
+TypeSafe で作った鍵を `EDITOR="zed --wait" bin/rails credentials:edit` で `typesafe:` の下に `api_key: "..."` として入れ、`.kamal/secrets` に 1 行足す。自動デプロイは main の `.kamal/secrets` と `config/credentials.yml.enc` を読むので、**config/deploy.yml の env.secret にこの名前が入る PR のブランチに、この 1 行と鍵を入れた credentials をコミットしてからマージする**（手元の編集だけでは足りない。無いまま main に入ると、自動デプロイが `Secret 'TYPESAFE_API_KEY' not found` で止まる。手順は 4 の `KAMAL_REGISTRY_PASSWORD` と同じ）:
 ```sh
-OPENROUTER_API_KEY=$(bin/rails credentials:fetch openrouter.api_key)
+TYPESAFE_API_KEY=$(bin/rails credentials:fetch typesafe.api_key)
 ```
-確かめるのは `bin/rails 'judgments:backfill[3]'`（完読した未判定の記事を新しい順に 3 本採点し、点を出す。本番ではコンテナの中で打つ）と `bin/rails judgments:status`（合計点ごとの本数と実費）。失敗の理由は `ArticleJudgment.failed.pluck(:article_id, :error)`。やり直すにはその行を消して記事を開き直す（403 は本文が OpenRouter の内容の検査に掛かったときにも返るので記事の失敗として残す。鍵の権限が原因だったなら、直した後に行を消す）。鍵の誤り・残高切れ（401 / 402）と予算切れは行を残さず、`kamal logs` の `[judgments]` に出る（直せば、開き直した記事から判定される。手元なら `log/development.log`）。`judgments:backfill` はこれらの理由を画面に出して止まり、一時的な失敗（接続エラー・タイムアウト・429・5xx）は理由を出して次の記事へ進む（どちらも行を残さないので、打ち直せばまた試す）。
+手元で試すなら、打つシェルで `export TYPESAFE_API_KEY=$(bin/rails credentials:fetch typesafe.api_key)`（Rails は credentials を環境変数に移さない）。yml の `judgment.model` に書ける名前は `curl -s -H "Authorization: Bearer $TYPESAFE_API_KEY" https://api.typesafe.ai/v1/models` の `name`。
+
+確かめるのは `bin/rails 'judgments:backfill[3]'`（完読した未判定の記事を新しい順に 3 本採点し、点を出す。本番ではコンテナの中で打つ）と `bin/rails judgments:status`（合計点ごとの本数と実費）。失敗の理由は `ArticleJudgment.failed.pluck(:article_id, :error)`。やり直すにはその行を消して記事を開き直す（403 は記事ごとの拒否でも返りうるので記事の失敗として残す。鍵の権限が原因だったなら、直した後に行を消す）。鍵の誤り・残高切れ（401 / 402）と予算切れは行を残さず、`kamal logs` の `[judgments]` に出る（直せば、開き直した記事から判定される。手元なら `log/development.log`）。`judgments:backfill` はこれらの理由を画面に出して止まり、一時的な失敗（接続エラー・タイムアウト・429・5xx）は理由を出して次の記事へ進む（どちらも行を残さないので、打ち直せばまた試す）。
 
 ## 3. よく使う
 ```sh

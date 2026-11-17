@@ -13,15 +13,15 @@ RSpec.describe Judgments::ArticleScorer do
     JSON.parse(@request.body)
   end
 
-  it "6 軸の小数の段・モデル・入力トークン・実費を返し、台帳に 1 行増える" do
+  it "6 軸の小数の段・モデル・入力トークンを返し、台帳に 1 行増える（費用は応答に載らないので空）" do
     stub_judgment
 
     result = nil
     expect { result = described_class.new(article).call }.to change(ClaudeApiCall, :count).by(1)
 
     expect(result.scores).to eq(scores.stringify_keys)
-    expect(result).to have_attributes(model: "typesafe/jev-1.14", input_tokens: 1200, cost: 0.0003)
-    expect(ClaudeApiCall.last).to have_attributes(purpose: "rarity_judgment", model: "typesafe/jev-1.14")
+    expect(result).to have_attributes(model: "jev-latest", input_tokens: 1200, cost: nil)
+    expect(ClaudeApiCall.last).to have_attributes(purpose: "rarity_judgment", model: "jev-latest")
   end
 
   it "yml のモデルと API キーで、見出しとタグを落とした本文を 6 問まとめて 1 回送る" do
@@ -30,7 +30,7 @@ RSpec.describe Judgments::ArticleScorer do
     described_class.new(article).call
 
     expect(@request.headers["Authorization"]).to eq("Bearer test-key")
-    expect(payload).to include("model" => "typesafe/jev-1.14", "state" => { "title" => "RubyLLM で記事を採点する", "body" => "見出し\n最初の段落。\n二つ目の段落。" })
+    expect(payload).to include("model" => "jev-latest", "state" => { "title" => "RubyLLM で記事を採点する", "body" => "見出し\n最初の段落。\n二つ目の段落。" })
     expect(payload["questions"].keys).to eq(ArticleJudgment::AXES)
     expect(payload["questions"].values).to all(include("type" => "score"))
     expect(a_request(:post, JudgmentHelper::ENDPOINT)).to have_been_made.once
@@ -58,7 +58,7 @@ RSpec.describe Judgments::ArticleScorer do
   end
 
   it "API キーが無ければ、台帳を減らす前に KeyError で止まる" do
-    with_env("OPENROUTER_API_KEY" => nil) do
+    with_env("TYPESAFE_API_KEY" => nil) do
       expect { expect { described_class.new(article).call }.to raise_error(KeyError) }.not_to change(ClaudeApiCall, :count)
     end
   end
@@ -106,14 +106,10 @@ RSpec.describe Judgments::ArticleScorer do
     expect { described_class.new(article).call }.to raise_error(described_class::Error, "判定として読めない応答 (HTTP 200)")
   end
 
-  it "usage の型が崩れた応答で gem が TypeError などを上げても Error に包む（失敗を残せずに Job が死ぬと、開くたびに払い直す）" do
-    [ { cost: "0.1" }, { input_tokens: "12" } ].each do |usage|
-      WebMock.reset!
-      body = JSON.parse(judgment_response(scores))
-      stub_judgment(body: body.merge("usage" => body["usage"].merge(usage.stringify_keys)).to_json)
+  it "gem が RubyLLM::Error 以外を上げても Error に包む（失敗を残せずに Job が死ぬと、開くたびに払い直す）" do
+    allow(ArticleRarityJudge).to receive(:judge).and_raise(TypeError, "String can't be coerced into Float")
 
-      expect { described_class.new(article).call }.to raise_error(described_class::Error, /応答の形式が不正 \(\w+\)/)
-    end
+    expect { described_class.new(article).call }.to raise_error(described_class::Error, "応答の形式が不正 (TypeError)")
   end
 
   it "待ちは yml の judgment.timeout_seconds で、gem には再試行させない" do
@@ -142,7 +138,7 @@ RSpec.describe Judgments::ArticleScorer do
     end
 
     it "API キーが無ければ偽" do
-      with_env("OPENROUTER_API_KEY" => nil) { expect(described_class).not_to be_configured }
+      with_env("TYPESAFE_API_KEY" => nil) { expect(described_class).not_to be_configured }
     end
 
     it "yml に judgment が無ければ偽" do

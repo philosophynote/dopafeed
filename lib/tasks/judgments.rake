@@ -5,7 +5,7 @@ namespace :judgments do
     # SQLite は LIMIT に負の数を渡すと全件を返す。
     limit = Integer(args[:limit].presence || 0, exception: false)
     abort "本数を 1 以上の整数で指定せよ: bin/rails 'judgments:backfill[20]'" unless limit&.positive?
-    abort "config/dopamine.yml の judgment と OPENROUTER_API_KEY が要る" unless Judgments::ArticleScorer.configured?
+    abort "config/dopamine.yml の judgment と TYPESAFE_API_KEY が要る" unless Judgments::ArticleScorer.configured?
 
     articles = Article.awaiting_judgment.joins(:reading).merge(Reading.completed).order("readings.completed_at DESC").limit(limit)
     articles.each do |article|
@@ -30,6 +30,8 @@ namespace :judgments do
     next if judged.empty?
 
     puts "平均 " + ArticleJudgment::AXES.map { |axis| "#{I18n.t(axis, scope: "judgment.axes", locale: :ja)} #{(judged.sum { |j| j.points[axis] } / judged.size.to_f).round(1)}" }.join(" ・ ")
-    puts "実費 $#{judged.sum { |j| j.cost.to_f }.round(4)}（入力 #{judged.sum { |j| j.input_tokens.to_i }} トークン。判定済みのぶんだけで、失敗と再試行のぶんは含まない）"
+    # 応答に費用が載らない経路では cost が空のまま残る。0 と足すと「無料」に見える。
+    costs = judged.filter_map(&:cost)
+    puts "実費 #{costs.empty? ? "不明" : "$#{costs.sum.round(4)}"}（入力 #{judged.sum { |j| j.input_tokens.to_i }} トークン。判定済みのぶんだけで、失敗と再試行のぶんは含まない）"
   end
 end

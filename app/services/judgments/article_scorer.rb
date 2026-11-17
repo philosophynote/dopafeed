@@ -8,14 +8,14 @@ module Judgments
     class AccountError < Error; end
 
     PURPOSE = "rarity_judgment".freeze
-    PROVIDER = :openrouter
+    PROVIDER = :typesafe
     ACCOUNT_STATUSES = [ 401, 402 ].freeze
     TRANSIENT_STATUSES = [ 408, 429 ].freeze
 
     Result = Data.define(:scores, :model, :input_tokens, :cost)
 
     def self.configured?
-      Dopamine.settings[:judgment].present? && ENV["OPENROUTER_API_KEY"].present?
+      Dopamine.settings[:judgment].present? && ENV["TYPESAFE_API_KEY"].present?
     end
 
     def initialize(article, budget: Claude::Budget.new)
@@ -41,17 +41,16 @@ module Judgments
     end
 
     def build_context
-      api_key = ENV.fetch("OPENROUTER_API_KEY")
+      api_key = ENV.fetch("TYPESAFE_API_KEY")
       RubyLLM.context do |config|
-        config.openrouter_api_key = api_key
+        config.typesafe_api_key = api_key
         config.request_timeout = settings.fetch(:timeout_seconds)
         config.max_retries = 0
       end
     end
 
     # 同梱のモデル一覧に無い新しい版を yml に書いても呼べるよう、一覧での存在確認は省く。
-    # gem は usage の型が崩れた応答などで RubyLLM::Error 以外も上げる。そのまま外へ出すと、
-    # 台帳に記録済みのまま失敗を残せず、開き直すたびに払い直す。
+    # gem が RubyLLM::Error 以外を上げたとき、そのまま外へ出すと、台帳に記録済みのまま失敗を残せず、開き直すたびに払い直す。
     def score(input, context)
       result(ArticleRarityJudge.judge(input, model: settings.fetch(:model), provider: PROVIDER, assume_model_exists: true, context: context))
     rescue Error
@@ -63,7 +62,7 @@ module Judgments
     end
 
     # gem の例外クラスは 408 や一覧に無い 5xx を素の Error にするので、状態で分ける。
-    # 403 は本文が内容の検査に掛かったときにも返る。鍵の失敗として行を残さないと、開き直すたびに同じ要求を送る。
+    # 403 は鍵の権限のほか、記事ごとの拒否でも返りうる。鍵の失敗として行を残さないと、開き直すたびに同じ要求を送る。
     def classify(error)
       status = error.response&.status
       return TransientError.new("接続エラー (#{error.class.name.demodulize})") if status.nil?

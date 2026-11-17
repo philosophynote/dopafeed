@@ -15,7 +15,7 @@ RSpec.describe "AGENTS.md の規約" do
 
   it "RubyLLM は app/judges/ と app/services/judgments/ の中からしか呼ばず、コントローラ・モデルからは Job 経由にする" do
     callers = Dir[app.join("**/*.rb")].reject { |f| f.match?(%r{/(judges|services/judgments)/}) }
-                                      .select { |f| File.read(f).match?(/RubyLLM|OPENROUTER_API_KEY/) }
+                                      .select { |f| File.read(f).match?(/RubyLLM|TYPESAFE_API_KEY/) }
     direct = Dir[app.join("{controllers,models}/**/*.rb")].select { |f| File.read(f).match?(/(Judgments::\w+|\w+Judge)\.(new|call|judge)\b/) }
     expect(callers + direct).to be_empty, "判定の呼び出しは app/services/judgments/ に移し、Job から呼べ:\n#{(callers + direct).join("\n")}"
   end

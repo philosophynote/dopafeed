@@ -45,8 +45,8 @@ RSpec.describe "judgments の rake" do
     end
 
     it "設定か API キーが揃っていなければ止まる" do
-      with_env("OPENROUTER_API_KEY" => nil) do
-        expect { backfill.invoke("1") }.to raise_error(SystemExit).and output(/OPENROUTER_API_KEY/).to_stderr
+      with_env("TYPESAFE_API_KEY" => nil) do
+        expect { backfill.invoke("1") }.to raise_error(SystemExit).and output(/TYPESAFE_API_KEY/).to_stderr
       end
     end
 
@@ -101,6 +101,12 @@ RSpec.describe "judgments の rake" do
       expect { status.invoke }.to output(
         /判定済み 2 ・ 失敗 1 ・ 待ち 1\n25 点: 1 本\n24 点: 1 本\n平均 独自性 4\.5 ・ 深掘り 4\.0 .*\n実費 \$0\.0008（入力 2400 トークン。判定済みのぶんだけ/m
       ).to_stdout
+    end
+
+    it "費用の分からない判定だけなら、実費は 0 でなく不明と出す" do
+      create(:article_judgment, **scores, cost: nil)
+
+      expect { status.invoke }.to output(/実費 不明（入力 1200 トークン/).to_stdout
     end
 
     it "1 本も無くても落ちない" do

@@ -4,7 +4,7 @@ RSpec.describe JudgeArticleJob, type: :job do
   let(:article) { create(:article, :awaiting_summary, :opened) }
   let(:scorer) { instance_double(Judgments::ArticleScorer) }
   let(:scores) { ArticleJudgment::AXES.index_with { 2.6 } }
-  let(:result) { Judgments::ArticleScorer::Result.new(scores: scores, model: "typesafe/jev-1.14", input_tokens: 1200, cost: 0.0003) }
+  let(:result) { Judgments::ArticleScorer::Result.new(scores: scores, model: "jev-latest", input_tokens: 1200, cost: nil) }
 
   before { allow(Judgments::ArticleScorer).to receive(:new).with(article).and_return(scorer) }
 
@@ -13,7 +13,7 @@ RSpec.describe JudgeArticleJob, type: :job do
 
     freeze_time { described_class.perform_now(article) }
 
-    expect(article.reload.judgment).to have_attributes(scores.merge(model: "typesafe/jev-1.14", input_tokens: 1200, cost: 0.0003, failed_at: nil))
+    expect(article.reload.judgment).to have_attributes(scores.merge(model: "jev-latest", input_tokens: 1200, cost: nil, failed_at: nil))
     expect(article.judgment).to be_judged
   end
 
@@ -115,7 +115,7 @@ RSpec.describe JudgeArticleJob, type: :job do
     end
 
     it "設定か API キーが揃っていなければ積まない（鍵の無い箱で失敗の Job を溜めない）" do
-      with_env("OPENROUTER_API_KEY" => nil) do
+      with_env("TYPESAFE_API_KEY" => nil) do
         expect { described_class.enqueue_if_awaiting(article) }.not_to have_enqueued_job(described_class)
       end
     end
