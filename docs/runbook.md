@@ -402,7 +402,7 @@ OpenRouter で作った鍵を `EDITOR="zed --wait" bin/rails credentials:edit` �
 ```sh
 OPENROUTER_API_KEY=$(bin/rails credentials:fetch openrouter.api_key)
 ```
-確かめるのは `bin/rails 'judgments:backfill[3]'`（完読した未判定の記事を新しい順に 3 本採点し、点を出す。本番ではコンテナの中で打つ）と `bin/rails judgments:status`（合計点ごとの本数と実費）。失敗の理由は `ArticleJudgment.failed.pluck(:article_id, :error)`。やり直すにはその行を消して記事を開き直す（403 は本文が OpenRouter の内容の検査に掛かったときにも返るので記事の失敗として残す。鍵の権限が原因だったなら、直した後に行を消す）。鍵の誤り・残高切れ（401 / 402）と予算切れは行を残さず、`kamal logs` の `[judgments]` に出る（直せば、開き直した記事から判定される）。
+確かめるのは `bin/rails 'judgments:backfill[3]'`（完読した未判定の記事を新しい順に 3 本採点し、点を出す。本番ではコンテナの中で打つ）と `bin/rails judgments:status`（合計点ごとの本数と実費）。失敗の理由は `ArticleJudgment.failed.pluck(:article_id, :error)`。やり直すにはその行を消して記事を開き直す（403 は本文が OpenRouter の内容の検査に掛かったときにも返るので記事の失敗として残す。鍵の権限が原因だったなら、直した後に行を消す）。鍵の誤り・残高切れ（401 / 402）と予算切れは行を残さず、`kamal logs` の `[judgments]` に出る（直せば、開き直した記事から判定される。手元なら `log/development.log`）。`judgments:backfill` はこれらの理由を画面に出して止まり、一時的な失敗（接続エラー・タイムアウト・429・5xx）は理由を出して次の記事へ進む（どちらも行を残さないので、打ち直せばまた試す）。
 
 ## 3. よく使う
 ```sh

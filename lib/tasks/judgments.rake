@@ -9,10 +9,16 @@ namespace :judgments do
 
     articles = Article.awaiting_judgment.joins(:reading).merge(Reading.completed).order("readings.completed_at DESC").limit(limit)
     articles.each do |article|
-      JudgeArticleJob.perform_now(article)
+      # perform_now は破棄と再試行が例外を飲み、理由を標準出力に出せない。再試行の予約も、キューが async の環境ではプロセスと一緒に消える。
+      JudgeArticleJob.new.perform(article)
       judgment = article.reload.judgment
-      line = judgment&.judged? ? "#{judgment.total} 点 #{judgment.points.values.join("/")}" : "失敗 #{judgment&.error || "判定を残せなかった（予算切れ・鍵や残高の失敗・再試行待ち。ログの [judgments] を見よ）"}"
+      line = judgment&.judged? ? "#{judgment.total} 点 #{judgment.points.values.join("/")}" : "失敗 #{judgment&.error || "判定を残せなかった（別の実行と重なったか、記事が消えた）"}"
       puts "#{line} #{article.title}"
+    rescue Judgments::ArticleScorer::TransientError => e
+      puts "失敗 #{e.message}（一時的な失敗。行は残していないので、打ち直せばまた試す） #{article.title}"
+    rescue Claude::Budget::Exhausted, Judgments::ArticleScorer::AccountError => e
+      # 続けても同じ理由で落ち、呼ぶたびに日次の台帳だけが減る。
+      abort "中止 #{e.message}（401 は鍵の誤り、402 は残高切れ、limit は日次の上限。行は残していないので、直してから打ち直せ）"
     end
   end
 

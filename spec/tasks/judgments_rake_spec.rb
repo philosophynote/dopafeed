@@ -56,6 +56,39 @@ RSpec.describe "judgments の rake" do
 
       expect { backfill.invoke("2") }.to output(/失敗 本文が空 本文なし\n24 点 .* 本文あり/).to_stdout
     end
+
+    it "一時的な失敗は、理由を画面に出して行を残さず、次の記事へ進む" do
+      failing = completed_article("落ちる", Time.zone.local(2026, 10, 3, 9))
+      completed_article("通る", Time.zone.local(2026, 10, 1, 9))
+      stub_request(:post, JudgmentHelper::ENDPOINT)
+        .to_return({ status: 503 }, { body: judgment_response(scores), headers: { "Content-Type" => "application/json" } })
+
+      expect {
+        expect { backfill.invoke("2") }.to output(/失敗 API エラー \(HTTP 503\).*打ち直せば.* 落ちる\n24 点 .* 通る/).to_stdout
+      }.not_to have_enqueued_job(JudgeArticleJob)
+
+      expect(failing.reload.judgment).to be_nil
+    end
+
+    it "鍵の誤り・残高切れは、理由を出して残りの記事を呼ばずに止まる" do
+      completed_article("一本目", Time.zone.local(2026, 10, 3, 9))
+      completed_article("二本目", Time.zone.local(2026, 10, 1, 9))
+      stub_request(:post, JudgmentHelper::ENDPOINT).to_return(status: 402)
+
+      expect { backfill.invoke("2") }.to raise_error(SystemExit).and output(/中止 API エラー \(HTTP 402\)/).to_stderr
+
+      expect(a_request(:post, JudgmentHelper::ENDPOINT)).to have_been_made.once
+      expect(ArticleJudgment.count).to eq(0)
+    end
+
+    it "日次の上限に達していたら、理由を出して 1 本も呼ばずに止まる" do
+      completed_article("完読", Time.zone.local(2026, 10, 1, 9))
+      allow(Claude::Budget).to receive(:default_limit).and_return(0)
+
+      expect { backfill.invoke("1") }.to raise_error(SystemExit).and output(/中止 Claude daily call limit reached/).to_stderr
+
+      expect(a_request(:post, JudgmentHelper::ENDPOINT)).not_to have_been_made
+    end
   end
 
   describe "judgments:status" do
