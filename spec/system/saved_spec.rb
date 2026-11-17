@@ -26,7 +26,7 @@ RSpec.describe "Saved", type: :system do
     screenshot!("list")
   end
 
-  it "未読の行を押すとルーレットが回り、読んだ行を押すと抽選せずに Reader が開く" do
+  it "未読の行を押すと抽選して Reader が開き、読んだ行を押すと抽選せずに Reader が開く" do
     unread = create(:article, :bookmarked, title: "まだ読んでいない保存記事")
     read = create(:article, :bookmarked, :read, title: "読み終えた保存記事")
     sign_in
@@ -38,7 +38,8 @@ RSpec.describe "Saved", type: :system do
 
     visit saved_path
     find("article", text: "まだ読んでいない保存記事").find_button("を読む", visible: :all).click
-    expect(page).to have_css("[role='dialog'][aria-label='ルーレット']")
+    expect(page).to have_current_path(read_article_path(unread))
+    expect(page).to have_css("h1", text: "まだ読んでいない保存記事")
     expect(unread.reload.reading).to be_present
   end
 

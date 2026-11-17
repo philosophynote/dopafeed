@@ -13,7 +13,7 @@
 ## 遷移
 - Main の通常カードの「保存した『…』に 61% 似ている」→ Similar
 - Saved の「保存した記事に似ている未読 3 件」→ Similar
-- Similar → Roulette / 外部 URL / Main
+- Similar → Reader / 外部 URL / Main
 
 ## 受け入れ条件（Given-When-Then）
 - Given 保存記事が 5 本 When 未読を開く Then 保存記事の重心とのコサイン類似で上位 3 本が出る

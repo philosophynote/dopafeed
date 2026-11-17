@@ -17,7 +17,7 @@
 - トーストの「元に戻す」→ `DELETE /articles/:id/dismissal` → 行が元の位置に戻り、トーストが消える。トーストは `toast.visible_seconds` 経つと消え（鍵が無ければ次のトーストか画面の移動まで残る）、続けて引くと後のものに置き換わる。隠した行は Main を開き直すと出ない（#112）
 - 右スワイプ → 「保存」（あとで読む）。引いた幅だけ左から背景とブックマークのアイコンが伸び、閾値の手前は灰、越えたら橙。行の中の隠れた form を送る → `POST /articles/:id/bookmark`（Unit 20、ADR 0018。docs/screens/saved.md）
 - 「一掃」→ 対象記事を archived に（Main に戻る）
-- 「読み返す」→ Roulette
+- 「読み返す」→ Reader
 
 ## 受け入れ条件（Given-When-Then）
 - Given 2 週間より古い未読が 64 本 When Main を開く Then 一掃バナーに 64 本と出る

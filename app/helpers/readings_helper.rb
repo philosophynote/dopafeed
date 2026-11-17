@@ -56,14 +56,6 @@ module ReadingsHelper
     { small: "card", medium: "combo", large: "highlight", huge: "fanfare" }.fetch(highlights.tier)
   end
 
-  def rarity_percent(rarity)
-    number_with_precision(rarity[:probability] * 100, precision: 1, strip_insignificant_zeros: true)
-  end
-
-  def reveal_seconds
-    number_with_precision(Dopamine.settings.dig(:cards, :reveal_duration_ms) / 1000.0, precision: 1)
-  end
-
   def daily_goal_line(summary)
     rest = summary.remaining
     "今日のゴール #{summary.count} / #{summary.goal} ・ #{rest.positive? ? "あと #{rest} 本で宝箱" : "読み切った！"}"

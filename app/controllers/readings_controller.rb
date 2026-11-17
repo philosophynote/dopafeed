@@ -1,16 +1,16 @@
 class ReadingsController < ApplicationController
   include TodayStatus
 
-  # expand では待ち時間を削るため、ルーレットのモーダルを回さない（ADR 0019）。
   def create
     @article = Article.find(params[:article_id])
     @reading = Reading.open!(@article)
-    @expand = params[:expand] == "1"
     Claude::SummarizeArticleJob.enqueue_if_awaiting(@article)
     JudgeArticleJob.enqueue_if_awaiting(@article)
+    return open_reader unless params[:expand] == "1"
+
     respond_to do |format|
       format.turbo_stream
-      format.html { redirect_to read_article_path(@article) }
+      format.html { open_reader }
     end
   end
 
@@ -45,14 +45,13 @@ class ReadingsController < ApplicationController
     end
   end
 
-  def jackpot
-    @reading = Reading.includes(article: :feed).find(params[:id])
-    return redirect_to root_path unless @reading.jackpot?
-
-    @article = @reading.article
-  end
-
   private
+
+  # 帯を回すのは抽選した直後の 1 回だけ。GET の側では行が今できたのか分からないので、flash で渡す。
+  def open_reader
+    flash[:drawn] = true if @reading.previously_new_record?
+    redirect_to read_article_path(@article), status: :see_other
+  end
 
   def advance_in_list
     load_today_status

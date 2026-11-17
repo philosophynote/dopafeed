@@ -25,6 +25,5 @@ Rails.application.routes.draw do
   resources :readings, only: [] do
     post :start, on: :member
     post :advance, on: :member
-    get :jackpot, on: :member
   end
 end

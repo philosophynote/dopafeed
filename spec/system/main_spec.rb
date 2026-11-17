@@ -54,7 +54,7 @@ RSpec.describe "Main", type: :system do
     expect(receivers).to eq(%w[read read read])
     row.find_button("読む").click
     expect(page).to have_link("記事に遷移")
-    expect(page).to have_no_css("[role='dialog'][aria-label='ルーレット']")
+    expect(page).to have_no_css("[role='dialog']")
     expect(Article.where("title LIKE ?", "%その 3 本目%").sole.reading).to be_present
   end
 
