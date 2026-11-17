@@ -1,9 +1,9 @@
-# 本文なし・4xx・形式不正は時間を置いても解消しないため、自動では再試行しない。
-# 予算切れと、鍵の誤り・残高切れは行を残さず捨てる。記事のせいではない失敗を記事に残すと、直した後に開き直しても判定されない。
+# 本文なし・形式不正は時間を置いても解消しないため、自動では再試行しない。
+# 予算切れと、4xx で拒まれた要求（鍵・残高・モデル名・要求の形）は行を残さず捨てる。記事のせいではない失敗を記事に残すと、直した後に開き直しても判定されない。
 class JudgeArticleJob < ApplicationJob
   queue_as :judgments
 
-  discard_on Claude::Budget::Exhausted, Judgments::ArticleScorer::AccountError, ActiveJob::DeserializationError do |job, error|
+  discard_on Claude::Budget::Exhausted, Judgments::ArticleScorer::RejectedError, ActiveJob::DeserializationError do |job, error|
     Rails.logger.warn("[judgments] #{job.class.name} discarded: #{error.message}")
   end
 
@@ -22,7 +22,7 @@ class JudgeArticleJob < ApplicationJob
 
     result = Judgments::ArticleScorer.new(article).call
     self.class.record(article, result.scores.merge(result.to_h.except(:scores), judged_at: Time.current))
-  rescue Judgments::ArticleScorer::TransientError, Judgments::ArticleScorer::AccountError
+  rescue Judgments::ArticleScorer::TransientError, Judgments::ArticleScorer::RejectedError
     raise
   rescue Judgments::ArticleScorer::Error => e
     self.class.record(article, { failed_at: Time.current, error: e.message })

@@ -70,12 +70,12 @@ RSpec.describe "judgments の rake" do
       expect(failing.reload.judgment).to be_nil
     end
 
-    it "鍵の誤り・残高切れは、理由を出して残りの記事を呼ばずに止まる" do
+    it "鍵・残高・モデル名・要求の形で拒まれたら、理由を出して残りの記事を呼ばずに止まる" do
       completed_article("一本目", Time.zone.local(2026, 10, 3, 9))
       completed_article("二本目", Time.zone.local(2026, 10, 1, 9))
-      stub_request(:post, JudgmentHelper::ENDPOINT).to_return(status: 402)
+      stub_request(:post, JudgmentHelper::ENDPOINT).to_return(status: 422)
 
-      expect { backfill.invoke("2") }.to raise_error(SystemExit).and output(/中止 API エラー \(HTTP 402\)/).to_stderr
+      expect { backfill.invoke("2") }.to raise_error(SystemExit).and output(/中止 API エラー \(HTTP 422\)/).to_stderr
 
       expect(a_request(:post, JudgmentHelper::ENDPOINT)).to have_been_made.once
       expect(ArticleJudgment.count).to eq(0)

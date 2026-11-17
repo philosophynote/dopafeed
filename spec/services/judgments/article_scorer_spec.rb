@@ -79,24 +79,12 @@ RSpec.describe Judgments::ArticleScorer do
     expect { described_class.new(article).call }.to raise_error(described_class::TransientError)
   end
 
-  it "400 と 403（本文が内容の検査に掛かったときにも返る）は時間を置いても通らないので、記事の失敗の Error。応答の文面は載せない" do
-    [ 400, 403 ].each do |status|
+  it "4xx は鍵・残高・モデル名・要求の形で拒まれた失敗で、記事の失敗と分ける（RejectedError）。応答の文面は載せない" do
+    [ 400, 401, 402, 403, 404, 413, 422 ].each do |status|
       WebMock.reset!
-      stub_judgment(status: status, body: { error: { message: "secret-looking provider text" } }.to_json)
+      stub_judgment(status: status, body: { detail: "secret-looking provider text" }.to_json)
 
-      expect { described_class.new(article).call }.to raise_error(described_class::Error) { |error|
-        expect(error.class).to eq(described_class::Error)
-        expect(error.message).to eq("API エラー (HTTP #{status})")
-      }
-    end
-  end
-
-  it "401・402 は鍵や残高の失敗で、記事の失敗と分ける（AccountError）" do
-    [ 401, 402 ].each do |status|
-      WebMock.reset!
-      stub_judgment(status: status, body: { error: { message: "fixture" } }.to_json)
-
-      expect { described_class.new(article).call }.to raise_error(described_class::AccountError, "API エラー (HTTP #{status})")
+      expect { described_class.new(article).call }.to raise_error(described_class::RejectedError, "API エラー (HTTP #{status})")
     end
   end
 

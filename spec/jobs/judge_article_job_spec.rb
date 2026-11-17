@@ -45,11 +45,11 @@ RSpec.describe JudgeArticleJob, type: :job do
   end
 
   it "時間を置いても通らない失敗は、再試行せず失敗として残す" do
-    allow(scorer).to receive(:call).and_raise(Judgments::ArticleScorer::Error, "API エラー (HTTP 400)")
+    allow(scorer).to receive(:call).and_raise(Judgments::ArticleScorer::Error, "判定として読めない応答 (HTTP 200)")
 
     expect { described_class.perform_now(article) }.not_to have_enqueued_job(described_class)
 
-    expect(article.reload.judgment).to have_attributes(error: "API エラー (HTTP 400)", judged_at: nil)
+    expect(article.reload.judgment).to have_attributes(error: "判定として読めない応答 (HTTP 200)", judged_at: nil)
     expect(article.judgment.failed_at).to be_present
   end
 
@@ -78,8 +78,8 @@ RSpec.describe JudgeArticleJob, type: :job do
     expect(Article.awaiting_judgment).to include(article)
   end
 
-  it "鍵の誤りや残高切れは捨てる。記事のせいではないので失敗を残さず、直した後に開き直せば積める" do
-    allow(scorer).to receive(:call).and_raise(Judgments::ArticleScorer::AccountError, "API エラー (HTTP 401)")
+  it "鍵・残高・モデル名・要求の形で拒まれたら捨てる。記事のせいではないので失敗を残さず、直した後に開き直せば積める" do
+    allow(scorer).to receive(:call).and_raise(Judgments::ArticleScorer::RejectedError, "API エラー (HTTP 422)")
 
     expect { described_class.perform_now(article) }.not_to raise_error
 

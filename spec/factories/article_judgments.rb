@@ -19,7 +19,7 @@ FactoryBot.define do
       cost { nil }
       judged_at { nil }
       failed_at { Time.zone.local(2026, 10, 6, 8) }
-      error { "API エラー (HTTP 400)" }
+      error { "判定として読めない応答 (HTTP 200)" }
     end
   end
 end

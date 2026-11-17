@@ -5,11 +5,10 @@ module Judgments
     class Error < StandardError; end
     class EmptyContent < Error; end
     class TransientError < Error; end
-    class AccountError < Error; end
+    class RejectedError < Error; end
 
     PURPOSE = "rarity_judgment".freeze
     PROVIDER = :typesafe
-    ACCOUNT_STATUSES = [ 401, 402 ].freeze
     TRANSIENT_STATUSES = [ 408, 429 ].freeze
 
     Result = Data.define(:scores, :model, :input_tokens, :cost)
@@ -62,16 +61,14 @@ module Judgments
     end
 
     # gem の例外クラスは 408 や一覧に無い 5xx を素の Error にするので、状態で分ける。
-    # 403 は鍵の権限のほか、記事ごとの拒否でも返りうる。鍵の失敗として行を残さないと、開き直すたびに同じ要求を送る。
+    # 4xx を記事の失敗として行に残すと、モデル名の誤りや API の変更で拒まれた間に開いた記事が、直した後も判定されない。
+    # 記事ごとの拒否だった場合は開き直すたびに送り直すが、日次の上限で止まる。
     def classify(error)
       status = error.response&.status
       return TransientError.new("接続エラー (#{error.class.name.demodulize})") if status.nil?
       return Error.new("判定として読めない応答 (HTTP #{status})") if status < 400
 
-      message = "API エラー (HTTP #{status})"
-      return AccountError.new(message) if ACCOUNT_STATUSES.include?(status)
-
-      (status >= 500 || TRANSIENT_STATUSES.include?(status) ? TransientError : Error).new(message)
+      (status >= 500 || TRANSIENT_STATUSES.include?(status) ? TransientError : RejectedError).new("API エラー (HTTP #{status})")
     end
 
     # 段の範囲を外れた値を保存の検証で落とすと、Job が失敗を残せずに死ぬ。
