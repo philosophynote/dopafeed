@@ -32,3 +32,7 @@ shared:
   push:
     digest_at: "07:30"
     streak_warning_at: "21:00"
+  judgment:
+    model: typesafe/jev-1.14
+    input_chars: 20000
+    timeout_seconds: 30
