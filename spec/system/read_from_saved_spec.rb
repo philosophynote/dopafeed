@@ -77,7 +77,7 @@ RSpec.describe "Saved から読む", type: :system do
     screenshot!("radar_divider")
   end
 
-  it "判定中のまま完読した後、接続が切れている間に決まった枠は、接続が戻ると帯と一緒に区切りの見出しとカードにも届く" do
+  it "判定中のまま完読した後、接続が切れている間に決まった枠は、接続が戻ると帯と一緒に区切りの見出しとカードとレーダーにも届く" do
     rare = Dopamine.rarity(Dopamine.rarity_names.second)
     judgment_pending
     article = create_article
@@ -100,6 +100,7 @@ RSpec.describe "Saved から読む", type: :system do
     expect(divider).to have_text("読了 ・ #{rare[:min_total]} 点")
     expect(divider).to have_text("レアカードを手に入れた！")
     expect(divider).to have_css("li[data-tier='#{rare[:name]}'] [data-rarity-label]", text: "レア")
+    expect(divider).to have_css("figcaption", text: "合計 #{rare[:min_total]} 点")
     expect(page).to have_no_css("turbo-frame turbo-stream", visible: :all)
   end
 

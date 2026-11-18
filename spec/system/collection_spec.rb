@@ -68,12 +68,15 @@ RSpec.describe "Collection", type: :system do
   end
 
   it "カードを押すと裏が開き、6 軸のレーダーと点が図からはみ出さずに出る。横スクロールが無く、タップ領域は 44px 以上で、図鑑へ戻れる" do
-    reading = card(title: "裏を見る、390 幅で 2 行に折り返されるくらい長い見出しの記事", completed_at: Time.current - 1.minute, tier: rare)
+    30.times { |i| card(title: "#{i + 1} 枚目", completed_at: Time.current - 1.minute - i.hours) }
+    reading = card(title: "裏を見る、390 幅で 2 行に折り返されるくらい長い見出しの記事", completed_at: Time.current - 2.days, tier: rare)
     create(:article_judgment, article: reading.article, **scores_for(rare))
     sign_in
     visit collection_path
 
-    find("li[data-tier='#{rare}'] a").click
+    link = find("li[data-tier='#{rare}'] a")
+    page.execute_script("arguments[0].scrollIntoView({ block: 'center' })", link)
+    link.click
 
     expect(page).to have_current_path(card_path(reading))
     expect(page).to have_css("h1", text: "裏を見る")
@@ -100,6 +103,9 @@ RSpec.describe "Collection", type: :system do
 
     click_on "図鑑へ戻る"
     expect(page).to have_current_path(collection_path)
+    expect(page).to have_css("li[data-tier='#{rare}']")
+    in_view = page.evaluate_script("(() => { const r = document.querySelector(\"li[data-tier='#{rare}']\").getBoundingClientRect(); return r.top >= 0 && r.bottom <= window.innerHeight })()")
+    expect(in_view).to be(true), "図鑑の先頭に戻ってしまい、見ていたカードが画面の外"
   end
 
   it "0 枚なら空状態" do

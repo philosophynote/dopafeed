@@ -23,7 +23,7 @@
           <text x="<%= axis[:x] %>" y="<%= axis[:y] %>" text-anchor="<%= axis[:anchor] %>" dominant-baseline="middle" font-size="11" class="fill-gray-600"><%= name %> <tspan class="fill-gray-900 font-bold"><%= point %></tspan></text>
         <% end %>
       </svg>
-      <figcaption class="mt-1 text-center text-sm font-semibold text-gray-700">合計 <%= judgment.total %> 点<%= " ・ 今の境界なら#{rarity_label(judgment.tier)}" unless judgment.tier == reading.tier %></figcaption>
+      <figcaption class="mt-1 text-center text-sm font-semibold text-gray-700">合計 <%= judgment.total %> 点<%= " ・ 付け直すと#{rarity_label(judgment.tier)}" unless judgment.tier == reading.tier %></figcaption>
     </figure>
   <% end %>
 </div>

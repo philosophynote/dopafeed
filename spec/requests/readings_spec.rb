@@ -223,7 +223,7 @@ RSpec.describe "Readings", type: :request do
 
         streams = frame(completed).all("turbo-stream[action='replace']", visible: :all)
 
-        expect(streams.map { |node| node[:target] }).to eq(%W[card_title_reading_#{completed.id} card_reading_#{completed.id}])
+        expect(streams.map { |node| node[:target] }).to eq(%W[card_title_reading_#{completed.id} card_reading_#{completed.id} radar_reading_#{completed.id}])
         html = Capybara.string(response.body.gsub(%r{</?template>}, ""))
         expect(html).to have_css("#card_title_reading_#{completed.id}", text: "レアカードを手に入れた！")
         expect(html).to have_css("li#card_reading_#{completed.id}[data-tier='#{rare[:name]}']")
@@ -415,6 +415,7 @@ RSpec.describe "Readings", type: :request do
         travel_to(noon + 5.seconds) { post_turbo(gold) }
 
         expect(page).to have_css("section[aria-label='判定'][data-completed='false'].bg-gray-200", text: "カードにならなかった")
+        expect(page).to have_no_css("svg[role='img'], [id^='radar_reading_']")
         expect(page).to have_no_css("section[aria-label='判定'].bg-amber-400")
       end
 
@@ -683,11 +684,14 @@ RSpec.describe "Readings", type: :request do
       let(:current) { create(:article, title: "今の記事", published_at: noon) }
       let!(:reading) { create(:reading, article: current, tier: common, opened_at: noon) }
 
-      it "一覧の広げた欄の区切りにも、手に入れたカードがめくれて出る" do
+      it "一覧の広げた欄の区切りにも、手に入れたカードがめくれて出て、判定済みなら 6 軸のレーダーが付く" do
+        create(:article_judgment, article: current, **scores_for(common))
+
         travel_to(noon + threshold) { post_main(reading) }
 
         divider = page.find("turbo-stream[action='replace'][target='#{dom_id(reading, :end)}']")
         expect(divider).to have_css("ul.card-deck li.card-reveal[data-tier='#{common}'] h3", text: "今の記事")
+        expect(divider).to have_css("#radar_reading_#{reading.id} svg[role='img'][aria-label^='独自性 '] polygon[data-radar-area]")
       end
 
       it "金の完読でも一覧では全画面の開封は出さず、SS レアカードがめくれるだけ（ADR 0019）" do

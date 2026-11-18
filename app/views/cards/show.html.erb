@@ -1,8 +1,8 @@
-<%# カードの裏（docs/screens/collection.md）。上から: 図鑑へ戻る / カード・枠の根拠・見出し / 6 軸のレーダー / 「記事を開く」 / タブバー %>
 <% article = @card.article %>
 <% content_for :title, "カード" %>
 <header>
-  <%= link_to collection_path, class: "-ml-2 inline-flex min-h-11 items-center gap-1 px-2 text-sm font-semibold text-gray-600 active:text-gray-900" do %>
+  <%# 図鑑の先頭へ戻すと、下の方のカードを続けて見るたびに送り直しになる %>
+  <%= link_to collection_path(anchor: dom_id(@card, :card)), class: "-ml-2 inline-flex min-h-11 items-center gap-1 px-2 text-sm font-semibold text-gray-600 active:text-gray-900" do %>
     <span aria-hidden="true">‹</span>図鑑へ戻る
   <% end %>
 </header>

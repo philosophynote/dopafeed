@@ -8,7 +8,7 @@ module RadarChartHelper
     points.each_with_index.map { |point, i| radar_point(i, points.size, RADIUS * point.to_f / ArticleJudgment::LEVELS) }
   end
 
-  # 軸の名前を置く位置。左右の軸で中央揃えにすると、長い名前が図にかぶる。
+  # 左右の軸で中央揃えにすると、長い名前が図にかぶる。
   #
   # @return [Array<Hash>] x, y, anchor（text-anchor の値）
   def radar_axes(points)

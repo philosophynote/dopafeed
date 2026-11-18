@@ -6,6 +6,10 @@ RSpec.describe "Cards", type: :request do
     Capybara.string(response.body)
   end
 
+  def helper
+    Object.new.extend(RadarChartHelper)
+  end
+
   def card(tier:, judged_as: nil, **attrs)
     create(:reading, :completed, tier: tier, article: create(:article, **attrs)).tap do |reading|
       create(:article_judgment, article: reading.article, **scores_for(judged_as)) if judged_as
@@ -34,14 +38,16 @@ RSpec.describe "Cards", type: :request do
       label = ArticleJudgment::AXES.map { |axis| "#{I18n.t(axis, scope: "judgment.axes", locale: :ja)} #{points[axis]}" }.join("、")
       chart = page.find("svg[role='img'][aria-label='#{label}']")
       expect(chart.all("[data-radar-grid]").size).to eq(ArticleJudgment::LEVELS)
-      expect(chart.find("polygon[data-radar-area]")[:points].split.size).to eq(ArticleJudgment::AXES.size)
+      expect(points.values.uniq.size).to be > 1, "軸ごとに違う点でないと、図と点の対応を確かめられない"
+      expect(chart.find("polygon[data-radar-area]")[:points]).to eq(helper.radar_polygon(points.values)), "塗りは軸の順どおりの点"
+      expect(chart.all("circle").map { |dot| [ dot[:cx].to_f, dot[:cy].to_f ] }).to eq(helper.radar_vertices(points.values))
       expect(chart.all("text").map { |text| text.text(normalize_ws: true) }).to eq(points.map { |axis, point| "#{I18n.t(axis, scope: "judgment.axes", locale: :ja)} #{point}" })
       expect(page).to have_css("figcaption", text: "合計 #{rare[:min_total]} 点")
       link = page.find_link("記事を開く", href: "https://example.com/back")
       expect(link[:target]).to eq("_blank")
       expect(link[:rel]).to include("noopener")
-      expect(page.find("nav").find_link("図鑑")[:href]).to eq(collection_path)
-      expect(page).to have_link("図鑑へ戻る", href: collection_path)
+      expect(page.find("nav").find_link("図鑑")["aria-current"]).to eq("page")
+      expect(page).to have_link("図鑑へ戻る", href: collection_path(anchor: "card_reading_#{reading.id}")), "見ていたカードの位置へ戻す"
     end
 
     it "判定できなかった記事のカードは、図を出さずに理由を出す。判定中のカードは届くのを待つと出す" do
@@ -56,11 +62,12 @@ RSpec.describe "Cards", type: :request do
       expect(page).to have_text("判定が届くと、6 軸の点がここに出ます。")
     end
 
-    it "枠と判定の段が食い違うカードは、図に今の境界での段を添える" do
+    it "枠と判定の段が食い違うカードは「判定できず」と言わず、図に付け直した時の段を添える" do
       get card_path(card(tier: names.first, judged_as: rare[:name]))
 
-      expect(page).to have_text("判定できず ・ ノーマルカード", normalize_ws: true)
-      expect(page).to have_css("figcaption", text: "合計 #{rare[:min_total]} 点 ・ 今の境界ならレア")
+      expect(page).to have_no_text("判定できず")
+      expect(page).to have_css("p", text: /\Aノーマルカード\z/)
+      expect(page).to have_css("figcaption", text: "合計 #{rare[:min_total]} 点 ・ 付け直すとレア")
     end
 
     it "完読していない行（カードになっていない）は 404" do
