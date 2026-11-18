@@ -11,6 +11,7 @@
 <% reveal_order = local_assigns[:reveal_order] %>
 <% style = "--reveal-duration: #{Dopamine.settings.dig(:cards, :reveal_duration_ms)}ms; --reveal-stagger: #{Dopamine.settings.dig(:cards, :reveal_stagger_ms).to_i}ms; --i: #{Integer(reveal_order)}" if reveal_order %>
 <% face = local_assigns.fetch(:link, true) ? :a : :div %>
+<% back = local_assigns[:back] %>
 <li class="relative aspect-[3/4] rounded-xl border-2 <%= rarity_frame(card.tier) %> <%= "card-reveal" if reveal_order %>"
     data-tier="<%= card.tier %>" <%= tag.attributes(id: local_assigns.fetch(:id, dom_id(card, :card)), style: style) %>>
   <div class="card-face absolute inset-0 overflow-hidden rounded-[0.625rem] <%= feed_tone(article.feed) %>">
@@ -20,7 +21,7 @@
              class="pointer-events-none h-full w-full select-none object-cover [-webkit-touch-callout:none]" data-image-fallback-target="image" data-action="error->image-fallback#remove">
       </figure>
     <% end %>
-    <%= content_tag face, href: (article.url if face == :a), target: ("_blank" if face == :a), rel: ("noopener noreferrer" if face == :a), draggable: "false",
+    <%= content_tag face, href: ((back ? card_path(card) : article.url) if face == :a), target: ("_blank" if face == :a && !back), rel: ("noopener noreferrer" if face == :a && !back), draggable: "false",
                     class: "absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2 text-white [-webkit-tap-highlight-color:transparent] active:bg-black/20" do %>
       <%# 希少度は読み上げでは「レアカード、」と先に言い、見える方のラベルは重ねて読ませない %>
       <% unless base_rarity?(card.tier) %>

@@ -109,7 +109,7 @@ RSpec.describe "Collection", type: :request do
       expect(page).to have_text("1 枚", normalize_ws: true)
     end
 
-    it "OGP 画像のある記事は画像を表にし、無い記事はフィードの色地。どちらも元記事を別窓で開くリンク" do
+    it "OGP 画像のある記事は画像を表にし、無い記事はフィードの色地。どちらもカードの裏へのリンク（元記事は裏から開く）" do
       with = card(title: "画像あり", completed_at: noon - 1.hour, image_url: "https://img.example.com/a.png", url: "https://example.com/a")
       without = card(title: "画像なし", completed_at: noon - 2.hours, url: "https://example.com/b")
 
@@ -120,10 +120,9 @@ RSpec.describe "Collection", type: :request do
       without_card = page.find("##{dom_id(without, :card)}")
       expect(without_card).to have_no_css("img")
       expect(without_card.find(".card-face")["class"]).to match(/\bbg-/) # 色地は面（回る箱の li には置かない）
-      [ [ with_card, "https://example.com/a", "画像あり" ], [ without_card, "https://example.com/b", "画像なし" ] ].each do |element, href, title|
-        link = element.find_link(href: href)
-        expect(link[:target]).to eq("_blank")
-        expect(link[:rel]).to include("noopener")
+      [ [ with_card, with, "画像あり" ], [ without_card, without, "画像なし" ] ].each do |element, reading, title|
+        link = element.find_link(href: card_path(reading))
+        expect(link[:target]).to be_nil
         expect(link).to have_text(title)
       end
     end

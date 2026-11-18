@@ -25,7 +25,7 @@
       </div>
       <ul class="mt-2 grid grid-cols-3 gap-2">
         <% cards.each do |card| %>
-          <%= render "cards/card", card: card %>
+          <%= render "cards/card", card: card, back: true %>
         <% end %>
       </ul>
     </section>

@@ -1,0 +1,24 @@
+<% article = @card.article %>
+<% content_for :title, "カード" %>
+<header>
+  <%# 図鑑の先頭へ戻すと、下の方のカードを続けて見るたびに送り直しになる %>
+  <%= link_to collection_path(anchor: dom_id(@card, :card)), class: "-ml-2 inline-flex min-h-11 items-center gap-1 px-2 text-sm font-semibold text-gray-600 active:text-gray-900" do %>
+    <span aria-hidden="true">‹</span>図鑑へ戻る
+  <% end %>
+</header>
+<section class="mt-1 rounded-2xl bg-white p-4 shadow-sm" aria-label="カードの裏">
+  <ul class="mx-auto w-36"><%= render "cards/card", card: @card, link: false %></ul>
+  <p class="mt-3 text-center text-sm font-semibold text-gray-600"><%= @card.tier ? [ judgment_note(@card), card_name(@card.tier) ].compact.join(" ・ ") : "判定中" %></p>
+  <h1 class="mt-1 break-words text-center text-lg font-bold leading-snug"><%= article.title %></h1>
+  <p class="mt-1 text-center text-xs text-gray-500"><%= article.feed.title %> ・ <%= reading_day_label(ReadingDay.of(@card.completed_at)) %>に読了</p>
+  <%= render "judgments/radar", reading: @card %>
+  <% if @card.tier.nil? %>
+    <p class="mt-3 text-center text-sm text-gray-500">判定が届くと、6 軸の点がここに出ます。</p>
+  <% elsif !article.judgment&.judged? %>
+    <p class="mt-3 text-center text-sm text-gray-500">この記事は判定できなかったので、点はありません。</p>
+  <% end %>
+  <%= link_to "記事を開く", article.url, target: "_blank", rel: "noopener noreferrer",
+        class: "mt-4 flex h-12 w-full items-center justify-center rounded-full bg-orange-500 text-base font-bold text-white active:bg-orange-600" %>
+</section>
+
+<%= render "main/tab_bar" %>

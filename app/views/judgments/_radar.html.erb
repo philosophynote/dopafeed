@@ -1,0 +1,29 @@
+<%# 判定中のまま区切った後に届いた判定は、この箱を的に差し替える。図が無いときも箱は置く。
+    名前と点は図の中の文字で見せ、読み上げには aria-label でまとめて渡す（図の中の文字は role="img" で読まれない） %>
+<% judgment = reading.article.judgment %>
+<div id="<%= dom_id(reading, :radar) %>">
+  <% if reading.tier && judgment&.judged? %>
+    <% points = judgment.points.transform_keys { |axis| I18n.t(axis, scope: "judgment.axes", locale: :ja) } %>
+    <% levels = ArticleJudgment::LEVELS %>
+    <% span = RadarChartHelper::RADIUS + RadarChartHelper::LABEL_GAP %>
+    <figure class="mx-auto mt-3 max-w-xs rounded-xl bg-white p-3 text-gray-900" data-radar>
+      <svg viewBox="<%= [ -span - 40, -span - 12, (span + 40) * 2, (span + 12) * 2 ].join(" ") %>" class="block w-full" role="img"
+           aria-label="<%= points.map { |name, point| "#{name} #{point}" }.join("、") %>">
+        <% (1..levels).each do |level| %>
+          <polygon data-radar-grid points="<%= radar_polygon(Array.new(points.size, level)) %>" fill="none" stroke-width="1" class="<%= level == levels ? "stroke-gray-300" : "stroke-gray-200" %>"></polygon>
+        <% end %>
+        <% radar_vertices(Array.new(points.size, levels)).each do |x, y| %>
+          <line x1="0" y1="0" x2="<%= x %>" y2="<%= y %>" stroke-width="1" class="stroke-gray-200"></line>
+        <% end %>
+        <polygon data-radar-area points="<%= radar_polygon(points.values) %>" stroke-width="2" stroke-linejoin="round" class="fill-orange-500/25 stroke-orange-600"></polygon>
+        <% radar_vertices(points.values).each do |x, y| %>
+          <circle cx="<%= x %>" cy="<%= y %>" r="3" stroke-width="1.5" class="fill-orange-600 stroke-white"></circle>
+        <% end %>
+        <% radar_axes(points.values).zip(points.to_a).each do |axis, (name, point)| %>
+          <text x="<%= axis[:x] %>" y="<%= axis[:y] %>" text-anchor="<%= axis[:anchor] %>" dominant-baseline="middle" font-size="11" class="fill-gray-600"><%= name %> <tspan class="fill-gray-900 font-bold"><%= point %></tspan></text>
+        <% end %>
+      </svg>
+      <figcaption class="mt-1 text-center text-sm font-semibold text-gray-700">合計 <%= judgment.total %> 点<%= " ・ 付け直すと#{rarity_label(judgment.tier)}" unless judgment.tier == reading.tier %></figcaption>
+    </figure>
+  <% end %>
+</div>

@@ -67,6 +67,47 @@ RSpec.describe "Collection", type: :system do
     end
   end
 
+  it "カードを押すと裏が開き、6 軸のレーダーと点が図からはみ出さずに出る。横スクロールが無く、タップ領域は 44px 以上で、図鑑へ戻れる" do
+    30.times { |i| card(title: "#{i + 1} 枚目", completed_at: Time.current - 1.minute - i.hours) }
+    reading = card(title: "裏を見る、390 幅で 2 行に折り返されるくらい長い見出しの記事", completed_at: Time.current - 2.days, tier: rare)
+    create(:article_judgment, article: reading.article, **scores_for(rare))
+    sign_in
+    visit collection_path
+
+    link = find("li[data-tier='#{rare}'] a")
+    page.execute_script("arguments[0].scrollIntoView({ block: 'center' })", link)
+    link.click
+
+    expect(page).to have_current_path(card_path(reading))
+    expect(page).to have_css("h1", text: "裏を見る")
+    expect(page).to have_css("svg[role='img'] polygon[data-radar-area]")
+    expect(page).to have_css("figcaption", text: "合計 #{Dopamine.rarity(rare)[:min_total]} 点")
+    clipped = page.evaluate_script(<<~JS)
+      (() => {
+        const svg = document.querySelector("svg[role='img']")
+        const box = svg.getBoundingClientRect()
+        return Array.from(svg.querySelectorAll("text")).map((text) => [ text.textContent.trim(), text.getBoundingClientRect() ])
+          .filter(([, r]) => r.left < box.left || r.right > box.right || r.top < box.top || r.bottom > box.bottom).map(([ label ]) => label)
+      })()
+    JS
+    expect(clipped).to be_empty, "図の外にはみ出した軸の名前: #{clipped.inspect}"
+    expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "横スクロールが出ている"
+    small = page.evaluate_script(<<~JS)
+      Array.from(document.querySelectorAll("a, button")).filter(el => el.getClientRects().length > 0).map(el => {
+        const r = el.getBoundingClientRect();
+        return [el.textContent.trim() || el.getAttribute("aria-label"), Math.round(r.width), Math.round(r.height)];
+      }).filter(([, w, h]) => w < 44 || h < 44)
+    JS
+    expect(small).to be_empty, "44px 未満のタップ領域: #{small.inspect}"
+    screenshot!("back")
+
+    click_on "図鑑へ戻る"
+    expect(page).to have_current_path(collection_path)
+    expect(page).to have_css("li[data-tier='#{rare}']")
+    in_view = page.evaluate_script("(() => { const r = document.querySelector(\"li[data-tier='#{rare}']\").getBoundingClientRect(); return r.top >= 0 && r.bottom <= window.innerHeight })()")
+    expect(in_view).to be(true), "図鑑の先頭に戻ってしまい、見ていたカードが画面の外"
+  end
+
   it "0 枚なら空状態" do
     sign_in
     visit collection_path
