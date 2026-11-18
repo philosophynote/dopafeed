@@ -449,14 +449,18 @@ RSpec.describe "Readings", type: :request do
         expect(page.find("turbo-stream[action='append'][target='reader']")).to have_css("h1", text: "Main の未読")
       end
 
-      it "判定済みの記事の区切りには合計点を添える。点の無いまま一番下の段に決まった記事には「判定できず」" do
+      it "判定済みの記事の区切りには合計点と 6 軸のレーダーを添える。点の無いまま一番下の段に決まった記事には「判定できず」で、図は出さない" do
         judged = create(:reading, tier: Dopamine.rarity_names.second, article: create(:article, published_at: noon - 2.hours), opened_at: noon)
         create(:article_judgment, article: judged.article, **scores_for(judged.tier))
 
         travel_to(noon + threshold) { [ judged, reading ].each { |r| post_turbo(r) } }
 
-        expect(Capybara.string(ApplicationController.render(partial: "readings/divider", locals: { reading: judged.reload }))).to have_text("読了 ・ #{Dopamine.rarity(judged.tier)[:min_total]} 点")
-        expect(page.find("turbo-stream[action='replace'][target='end_reading_#{reading.id}']")).to have_text("読了 ・ 判定できず")
+        divider = Capybara.string(ApplicationController.render(partial: "readings/divider", locals: { reading: judged.reload }))
+        expect(divider).to have_text("読了 ・ #{Dopamine.rarity(judged.tier)[:min_total]} 点")
+        expect(divider).to have_css("#radar_reading_#{judged.id} svg[role='img'] polygon[data-radar-area]")
+        unjudged = page.find("turbo-stream[action='replace'][target='end_reading_#{reading.id}']")
+        expect(unjudged).to have_text("読了 ・ 判定できず")
+        expect(unjudged).to have_no_css("svg[role='img']")
       end
 
       it "判定中のまま完読したら、段の名を付けず破線の枠のカードで区切り、頂点が後から届いても全画面は出さない。届いた枠は、区切りの見出し・カード・帯へ 1 通で配る" do
@@ -468,6 +472,7 @@ RSpec.describe "Readings", type: :request do
         expect(divider).to have_css("#card_title_reading_#{reading.id}", text: "読了 ・ 判定中")
         expect(divider).to have_css("#card_title_reading_#{reading.id}", text: "カードを手に入れた！")
         expect(divider).to have_css("li#card_reading_#{reading.id}.border-dashed[data-tier=''] [data-rarity-label]", text: "判定中")
+        expect(divider.find("#radar_reading_#{reading.id}", visible: :all)).to have_no_css("svg")
         expect(page).to have_no_css("[role='dialog']")
 
         top = Dopamine.top_rarity
@@ -475,10 +480,11 @@ RSpec.describe "Readings", type: :request do
         stream = Turbo::StreamsChannel.send(:stream_name_from, [ reading, :tier ])
         expect { JudgeArticleJob.settle(reading.article) }.to have_broadcasted_to(stream).with { |html|
           streams = Capybara.string(html.gsub(%r{</?template>}, ""))
-          expect(streams.all("turbo-stream").map { |node| node[:target] }).to eq(%W[card_title_reading_#{reading.id} card_reading_#{reading.id} rarity_reading_#{reading.id}]), "帯の差し替えが購読を外すので、帯は最後"
+          expect(streams.all("turbo-stream").map { |node| node[:target] }).to eq(%W[card_title_reading_#{reading.id} card_reading_#{reading.id} radar_reading_#{reading.id} rarity_reading_#{reading.id}]), "帯の差し替えが購読を外すので、帯は最後"
           expect(streams).to have_css("#card_title_reading_#{reading.id}", text: "SS レアカードを手に入れた！")
           expect(streams).to have_css("#card_title_reading_#{reading.id}", text: "読了 ・ #{top[:min_total]} 点")
           expect(streams).to have_css("li#card_reading_#{reading.id}.border-amber-400[data-tier='#{top[:name]}']")
+          expect(streams).to have_css("#radar_reading_#{reading.id} svg[role='img'] polygon[data-radar-area]")
           expect(streams).to have_no_css("li.card-reveal, [role='dialog']")
         }
       end

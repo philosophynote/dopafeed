@@ -14,6 +14,7 @@
     <%= render "readings/card_title", reading: reading %>
     <%# 履歴で戻るたびに開封し直さないよう、スナップショットを取る前に演出の印を落とす %>
     <ul class="card-deck mx-auto mt-3 w-32" data-controller="card-deck" data-action="turbo:before-cache@document->card-deck#settle"><%= render "cards/card", card: reading, reveal_order: (0 if reveal) %></ul>
+    <%= render "judgments/radar", reading: reading %>
     <p class="mt-3 text-sm">滞在 <%= dwell_in_words(reading.dwell_seconds) %> ・ <%= reading.combo_count %> 本連続</p>
   <% else %>
     <% if reveal %>

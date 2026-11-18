@@ -2,6 +2,7 @@
     表は OGP 画像、無ければ（読めなければ）フィードの色地。見出しとフィード名を下に重ね、枠の色が希少度。
     画像が読めなかったら image-fallback が figure ごと外し、下の色地が出る。
     リンクは元記事を別窓（iPhone のホーム画面アプリではシート）で開く。読み直しても枠は変わらない（1 記事 1 行）。link: false で開かない面だけにする。
+    back: true ならリンクはカードの裏（6 軸の点）へ進む。
     reveal_order: 束の中の順番（0 から）を渡すと、裏（ロゴ）から表へめくれて現れる。長さは yml の cards.reveal_duration_ms。
     順番ぶん遅らせる幅は cards.reveal_stagger_ms で、鍵が無ければ遅らせない（束が一斉にめくれる）。
     図鑑のように並べて見るだけの場所では渡さない（毎回めくると慣れる）。
@@ -11,6 +12,7 @@
 <% reveal_order = local_assigns[:reveal_order] %>
 <% style = "--reveal-duration: #{Dopamine.settings.dig(:cards, :reveal_duration_ms)}ms; --reveal-stagger: #{Dopamine.settings.dig(:cards, :reveal_stagger_ms).to_i}ms; --i: #{Integer(reveal_order)}" if reveal_order %>
 <% face = local_assigns.fetch(:link, true) ? :a : :div %>
+<% back = local_assigns[:back] %>
 <li class="relative aspect-[3/4] rounded-xl border-2 <%= rarity_frame(card.tier) %> <%= "card-reveal" if reveal_order %>"
     data-tier="<%= card.tier %>" <%= tag.attributes(id: local_assigns.fetch(:id, dom_id(card, :card)), style: style) %>>
   <div class="card-face absolute inset-0 overflow-hidden rounded-[0.625rem] <%= feed_tone(article.feed) %>">
@@ -20,7 +22,7 @@
              class="pointer-events-none h-full w-full select-none object-cover [-webkit-touch-callout:none]" data-image-fallback-target="image" data-action="error->image-fallback#remove">
       </figure>
     <% end %>
-    <%= content_tag face, href: (article.url if face == :a), target: ("_blank" if face == :a), rel: ("noopener noreferrer" if face == :a), draggable: "false",
+    <%= content_tag face, href: ((back ? card_path(card) : article.url) if face == :a), target: ("_blank" if face == :a && !back), rel: ("noopener noreferrer" if face == :a && !back), draggable: "false",
                     class: "absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2 text-white [-webkit-tap-highlight-color:transparent] active:bg-black/20" do %>
       <%# 希少度は読み上げでは「レアカード、」と先に言い、見える方のラベルは重ねて読ませない %>
       <% unless base_rarity?(card.tier) %>

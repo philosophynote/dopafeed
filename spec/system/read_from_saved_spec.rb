@@ -51,7 +51,7 @@ RSpec.describe "Saved から読む", type: :system do
     expect(find("[data-tier='#{rare[:name]}']", text: "#{rare[:min_total]} 点 レア")).to have_no_css(".reel-inner")
   end
 
-  it "判定中のまま完読すると、破線の枠のカードで区切り、判定が届くと見出しとカードの枠が届いた段に替わる。頂点でも全画面は出ない" do
+  it "判定中のまま完読すると、破線の枠のカードで区切り、判定が届くと見出しとカードの枠が届いた段に替わり、6 軸のレーダーが出る。頂点でも全画面は出ない" do
     judgment_pending
     article = create_article
     sign_in_to_saved
@@ -69,7 +69,12 @@ RSpec.describe "Saved から読む", type: :system do
     expect(divider).to have_text("読了 ・ #{jackpot[:min_total]} 点")
     expect(divider).to have_text("SS レアカードを手に入れた！")
     expect(divider).to have_css("li.border-amber-400[data-tier='#{jackpot[:name]}'] [data-rarity-label]", text: "SS レア")
+    expect(divider).to have_css("svg[role='img'] polygon[data-radar-area]")
+    expect(divider).to have_css("figcaption", text: "合計 #{jackpot[:min_total]} 点")
     expect(page).to have_no_css("[role='dialog']")
+    expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "横スクロールが出ている"
+    page.execute_script("document.querySelector('section[aria-label=判定] figure').scrollIntoView({ block: 'center' })")
+    screenshot!("radar_divider")
   end
 
   it "判定中のまま完読した後、接続が切れている間に決まった枠は、接続が戻ると帯と一緒に区切りの見出しとカードにも届く" do
