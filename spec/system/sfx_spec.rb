@@ -91,7 +91,19 @@ RSpec.describe "効果音", type: :system do
     expect(sfx_log).to eq(%w[tap tap rare])
   end
 
-  it "動きを減らす設定では、帯のリールが止まって見えるのと同時に鳴る" do
+  it "動きを減らす設定でも、Saved から開いた Reader の帯は 1 回鳴る" do
+    page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: [ { name: "prefers-reduced-motion", value: "reduce" } ])
+    allow(RarityDraw).to receive(:draw).and_return(rare)
+    article = create(:article, title: "レアの記事")
+    sign_in
+
+    read_from_saved(article)
+    expect(wait_for_sfx(2)).to eq(%w[tap rare])
+  ensure
+    page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: [])
+  end
+
+  it "動きを減らす設定では、Main で広げた欄の帯のリールが止まって見えるのと同時に鳴る" do
     page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: [ { name: "prefers-reduced-motion", value: "reduce" } ])
     allow(RarityDraw).to receive(:draw).and_return(rare)
     create(:article, title: "レアの記事")
@@ -157,6 +169,14 @@ RSpec.describe "効果音", type: :system do
     allow(RarityDraw).to receive(:draw).and_return(rare)
     read_from_saved(rare_article)
     expect(wait_for_sfx(2)).to eq(%w[tap rare])
+
+    click_on "閉じる"
+    expect(page).to have_current_path(root_path)
+    page.go_back
+    expect(page).to have_css("[data-tier='#{rare}']", text: "出目 レア")
+    sleep 0.3
+    expect(page.evaluate_script("document.getAnimations().filter((a) => a.playState === 'running').length")).to eq(0), "履歴で戻った Reader の帯は回り直さない"
+    expect(sfx_log).to eq(%w[tap rare]), "履歴で戻った Reader の帯は鳴り直さない"
 
     allow(RarityDraw).to receive(:draw).and_return(common)
     read_from_saved(common_article)

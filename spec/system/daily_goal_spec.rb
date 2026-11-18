@@ -108,6 +108,19 @@ RSpec.describe "DailyGoal", type: :system do
       expect(running_animations).to be_empty
     end
 
+    it "「もう 1 本だけ」を押すと、モーダルを挟まずに一番新しい未読の Reader が開き、帯のリールが出目で止まる" do
+      allow(RarityDraw).to receive(:draw).and_return(common)
+      sign_in
+      visit daily_goal_path
+
+      click_on "もう 1 本だけ"
+
+      expect(page).to have_current_path(read_article_path(Article.find_by!(title: "まだ読んでいない記事")))
+      expect(page).to have_no_css("[role='dialog']")
+      expect(find("[data-tier='#{common}']", text: "出目 通常 ・ 完読で通常カード")).to have_css(".reel-inner")
+      expect(page).to have_css("h1", text: "まだ読んでいない記事")
+    end
+
     it "動きを減らす設定なら、蓋もカードも動かさずに開いた形で出し、花火も出さない" do
       sign_in
       page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: [ { name: "prefers-reduced-motion", value: "reduce" } ])

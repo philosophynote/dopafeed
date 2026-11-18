@@ -138,6 +138,18 @@ RSpec.describe "Readings", type: :request do
         expect(band).to have_no_css("[data-sfx-cue-value]", visible: :all)
       end
 
+      it "redirect の先が読み込まれないまま別の記事の Reader を開いても、その帯は回さない" do
+        allow(RarityDraw).to receive(:draw).and_return(rare[:name])
+        other = create(:reading, tier: rare[:name], opened_at: noon - 1.hour).article
+
+        post_turbo(create(:article))
+        get read_article_path(other)
+
+        band = page.find("[data-tier='#{rare[:name]}']", text: "出目 レア")
+        expect(band).to have_no_css(".reel-inner")
+        expect(band).to have_no_css("[data-sfx-cue-value]", visible: :all)
+      end
+
       it "未完のまま再び読むと再抽選せず、前回の出目のまま Reader へ進み、帯は回さない" do
         article = create(:article)
         create(:reading, article: article, tier: rare[:name], opened_at: noon - 1.hour, returned_at: noon - 1.hour + 5.seconds)
@@ -159,7 +171,7 @@ RSpec.describe "Readings", type: :request do
         allow(ghost).to receive(:save!).and_raise(ActiveRecord::RecordNotUnique.new("二重タップ"))
       end
 
-      it "二重タップで行が同時に作られたら、先に入った行を使って Reader へ進む" do
+      it "二重タップで行が同時に作られたら、先に入った行を使って Reader へ進み、後から届いた側の帯は回さない" do
         article = create(:article)
         race_on(article, existing_tier: rare[:name])
 
@@ -168,6 +180,8 @@ RSpec.describe "Readings", type: :request do
         expect(response).to redirect_to(read_article_path(article))
         expect(Reading.count).to eq(1)
         expect(article.reload.reading.tier).to eq(rare[:name])
+        follow_redirect!
+        expect(page).to have_no_css(".reel-inner")
       end
 
       it "通常の POST（JS 無し）も Reader へ redirect" do

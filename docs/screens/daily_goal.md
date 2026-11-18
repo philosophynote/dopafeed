@@ -50,8 +50,8 @@ personas.yml: なし
 1. ゴール達成ボーナス +100 XP。yml に鍵が無い。提案: `daily_goal.bonus_xp: 100` → ADR 0020 で鍵ごと廃止（宝箱の中身は今日のカード）
    → **決定（Unit 7、#55）**: 鍵 `daily_goal.bonus_xp` が入ったら効く形で作った。達成の行は 5 本目の完読を判定した瞬間に `DailyGoal.achieve_if_reached!` が `daily_goals` に作り（開いた時には書かない。day の一意制約で 1 日 1 回）、`bonus_xp` に鍵の値（無ければ 0）を残す。0 なら「ゴール達成ボーナス」の行は出さない。Main の「累計 XP」は readings の xp と daily_goals の bonus_xp の和。鍵の値は PR で提案
    → **改め（Unit 23、#106、ADR 0020）**: ボーナス XP と列 `daily_goals.bonus_xp`・鍵 `daily_goal.bonus_xp` を廃止。中身は今日のカードとストリーク確定
-2. 「明日までレア確率 2 倍」。Jackpot の未決 2 と同じバフ。第一の陣では出さない案。入れるなら rare を 2 倍にした分を common から引く（jackpot は据え置き）など、確率の合計を 1.0 に保つ規則を dopamine.yml に書く
-   → **決定（Unit 7、#55）**: 出さない（Jackpot と同じ）。鍵の提案もしない
+2. 「明日までレア確率 2 倍」。撤去した Jackpot 画面（ADR 0026）のモックにあった「24 時間レア確率 2 倍」と同じバフ。第一の陣では出さない案。入れるなら rare を 2 倍にした分を common から引く（jackpot は据え置き）など、確率の合計を 1.0 に保つ規則を dopamine.yml に書く
+   → **決定（Unit 7、#55）**: 出さない。鍵の提案もしない
 3. 「もう 1 本だけ（ボーナス半分）」の半分の対象（基礎 XP？ ルーレット倍率？）。提案: `daily_goal.after_goal_xp_ratio: 0.5`
    → **決定（Unit 7、#55）**: 「（ボーナス XP は半分）」は出さず、鍵も提案しない。6 本目以降も通常の XP。ボタンは達成後だけ、一番新しい未読の「読む」（POST）に繋ぐ
 4. 達成前に DailyGoal を開いたときの見せ方（別画面 / Main 内の Turbo Frame）
