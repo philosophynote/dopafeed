@@ -10,7 +10,26 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_14_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_16_160000) do
+  create_table "article_judgments", force: :cascade do |t|
+    t.integer "article_id", null: false
+    t.float "originality"
+    t.float "depth"
+    t.float "practicality"
+    t.float "evidence"
+    t.float "insight"
+    t.float "applicability"
+    t.string "model"
+    t.integer "input_tokens"
+    t.float "cost"
+    t.datetime "judged_at"
+    t.datetime "failed_at"
+    t.string "error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["article_id"], name: "index_article_judgments_on_article_id", unique: true
+  end
+
   create_table "articles", force: :cascade do |t|
     t.integer "feed_id", null: false
     t.string "title", null: false
@@ -110,6 +129,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_14_000000) do
     t.index ["email_address"], name: "index_users_on_email_address", unique: true
   end
 
+  add_foreign_key "article_judgments", "articles", on_delete: :cascade
   add_foreign_key "articles", "feeds"
   add_foreign_key "readings", "articles"
   add_foreign_key "sessions", "users"

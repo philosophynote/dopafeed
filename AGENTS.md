@@ -22,8 +22,9 @@
 - Ruby のコメントに書かないもの: 工程（Unit 番号・陣・「別 PR で」。Issue と PR に書く）、画面名（モデル・サービス・ジョブは画面を知らない。app/views と docs/screens に書く）、呼び出し元の列挙（守らせたいなら spec/structure/ のテストで落とす）、呼ぶ側と呼ばれる側への同じ説明（定義側に残す）
 - Hotwire（Turbo Frames / Streams + Stimulus）。SPA 化・React・外部 JS フレームワーク持ち込み禁止
 - Claude API は app/services/claude/ に集約し、必ず ActiveJob（Solid Queue）経由。コントローラ・モデルから直接呼ぶな
+- 記事の判定（RubyLLM の Judge。ADR 0024）は app/judges/ と app/services/judgments/ に集約し、同じく Job 経由
 - XP 量・確率・閾値・秒数・本数は config/dopamine.yml。コードに数字を埋めるな（spec/structure/ が落とす）
-- 外部通信（Claude API、RSS）はテストで VCR / WebMock。CI は実通信ゼロ
+- 外部通信（Claude API、判定 API、RSS）はテストで VCR / WebMock。CI は実通信ゼロ
 - DB 変更は migration のみ。設計変更は docs/decisions/ に ADR を足す
 - 一 Unit = 一 Issue = 一ブランチ `unit-<n>-<name>` = 一 PR（`Closes #N`）= 差分 300 行前後。超えるなら割って提案せよ
 - 回答は全て日本語にしてください

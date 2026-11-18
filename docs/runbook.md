@@ -394,6 +394,18 @@ VAPID_SUBJECT=$(bin/rails credentials:fetch vapid.subject)
 ### 交換する（漏えいしたとき）
 鍵を変えると既存の購読は全部送れなくなる。credentials の `vapid:` を作り直して deploy したあと `bin/rails runner 'PushSubscription.delete_all'` で行を消し、iPhone の Install を開いて「通知を許可する」を押し直す（Install は古い鍵の購読を見つけると解除してボタンを有効に戻す。iOS 側の許可は残っているのでダイアログは出ず、購読だけ作り直される）。
 
+## 2-i. 判定の API キー（ADR 0024）
+
+記事の中身の採点（TypeSafe の Jev）に要る。`config/dopamine.yml` に `judgment` の節が無い間は、鍵があっても判定は積まれない。
+
+TypeSafe で作った鍵を `EDITOR="zed --wait" bin/rails credentials:edit` で `typesafe:` の下に `api_key: "..."` として入れ、`.kamal/secrets` に 1 行足す。自動デプロイは main の `.kamal/secrets` と `config/credentials.yml.enc` を読むので、**config/deploy.yml の env.secret にこの名前が入る PR のブランチに、この 1 行と鍵を入れた credentials をコミットしてからマージする**（手元の編集だけでは足りない。無いまま main に入ると、自動デプロイが `Secret 'TYPESAFE_API_KEY' not found` で止まる。手順は 4 の `KAMAL_REGISTRY_PASSWORD` と同じ）:
+```sh
+TYPESAFE_API_KEY=$(bin/rails credentials:fetch typesafe.api_key)
+```
+手元で試すなら、打つシェルで `export TYPESAFE_API_KEY=$(bin/rails credentials:fetch typesafe.api_key)`（Rails は credentials を環境変数に移さない）。yml の `judgment.model` に書ける名前は `curl -s -H "Authorization: Bearer $TYPESAFE_API_KEY" https://api.typesafe.ai/v1/models` の `name`。
+
+確かめるのは `bin/rails 'judgments:backfill[3]'`（完読した未判定の記事を新しい順に 3 本採点し、点を出す。本番ではコンテナの中で打つ）と `bin/rails judgments:status`（合計点ごとの本数と実費）。失敗の理由は `ArticleJudgment.failed.pluck(:article_id, :error)`。やり直すにはその行を消して記事を開き直す。4xx で拒まれた要求（鍵の誤り・残高切れ・yml のモデル名の誤り・要求の形）と予算切れは行を残さず、`kamal logs` の `[judgments]` に出る（直せば、開き直した記事から判定される。手元なら `log/development.log`）。`judgments:backfill` はこれらの理由を画面に出して止まり、一時的な失敗（接続エラー・タイムアウト・429・5xx）は理由を出して次の記事へ進む（どちらも行を残さないので、打ち直せばまた試す）。
+
 ## 3. よく使う
 ```sh
 kamal logs            # tail

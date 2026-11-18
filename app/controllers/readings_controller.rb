@@ -7,6 +7,7 @@ class ReadingsController < ApplicationController
     @reading = Reading.open!(@article)
     @expand = params[:expand] == "1"
     Claude::SummarizeArticleJob.enqueue_if_awaiting(@article)
+    JudgeArticleJob.enqueue_if_awaiting(@article)
     respond_to do |format|
       format.turbo_stream
       format.html { redirect_to read_article_path(@article) }
@@ -34,7 +35,10 @@ class ReadingsController < ApplicationController
     return advance_in_list if params[:from] == "main"
 
     @next_reading = next_reading_after(@reading.article, reuse_pending: judged)
-    Claude::SummarizeArticleJob.enqueue_if_awaiting(@next_reading.article) if @next_reading
+    if @next_reading
+      Claude::SummarizeArticleJob.enqueue_if_awaiting(@next_reading.article)
+      JudgeArticleJob.enqueue_if_awaiting(@next_reading.article)
+    end
     respond_to do |format|
       format.turbo_stream
       format.html { redirect_to @next_reading ? read_article_path(@next_reading.article) : root_path }

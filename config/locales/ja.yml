@@ -5,6 +5,14 @@ ja:
       common: 通常
       rare: レア
       jackpot: 金
+  judgment:
+    axes:
+      originality: 独自性
+      depth: 深掘り
+      practicality: 実践性
+      evidence: 根拠
+      insight: 洞察
+      applicability: 応用性
   datetime:
     distance_in_words:
       half_a_minute: 30秒
