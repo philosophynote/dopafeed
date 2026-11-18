@@ -5,5 +5,5 @@
 </header>
 
 <div id="reader" class="mt-3 flex flex-col gap-4">
-  <%= render "articles/reader_article", reading: @reading %>
+  <%= render "articles/reader_article", reading: @reading, sfx: flash[:drawn] == @reading.id %>
 </div>

@@ -16,13 +16,13 @@
 7. 「ひとこと要約を残す ＋10 XP」textarea（DB: 未決 4。XP は dopamine.yml に鍵が無い）
 8. ボタン「保存して ガチャへ」（→ Gacha。段 4 なので第一の陣では「保存して閉じる」→ Main）、「ネタにする」（→ NetaBox。第一の陣では出さない）
 9. 「今日のゴール 4 / 5 ・ あと 1 本で宝箱」（→ DailyGoal。`daily_goal.articles`）
-10. 「次の 1 本 ・ 上にスワイプで開く」カード: フィード名・約 N 分・見出し（DB: 次の未読）。スワイプで次の記事の Roulette へ
+10. 「次の 1 本 ・ 上にスワイプで開く」カード: フィード名・約 N 分・見出し（DB: 次の未読）。スワイプで次の記事へ（モックの Roulette は ADR 0026 で撤去）
 
 ## 遷移
 - 記事（PWA 内のブラウザシート）→ 戻る → ReadDone（full page か Turbo Frame。未決 5）
 - ReadDone → Main（閉じる / 保存して閉じる）。読んだカードは消え、ステータスが更新される
 - ReadDone → DailyGoal（5 本目の読了なら自動で。それ以外はタップ）
-- ReadDone → Roulette（次の 1 本を上スワイプ）
+- ReadDone → 次の記事（次の 1 本を上スワイプ。モックの Roulette は ADR 0026 で撤去）
 - ReadDone → Gacha / NetaBox（段 4。第一の陣では無い）
 
 ## 受け入れ条件（Given-When-Then）

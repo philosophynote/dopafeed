@@ -91,12 +91,23 @@ RSpec.describe "効果音", type: :system do
     expect(sfx_log).to eq(%w[tap tap rare])
   end
 
-  it "動きを減らす設定では、ルーレットが止まって見えるのと同時に鳴る" do
+  it "動きを減らす設定でも、Saved から開いた Reader の帯は 1 回鳴る" do
     page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: [ { name: "prefers-reduced-motion", value: "reduce" } ])
     allow(RarityDraw).to receive(:draw).and_return(rare)
-    create(:article, title: "レアの記事").bookmark!
+    article = create(:article, title: "レアの記事")
     sign_in
-    visit saved_path
+
+    read_from_saved(article)
+    expect(wait_for_sfx(2)).to eq(%w[tap rare])
+  ensure
+    page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: [])
+  end
+
+  it "動きを減らす設定では、Main で広げた欄の帯のリールが止まって見えるのと同時に鳴る" do
+    page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: [ { name: "prefers-reduced-motion", value: "reduce" } ])
+    allow(RarityDraw).to receive(:draw).and_return(rare)
+    create(:article, title: "レアの記事")
+    sign_in
 
     button = find("article", text: "レアの記事").find_button("読む")
     elapsed = page.evaluate_async_script(<<~JS, button.native)
@@ -151,13 +162,21 @@ RSpec.describe "効果音", type: :system do
     expect(wait_for_sfx(3)).to eq(%w[tap gold fanfare])
   end
 
-  it "Saved のルーレットはレアで止まった瞬間にだけ鳴り、通常では鳴らない" do
+  it "Saved から読むと、Reader の帯のリールがレアで止まった瞬間にだけ鳴り、通常では鳴らない" do
     rare_article = create(:article, title: "レアの記事", published_at: 1.hour.ago)
     common_article = create(:article, title: "通常の記事", published_at: 2.hours.ago)
     sign_in
     allow(RarityDraw).to receive(:draw).and_return(rare)
     read_from_saved(rare_article)
     expect(wait_for_sfx(2)).to eq(%w[tap rare])
+
+    click_on "閉じる"
+    expect(page).to have_current_path(root_path)
+    page.go_back
+    expect(page).to have_css("[data-tier='#{rare}']", text: "出目 レア")
+    sleep 0.3
+    expect(page.evaluate_script("document.getAnimations().filter((a) => a.playState === 'running').length")).to eq(0), "履歴で戻った Reader の帯は回り直さない"
+    expect(sfx_log).to eq(%w[tap rare]), "履歴で戻った Reader の帯は鳴り直さない"
 
     allow(RarityDraw).to receive(:draw).and_return(common)
     read_from_saved(common_article)
@@ -178,7 +197,7 @@ RSpec.describe "効果音", type: :system do
     expect(sfx_log).to eq([ "swipe" ])
   end
 
-  it "Saved から金を引くと、出目の和音は鳴らさず Jackpot のファンファーレだけ。完読すると全画面の開封のファンファーレだけが鳴る" do
+  it "Saved から金を引くと、Reader の帯が止まった瞬間に金の音が鳴る。完読すると全画面の開封のファンファーレだけが鳴る" do
     allow(RarityDraw).to receive(:draw).and_return(jackpot)
     article = create(:article, title: "金の記事", url: "#{Capybara.current_session.server.base_url}/up?gold", summary: "・要約")
     article.bookmark!
@@ -186,10 +205,9 @@ RSpec.describe "効果音", type: :system do
     visit saved_path
 
     within("article", text: "金の記事") { click_on "読む" }
-    expect(page).to have_link("読んで手に入れる")
-    expect(wait_for_sfx(2)).to eq(%w[tap fanfare])
+    expect(page).to have_current_path(read_article_path(article))
+    expect(wait_for_sfx(2)).to eq(%w[tap gold])
 
-    click_on "読んで手に入れる"
     page.execute_script(<<~JS)
       document.addEventListener("click", (event) => { if (event.target.closest("a[target=_blank]")) event.preventDefault() }, true)
     JS
@@ -201,7 +219,7 @@ RSpec.describe "効果音", type: :system do
     click_on "読み終えた"
 
     expect(page).to have_css("[role='dialog'][aria-label='金のカードの開封']")
-    expect(wait_for_sfx(3)).to eq(%w[tap fanfare fanfare])
+    expect(wait_for_sfx(3)).to eq(%w[tap gold fanfare])
   end
 
   it "宝箱の音は、ゴールを達成した日に宝箱を初めて開いたときだけ鳴る。2 度目からは鳴らない" do

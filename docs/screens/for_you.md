@@ -14,7 +14,7 @@ FOMO と個人最適化。Claude が未読から「今日の 3 本」を理由�
 
 ## 遷移
 - Main のセグメント → ForYou（Turbo Frame で一覧部分だけ置換）
-- 「読む」→ Roulette（おすすめ倍率付き）
+- 「読む」→ Reader（モックの Roulette とおすすめ倍率は ADR 0026 で撤去）
 - Push の朝ダイジェストをタップ → ForYou
 
 ## 受け入れ条件（Given-When-Then）

@@ -27,7 +27,6 @@
     <main class="mx-auto w-full max-w-md px-4 pt-4 pb-24">
       <%= yield %>
       <%= turbo_frame_tag "turbo_add_feed" unless controller_name == "feeds" && %w[new create].include?(action_name) %>
-      <div id="roulette"></div>
       <%= render "shared/app_badge", unread_count: unread_count if authenticated? %>
     </main>
   </body>

@@ -140,7 +140,6 @@ RSpec.describe "区切りの見せ場", type: :system do
     sign_in
     visit saved_path
     within("article", text: "金の記事") { click_on "読む" }
-    click_on "読んで手に入れる"
 
     page.execute_script(<<~JS)
       document.addEventListener("click", (event) => { if (event.target.closest("a[target=_blank]")) event.preventDefault() }, true)

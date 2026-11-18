@@ -1,4 +1,4 @@
-RSpec.describe "Roulette", type: :system do
+RSpec.describe "Saved から読む", type: :system do
   let(:settings) { Dopamine.settings }
   let(:threshold) { settings.dig(:read, :complete_after_seconds) }
   let(:common) { Dopamine.rarity_names.first }
@@ -13,61 +13,41 @@ RSpec.describe "Roulette", type: :system do
     visit saved_path
   end
 
-  it "読むと止まった出目の帯つきでリーダーが開き、モーダルは残らない" do
+  it "未読の行を押すと、モーダルを挟まず Reader が開き、帯のリールが出目で止まる" do
     allow(RarityDraw).to receive(:draw).and_return(common)
     article = create_article
     sign_in_to_saved
 
     click_on "読む"
     expect(page).to have_current_path(read_article_path(article))
-    expect(page).to have_text("出目 通常 ・ 完読で通常カード")
-    expect(page).to have_no_css("[data-controller='roulette']")
+    expect(page).to have_no_css("[role='dialog']")
+    band = find("[data-tier='#{common}']", text: "出目 通常 ・ 完読で通常カード")
+    expect(band).to have_css(".reel-inner")
+    page.evaluate_async_script("const done = arguments[0]; Promise.all(document.querySelector('.reel-inner').getAnimations({ subtree: true }).map((a) => a.finished)).then(() => done(true))")
     expect(article.reload.reading.returned_at).to be_nil
-  end
-
-  it "回っている間は一覧の上にモーダルが重なり、背景のカードは残る（絵のためにこの例だけ長く回す）" do
-    long = settings.deep_dup
-    long[:cards][:reveal_duration_ms] = 10_000
-    allow(Dopamine).to receive(:settings).and_return(long)
-    allow(RarityDraw).to receive(:draw).and_return(common)
-    article = create_article("背景に残るカード")
-    sign_in_to_saved
-
-    click_on "読む"
-
-    expect(page).to have_css("[role='dialog'][aria-label='ルーレット']")
-    expect(page).to have_text("「読む」を押した 10.0 秒間")
-    expect(page).to have_css("article", text: "背景に残るカード")
-    expect(page).to have_current_path(saved_path)
     expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "横スクロールが出ている"
-    expect(article.reload.reading.tier).to eq(common)
+    screenshot!("reader")
+
+    page.refresh
+    expect(find("[data-tier='#{common}']", text: "出目 通常")).to have_no_css(".reel-inner")
   end
 
-  it "jackpot なら全画面の予告に進み、読んで手に入れるでリーダーが開き、記事を開いて戻ると金のカードになる" do
+  it "頂点の出目でも全画面の予告は出ず Reader が開き、記事を開いて戻ると金のカードを全画面で開封する" do
     allow(RarityDraw).to receive(:draw).and_return(jackpot[:name])
     article = create_article
     sign_in_to_saved
 
     click_on "読む"
-    expect(page).to have_text("JACKPOT")
-    expect(page).to have_current_path(jackpot_reading_path(article.reload.reading))
-    expect(page).to have_text("金のカード")
-    expect(page).to have_no_text("XP")
-    expect(page).to have_no_button("閉じる")
-    expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "紙吹雪が横スクロールを生んでいる"
-    screenshot!("jackpot")
+    expect(page).to have_current_path(read_article_path(article))
+    expect(page).to have_css("[data-tier='#{jackpot[:name]}']", text: "出目 金 ・ 完読で金のカード")
+    expect(page).to have_no_css("[role='dialog']")
 
     page.go_back
     expect(page).to have_current_path(saved_path)
     expect(page).to have_css("article", text: "読む記事")
-    expect(page).to have_no_css("[data-controller='roulette']")
     expect(page).to have_no_text("手に入れた")
     expect(article.reading.reload.returned_at).to be_nil
     click_on "読む"
-    expect(page).to have_text("JACKPOT")
-    expect(page).to have_current_path(jackpot_reading_path(article.reading))
-
-    click_on "読んで手に入れる"
     expect(page).to have_current_path(read_article_path(article))
     opened = article.reading.reload.opened_at
 
