@@ -81,6 +81,24 @@ RSpec.describe "judgments の rake" do
       expect(ArticleJudgment.count).to eq(0)
     end
 
+    it "拒まれて止まった記事と一時的に失敗した記事のカードは、判定中のまま残す（ここで一番下の段に決めると、直して打ち直しても枠が動かない）" do
+      rejected = completed_article("拒まれる", Time.zone.local(2026, 10, 3, 9))
+      rejected.reading.update!(tier: nil)
+      stub_request(:post, JudgmentHelper::ENDPOINT).to_return(status: 422)
+      expect { backfill.invoke("1") }.to raise_error(SystemExit).and output(/枠は判定中のまま/).to_stderr
+      expect(rejected.reading.reload.tier).to be_nil
+
+      backfill.reenable
+      stub_request(:post, JudgmentHelper::ENDPOINT).to_return(status: 503)
+      expect { backfill.invoke("1") }.to output(/枠は判定中のまま/).to_stdout
+      expect(rejected.reading.reload.tier).to be_nil
+
+      backfill.reenable
+      stub_request(:post, JudgmentHelper::ENDPOINT).to_return(body: judgment_response(scores), headers: { "Content-Type" => "application/json" })
+      expect { backfill.invoke("1") }.to output(/24 点/).to_stdout
+      expect(rejected.reading.reload.tier).to eq(ArticleJudgment.find_by!(article: rejected).tier)
+    end
+
     it "日次の上限に達していたら、理由を出して 1 本も呼ばずに止まる" do
       completed_article("完読", Time.zone.local(2026, 10, 1, 9))
       allow(Claude::Budget).to receive(:default_limit).and_return(0)

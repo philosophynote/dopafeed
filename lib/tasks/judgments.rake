@@ -15,10 +15,11 @@ namespace :judgments do
       line = judgment&.judged? ? "#{judgment.total} 点 #{judgment.points.values.join("/")}" : "失敗 #{judgment&.error || "判定を残せなかった（別の実行と重なったか、記事が消えた）"}"
       puts "#{line} #{article.title}"
     rescue Judgments::ArticleScorer::TransientError => e
-      puts "失敗 #{e.message}（一時的な失敗。行は残していないので、打ち直せばまた試す） #{article.title}"
+      puts "失敗 #{e.message}（一時的な失敗。行は残さず、枠は判定中のまま。打ち直せばまた試す） #{article.title}"
     rescue Claude::Budget::Exhausted, Judgments::ArticleScorer::RejectedError => e
       # 続けても同じ理由で落ち、呼ぶたびに日次の台帳だけが減る。
-      abort "中止 #{e.message}（4xx は鍵・残高・yml のモデル名・要求の形のどれかで拒まれた。limit は日次の上限。行は残していないので、直してから打ち直せ）"
+      # ここで枠を一番下の段に決めると、直して打ち直しても枠が動かない。
+      abort "中止 #{e.message}（4xx は鍵・残高・yml のモデル名・要求の形のどれかで拒まれた。limit は日次の上限。行は残さず、枠は判定中のまま。直してから打ち直せ）"
     end
   end
 

@@ -217,6 +217,22 @@ RSpec.describe "Readings", type: :request do
         expect(band).to have_no_css(".reel-gold")
       end
 
+      it "完読済みの行なら、帯と一緒に区切りの見出しとカードの差し替えも返す（切断中に決まった枠は、区切りにも届いていない）。完読前の行には付けない" do
+        completed = create(:reading, :completed, tier: rare[:name])
+        create(:article_judgment, article: completed.article, **scores_for(rare[:name]))
+
+        streams = frame(completed).all("turbo-stream[action='replace']", visible: :all)
+
+        expect(streams.map { |node| node[:target] }).to eq(%W[card_title_reading_#{completed.id} card_reading_#{completed.id}])
+        html = Capybara.string(response.body.gsub(%r{</?template>}, ""))
+        expect(html).to have_css("#card_title_reading_#{completed.id}", text: "レアカードを手に入れた！")
+        expect(html).to have_css("li#card_reading_#{completed.id}[data-tier='#{rare[:name]}']")
+        expect(html).to have_no_css("li.card-reveal, [role='dialog']")
+
+        expect(frame(create(:reading, tier: rare[:name]))).to have_no_css("turbo-stream", visible: :all)
+        expect(frame(create(:reading, :pending, :completed))).to have_no_css("turbo-stream", visible: :all)
+      end
+
       it "頂点の段は金のリールで、欄の中にコインを降らせ、金の音を鳴らす" do
         reading = create(:reading, :jackpot)
 

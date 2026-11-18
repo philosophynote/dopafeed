@@ -13,10 +13,17 @@ RSpec.describe ReadingsHelper do
       expect(helper.judgment_note(reading(tier: names.second, judged_as: names.second))).to eq("#{Dopamine.rarity(names.second)[:min_total]} 点")
     end
 
-    it "枠が判定の段と食い違う行には点を出さない（境界と合わない「24 点 ノーマル」を見せない）。一番下の段なら「判定できず」" do
-      expect(helper.judgment_note(reading(tier: names.first, judged_as: names.second))).to eq("判定できず")
-      expect(helper.judgment_note(reading(tier: names.first))).to eq("判定できず")
+    it "枠が判定の段と食い違う行には点を出さない（境界と合わない「24 点 ノーマル」を見せない）。判定は届いているので「判定できず」とも言わない" do
+      expect(helper.judgment_note(reading(tier: names.first, judged_as: names.second))).to be_nil
       expect(helper.judgment_note(reading(tier: names.last, judged_as: names.second))).to be_nil
+    end
+
+    it "判定の無い・失敗した記事が一番下の段に決まった行は「判定できず」" do
+      failed = reading(tier: names.first)
+      create(:article_judgment, :failed, article: failed.article)
+
+      expect(helper.judgment_note(reading(tier: names.first))).to eq("判定できず")
+      expect(helper.judgment_note(failed)).to eq("判定できず")
     end
   end
 

@@ -408,7 +408,7 @@ TYPESAFE_API_KEY=$(bin/rails credentials:fetch typesafe.api_key)
 
 カードの枠は判定が届いた時に決まり、以後は動かない（ADR 0026）。過去のカードの枠を今の境界（yml `cards.rarities` の `min_total`）で付け直すのは `bin/rails judgments:regrade`。引数なしは下見で、動くカードを 1 行ずつ出すだけ。書き換えるのは `bin/rails 'judgments:regrade[apply]'`（書き換えた枠は元に戻せない。戻すなら §1-c の時刻指定の復元）。判定の無い・失敗した記事のカードは動かさない。抽選の時代のカードは、migration が common をノーマル、jackpot を SS レアに読み替えているので、`judgments:backfill` で採点してから `judgments:regrade` を打つと、中身の点の枠に替わる（金だったカードが下がることがある）。境界を変えたときも、`judgments:status` で分布を見てから打つ。
 
-図鑑に「判定中」のカードが残り続けるとき（Job が例外で終わった、プロセスごと止められた、本文の取得が済んでいない）: 完読前の記事は開き直せば判定を積み直す。完読済みのカードは `judgments:backfill` が拾う（完読した未判定の記事を採点し、枠も書く）。本文の取得が済んでいない記事（`Article.where(content_fetched_at: nil)`）は backfill の対象にならないので、先に `FetchArticleContentJob.perform_now(article)` を打つ。
+図鑑に「判定中」のカードが残り続けるとき（Job が例外で終わった、プロセスごと止められた、本文の取得が済んでいない）: 完読前の記事は開き直せば判定を積み直す。完読済みのカードは `judgments:backfill` が拾う（完読した未判定の記事を採点し、枠も書く）。backfill が鍵・残高・上限で止まったときと一時的な失敗のときは、枠を判定中のまま残す（ここで一番下の段に決めると、直して打ち直しても枠が動かないため）。直して打ち直せば決まる。本文の取得が済んでいない記事（`Article.where(content_fetched_at: nil)`）は backfill の対象にならないので、先に `FetchArticleContentJob.perform_now(article)` を打つ。
 
 枠の名前を 4 段に替えた版（ADR 0026）を配った直後は、入れ替わりの数十秒に古い版が古い名前（common / jackpot）で行を作ることがある。その行は開けず、読了もできない。配った後に 1 回確かめる:
 ```sh

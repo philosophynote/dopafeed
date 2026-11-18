@@ -28,6 +28,8 @@
       <span class="coins" aria-hidden="true" data-controller="fanfare" data-action="turbo:before-cache@document->fanfare#skip"
             style="--reel-duration: <%= duration %>ms"><% 8.times { |i| %><span style="--i: <%= i %>"></span><% } %></span>
     <% end %>
+    <%# 取り直しで替わるのは frame の中だけ。区切りへの差し替えを frame に入れて運び、文書に入った時に働かせる %>
+    <%= render "readings/settled_divider", reading: reading if local_assigns[:catch_up] && tier && reading.completed? %>
   <% end %>
   <% if tier.nil? %>
     <div data-controller="pending-refresh" data-pending-refresh-url-value="<%= tier_reading_path(reading) %>"

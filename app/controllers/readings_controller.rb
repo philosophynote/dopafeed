@@ -47,7 +47,7 @@ class ReadingsController < ApplicationController
 
   # 接続前や切断中に配られた枠を、帯が取り直す。届いていれば、ここで初めてリールが止まる。
   def tier
-    render partial: "readings/rarity_band", locals: { reading: Reading.includes(article: :judgment).find(params[:id]), stop: true }
+    render partial: "readings/rarity_band", locals: { reading: Reading.includes(article: %i[feed judgment]).find(params[:id]), stop: true, catch_up: true }
   end
 
   private

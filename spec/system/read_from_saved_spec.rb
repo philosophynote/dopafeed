@@ -13,6 +13,19 @@ RSpec.describe "Saved から読む", type: :system do
     visit saved_path
   end
 
+  def complete_in_reader(article)
+    page.execute_script(<<~JS)
+      document.addEventListener("click", (event) => { if (event.target.closest("a[target=_blank]")) event.preventDefault() }, true)
+    JS
+    reading = article.reload.reading
+    since = reading.opened_at
+    click_on "記事を開く"
+    Timeout.timeout(Capybara.default_max_wait_time) { sleep 0.05 until reading.reload.opened_at > since }
+    reading.update_columns(opened_at: Time.current - threshold - 5)
+    click_on "読み終えた"
+    reading
+  end
+
   it "未読の行を押すと、モーダルを挟まず Reader が開き、帯は判定を待つ。判定が届くとリールが段で止まり、再読込では回さない" do
     rare = Dopamine.rarity(Dopamine.rarity_names.second)
     judgment_pending
@@ -43,15 +56,7 @@ RSpec.describe "Saved から読む", type: :system do
     article = create_article
     sign_in_to_saved
     click_on "読む"
-    page.execute_script(<<~JS)
-      document.addEventListener("click", (event) => { if (event.target.closest("a[target=_blank]")) event.preventDefault() }, true)
-    JS
-    reading = article.reload.reading
-    since = reading.opened_at
-    click_on "記事を開く"
-    Timeout.timeout(Capybara.default_max_wait_time) { sleep 0.05 until reading.reload.opened_at > since }
-    reading.update_columns(opened_at: Time.current - threshold - 5)
-    click_on "読み終えた"
+    complete_in_reader(article)
 
     divider = find("section[aria-label='判定']")
     expect(divider).to have_text("読了 ・ 判定中")
@@ -65,6 +70,32 @@ RSpec.describe "Saved から読む", type: :system do
     expect(divider).to have_text("SS レアカードを手に入れた！")
     expect(divider).to have_css("li.border-amber-400[data-tier='#{jackpot[:name]}'] [data-rarity-label]", text: "SS レア")
     expect(page).to have_no_css("[role='dialog']")
+  end
+
+  it "判定中のまま完読した後、接続が切れている間に決まった枠は、接続が戻ると帯と一緒に区切りの見出しとカードにも届く" do
+    rare = Dopamine.rarity(Dopamine.rarity_names.second)
+    judgment_pending
+    article = create_article
+    sign_in_to_saved
+    click_on "読む"
+    reading = complete_in_reader(article)
+    divider = find("section[aria-label='判定']")
+    expect(divider).to have_text("読了 ・ 判定中")
+    find("#rarity_reading_#{reading.id} turbo-cable-stream-source[connected]", visible: :all)
+
+    create(:article_judgment, article: article, **scores_for(rare[:name]))
+    Reading.settle_tier!(article) # broadcast しない
+    page.execute_script(<<~JS)
+      const source = document.querySelector("#rarity_reading_#{reading.id} turbo-cable-stream-source")
+      source.removeAttribute("connected")
+      source.setAttribute("connected", "")
+    JS
+
+    expect(page).to have_css("#rarity_reading_#{reading.id} [data-tier='#{rare[:name]}']")
+    expect(divider).to have_text("読了 ・ #{rare[:min_total]} 点")
+    expect(divider).to have_text("レアカードを手に入れた！")
+    expect(divider).to have_css("li[data-tier='#{rare[:name]}'] [data-rarity-label]", text: "レア")
+    expect(page).to have_no_css("turbo-frame turbo-stream", visible: :all)
   end
 
   it "頂点の段の記事でも全画面の予告は出ず Reader が開き、記事を開いて戻ると SS レアカードを全画面で開封する" do

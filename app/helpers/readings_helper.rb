@@ -57,11 +57,11 @@ module ReadingsHelper
 
   # 枠が決まった後に届いた判定や、境界を変える前の判定は、枠と段が食い違う。その点を添えると「24 点 ノーマル」になる。
   #
-  # @return [String, nil] 枠の根拠。点に依らず一番下の段に決まった行は、判定できなかったと添える
+  # @return [String, nil] 枠の根拠。判定の無いまま一番下の段に決まった行は、判定できなかったと添える
   def judgment_note(reading)
     judgment = reading.article.judgment
     if reading.tier.nil? then "判定中"
-    elsif judgment&.judged? && judgment.tier == reading.tier then "#{judgment.total} 点"
+    elsif judgment&.judged? then ("#{judgment.total} 点" if judgment.tier == reading.tier)
     elsif base_rarity?(reading.tier) then "判定できず"
     end
   end
