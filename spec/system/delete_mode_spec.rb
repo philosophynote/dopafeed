@@ -29,6 +29,11 @@ RSpec.describe "Delete mode", type: :system do
     expect(page).to have_css("[data-unread-badge]", text: "2")
     expect(Article.find_by!(title: "消す記事")).to be_dismissed
     expect(Reading.count).to eq(0)
+    # 登場中は translateY でタブバーに重なるため、アニメーション後の配置を測る。
+    page.evaluate_async_script(<<~JS, toast.native)
+      const [toast, done] = arguments
+      Promise.all(toast.getAnimations().map((animation) => animation.finished)).then(() => done(true))
+    JS
     toast_rect = toast.evaluate_script("this.getBoundingClientRect().toJSON()")
     nav_top = find("nav[aria-label='タブバー']").evaluate_script("this.getBoundingClientRect().top")
     expect(toast_rect["bottom"]).to be <= nav_top
