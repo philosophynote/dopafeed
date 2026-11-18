@@ -18,8 +18,8 @@
   <% end %>
   <%# 上限のカードも、翌日に積み直した Job の差し替えを受けるため購読を残す %>
   <% if state.in?(%i[pending exhausted]) %>
-    <div data-controller="summary-refresh" data-summary-refresh-url-value="<%= summary_article_path(article) %>"
-         data-summary-refresh-frame-value="<%= dom_id(article, :summary) %>">
+    <div data-controller="pending-refresh" data-pending-refresh-url-value="<%= summary_article_path(article) %>"
+         data-pending-refresh-frame-value="<%= dom_id(article, :summary) %>">
       <%= turbo_stream_from article, :summary %>
     </div>
   <% end %>

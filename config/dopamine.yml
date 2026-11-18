@@ -8,9 +8,10 @@ shared:
     fever_combo: 5
     record_floor: 2
     rarities:
-      - { name: common, probability: 0.70 }
-      - { name: rare, probability: 0.25 }
-      - { name: jackpot, probability: 0.05 }
+      - { name: normal, min_total: 6 }
+      - { name: rare, min_total: 20 }
+      - { name: s_rare, min_total: 25 }
+      - { name: ss_rare, min_total: 28 }
   daily_goal:
     articles: 5
     reset_hour: 4

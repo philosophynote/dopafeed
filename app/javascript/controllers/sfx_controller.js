@@ -2,7 +2,7 @@ import { Controller } from "@hotwired/stimulus"
 import { play } from "controllers/sfx"
 
 // 鳴らすのは現れた瞬間の 1 回だけ。鳴らしたら印を外し、Turbo のスナップショットから戻った画面では鳴り直さない（めくりの card-deck と同じ考え）。
-// delay: CSS の動き（出目の帯が止まる）に合わせて遅らせる。動きを減らす設定では CSS がすぐ止めるので待たない。画面を離れたら鳴らさない。
+// delay: CSS の動き（枠の帯が止まる）に合わせて遅らせる。動きを減らす設定では CSS がすぐ止めるので待たない。画面を離れたら鳴らさない。
 // 鳴らす時点で隠れている欄（応答を待つ間に別の行を広げられた）では鳴らさない。隠すのは同じ差し込みの中で swipe が決めるので、接続した時点では判らない
 export default class extends Controller {
   static values = { cue: String, delay: Number, level: Number }

@@ -23,4 +23,9 @@ class ArticleJudgment < ApplicationRecord
   def total
     points&.values&.sum
   end
+
+  # @return [String] カードの枠の段の名前。判定できなかった記事は一番下の段
+  def tier
+    (judged? ? Dopamine.rarity_for(total) : Dopamine.base_rarity)[:name]
+  end
 end

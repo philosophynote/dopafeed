@@ -70,8 +70,8 @@ RSpec.describe "Main", type: :system do
       find("article", text: title).find_button("読む")["aria-expanded"] == "true"
     end
 
-    it "画面を移らずに出目の帯・3 行要約・「記事に遷移」が出て、もう一度タップで畳む。別の行を広げると前の行は畳む" do
-      allow(RarityDraw).to receive(:draw).and_return(common)
+    it "画面を移らずに枠の帯・3 行要約・「記事に遷移」が出て、もう一度タップで畳む。別の行を広げると前の行は畳む" do
+      allow(Reading).to receive(:tier_at_open).and_return(common)
       first = create(:article, title: "最初の記事", url: "https://example.com/first", summary: "・一行目\n・二行目\n・三行目", image_url: "/icon.png", published_at: 1.hour.ago)
       create(:article, title: "次の記事", summary: "・次の要約", published_at: 2.hours.ago)
       create(:article, title: "三本目の記事", published_at: 3.hours.ago)
@@ -79,7 +79,7 @@ RSpec.describe "Main", type: :system do
 
       expand("最初の記事")
       detail = find("##{ActionView::RecordIdentifier.dom_id(first, :detail)}")
-      expect(detail).to have_text("出目 通常 ・ 完読で通常カード")
+      expect(detail).to have_text("判定できず ノーマル ・ 完読でノーマルカード")
       expect(detail).to have_css("section[aria-label='要約']", text: "・一行目")
       link = detail.find_link("記事に遷移", href: first.url)
       expect(link[:target]).to eq("_blank")
@@ -213,7 +213,7 @@ RSpec.describe "Main", type: :system do
     it "「記事に遷移」で元記事を別窓に開いて戻ると、広げた欄に区切りが出て、上の 1 行の本数と枚数が増える。画面は移らない" do
       threshold = Dopamine.settings.dig(:read, :complete_after_seconds)
       goal = Dopamine.settings.dig(:daily_goal, :articles)
-      allow(RarityDraw).to receive(:draw).and_return(common)
+      allow(Reading).to receive(:tier_at_open).and_return(common)
       article = create(:article, title: "読む記事", summary: "・要約", url: "#{Capybara.current_session.server.base_url}/up?main")
       create(:article, title: "残る記事", published_at: 1.day.ago)
       sign_in
@@ -234,7 +234,7 @@ RSpec.describe "Main", type: :system do
       source.close
       switch_to_window(main)
 
-      expect(page).to have_css("section[aria-label='判定']", text: "通常カードを手に入れた！")
+      expect(page).to have_css("section[aria-label='判定']", text: "ノーマルカードを手に入れた！")
       expect(find("section[aria-label='今日の進み']")).to have_text("今日のゴール 1 / #{goal}", normalize_ws: true)
       expect(find("section[aria-label='今日の進み']")).to have_text("図鑑 1 枚", normalize_ws: true)
       expect(page).to have_current_path(root_path)
@@ -425,31 +425,40 @@ RSpec.describe "Main", type: :system do
       expect(page).to have_current_path(root_path)
     end
 
-    it "レアの出目は帯が橙で光り、モーダルは出ない" do
-      allow(RarityDraw).to receive(:draw).and_return(rare[:name])
-      create(:article, title: "当たりの記事", summary: "・当たり")
+    it "判定済みでレアの記事は、帯が橙で光って点と段を出し、モーダルは出ない" do
+      create(:article_judgment, article: create(:article, title: "当たりの記事", summary: "・当たり"), **scores_for(rare[:name]))
       sign_in
 
       expand("当たりの記事")
-      band = find("[data-tier='#{rare[:name]}']", text: "出目 レア ・ 完読でレアカード")
+      band = find("[data-tier='#{rare[:name]}']", text: "#{rare[:min_total]} 点 レア ・ 完読でレアカード")
+      expect(band).to have_no_css(".reel")
       expect(band[:class]).to include("tier-glow", "bg-orange-500")
       expect(page).to have_no_css("[role='dialog']")
       screenshot!("rare")
     end
 
-    it "頂点の出目でも全画面へは進まず、帯が金で光る" do
+    it "判定を待つ間は帯の段のリールが回り続け、頂点の判定が届くと全画面へは進まず、帯が金で止まって光る" do
       jackpot = Dopamine.top_rarity
-      allow(RarityDraw).to receive(:draw).and_return(jackpot[:name])
-      create(:article, title: "大当たりの記事", summary: "・大当たり")
+      article = create(:article, title: "大当たりの記事", summary: "・大当たり")
+      judgment_pending
       sign_in
 
       expand("大当たりの記事")
-      band = find("[data-tier='#{jackpot[:name]}']", text: "出目 金 ・ 完読で金のカード")
+      expect(page).to have_css("[data-state='pending']", text: /判定中.*中身で枠が決まる/)
+      expect(page.evaluate_script("getComputedStyle(document.querySelector('.reel-pending .reel-inner')).animationIterationCount")).to eq("infinite")
+      widths = page.evaluate_script("(() => { const reel = document.querySelector('.reel-pending'); return [ reel.scrollWidth, reel.clientWidth ] })()")
+      expect(widths.first).to be <= widths.last, "回る札が窓の幅で切れている"
+      expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "横スクロールが出ている"
+      screenshot!("judging")
+
+      judgment_arrives(article, jackpot[:name])
+      band = find("[data-tier='#{jackpot[:name]}']", text: "#{jackpot[:min_total]} 点 SS レア ・ 完読でSS レアカード")
       expect(band[:class]).to include("tier-glow", "bg-amber-400")
       expect(page).to have_current_path(root_path)
       expect(page).to have_no_text("JACKPOT")
       expect(band).to have_css(".reel")
       expect(page).to have_css("li[id^='article_'] .coins span", minimum: 1)
+      expect(page).to have_no_css("turbo-cable-stream-source[channel='Turbo::StreamsChannel'][signed-stream-name='#{Turbo::StreamsChannel.signed_stream_name([ article.reading, :tier ])}']", visible: :all), "枠が決まったら購読を外す"
       glow = page.evaluate_script(<<~JS)
         document.querySelector(".reel-gold").getAnimations().filter((a) => a.animationName === "tier-glow").map((a) => a.effect.getTiming().delay)
       JS
@@ -459,26 +468,50 @@ RSpec.describe "Main", type: :system do
       JS
       expect(sweep).to eq([ Dopamine.settings.dig(:cards, :reveal_duration_ms) ]), "金の光の筋もリールが止まってから走る"
       ax_names = page.driver.browser.execute_cdp("Accessibility.getFullAXTree")["nodes"].filter_map { |node| node.dig("name", "value") }
-      expect(ax_names.grep(/通常.*レア|レア.*通常/m)).to be_empty, "回る途中の札を読み上げない"
+      expect(ax_names.grep(/ノーマル.*レア|レア.*ノーマル/m)).to be_empty, "回る途中の札を読み上げない"
       screenshot!("jackpot")
     end
 
+    it "接続が切れている間に決まった枠は、接続が戻ると帯が取り直して止まり、購読を外す" do
+      article = create(:article, title: "取り直す記事", summary: "・一")
+      judgment_pending
+      sign_in
+
+      expand("取り直す記事")
+      expect(page).to have_css("[data-state='pending']")
+      reading = Reading.find_by!(article: article)
+      find("#rarity_reading_#{reading.id} turbo-cable-stream-source[connected]", visible: :all)
+      create(:article_judgment, article: article, **scores_for(rare[:name]))
+      Reading.settle_tier!(article) # broadcast しない
+      page.execute_script(<<~JS)
+        const source = document.querySelector("#rarity_reading_#{reading.id} turbo-cable-stream-source")
+        source.removeAttribute("connected")
+        source.setAttribute("connected", "")
+      JS
+
+      expect(page).to have_css("#rarity_reading_#{reading.id} [data-tier='#{rare[:name]}'] .reel-inner", text: "レア")
+      expect(page).to have_no_css("#rarity_reading_#{reading.id} turbo-cable-stream-source", visible: :all)
+    end
+
     it "帯のリールは止まったら回り直さない（履歴で戻っても）。動きを減らす設定なら回さず、コインも出さない" do
-      allow(RarityDraw).to receive(:draw).and_return(rare[:name])
-      create(:article, title: "回る記事", summary: "・一", published_at: 1.hour.ago)
-      create(:article, title: "回らない記事", summary: "・二", published_at: 2.hours.ago)
+      first = create(:article, title: "回る記事", summary: "・一", published_at: 1.hour.ago)
+      second = create(:article, title: "回らない記事", summary: "・二", published_at: 2.hours.ago)
+      judgment_pending
       sign_in
 
       expand("回る記事")
-      expect(page).to have_css(".reel")
+      judgment_arrives(first, rare[:name])
+      expect(page).to have_css("[data-tier='#{rare[:name]}'] .reel")
       find("a[aria-label='設定']").click
       expect(page).to have_no_css("#status-card")
       page.go_back
       expect(find("li[id^='article_']", text: "回る記事")).to have_css("[data-tier].is-settled .reel")
 
-      allow(RarityDraw).to receive(:draw).and_return(Dopamine.top_rarity[:name])
       page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: [ { name: "prefers-reduced-motion", value: "reduce" } ])
       expand("回らない記事")
+      expect(page).to have_css("li[id^='article_'] [data-state='pending']", text: /判定中/)
+      expect(page).to have_no_css("li[id^='article_'] .reel-pending")
+      judgment_arrives(second, Dopamine.top_rarity[:name])
       expect(page).to have_css("li[id^='article_'] .reel-gold .reel")
       expect(page.evaluate_script("getComputedStyle(document.querySelector('.reel-gold .reel-inner')).animationName")).to eq("none")
       expect(page).to have_no_css(".coins span")

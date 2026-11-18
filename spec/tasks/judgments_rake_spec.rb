@@ -81,6 +81,24 @@ RSpec.describe "judgments の rake" do
       expect(ArticleJudgment.count).to eq(0)
     end
 
+    it "拒まれて止まった記事と一時的に失敗した記事のカードは、判定中のまま残す（ここで一番下の段に決めると、直して打ち直しても枠が動かない）" do
+      rejected = completed_article("拒まれる", Time.zone.local(2026, 10, 3, 9))
+      rejected.reading.update!(tier: nil)
+      stub_request(:post, JudgmentHelper::ENDPOINT).to_return(status: 422)
+      expect { backfill.invoke("1") }.to raise_error(SystemExit).and output(/枠は判定中のまま/).to_stderr
+      expect(rejected.reading.reload.tier).to be_nil
+
+      backfill.reenable
+      stub_request(:post, JudgmentHelper::ENDPOINT).to_return(status: 503)
+      expect { backfill.invoke("1") }.to output(/枠は判定中のまま/).to_stdout
+      expect(rejected.reading.reload.tier).to be_nil
+
+      backfill.reenable
+      stub_request(:post, JudgmentHelper::ENDPOINT).to_return(body: judgment_response(scores), headers: { "Content-Type" => "application/json" })
+      expect { backfill.invoke("1") }.to output(/24 点/).to_stdout
+      expect(rejected.reading.reload.tier).to eq(ArticleJudgment.find_by!(article: rejected).tier)
+    end
+
     it "日次の上限に達していたら、理由を出して 1 本も呼ばずに止まる" do
       completed_article("完読", Time.zone.local(2026, 10, 1, 9))
       allow(Claude::Budget).to receive(:default_limit).and_return(0)
@@ -88,6 +106,48 @@ RSpec.describe "judgments の rake" do
       expect { backfill.invoke("1") }.to raise_error(SystemExit).and output(/中止 Claude daily call limit reached/).to_stderr
 
       expect(a_request(:post, JudgmentHelper::ENDPOINT)).not_to have_been_made
+    end
+  end
+
+  describe "judgments:regrade" do
+    let(:regrade) { Rake::Task["judgments:regrade"] }
+    let(:names) { Dopamine.rarity_names }
+
+    after { regrade.reenable }
+
+    def card(title, tier:, judged_as: nil, failed: false)
+      create(:reading, :completed, tier: tier, article: create(:article, title: title)).tap do |reading|
+        create(:article_judgment, article: reading.article, **scores_for(judged_as)) if judged_as
+        create(:article_judgment, :failed, article: reading.article) if failed
+      end
+    end
+
+    it "判定済みの記事のカードの枠を、今の境界の段に付け直し、動いたカードを 1 行ずつ出す。判定の無い・失敗した記事のカードは動かさない" do
+      up = card("上がる記事", tier: names.first, judged_as: names.second)
+      down = card("下がる記事", tier: names.last, judged_as: names.first)
+      same = card("同じ記事", tier: names.second, judged_as: names.second)
+      unjudged = card("判定の無い記事", tier: names.last)
+      failed = card("判定に失敗した記事", tier: names.second, failed: true)
+
+      expect { regrade.invoke("apply") }.to output(/ノーマル → レア 上がる記事\nSS レア → ノーマル 下がる記事\n付け直した 2 枚（判定済み 3 枚のうち）/).to_stdout
+
+      expect([ up, down, same, unjudged, failed ].map { |reading| reading.reload.tier }).to eq([ names.second, names.first, names.second, names.last, names.second ])
+    end
+
+    it "判定中のまま残ったカードにも枠を付ける" do
+      pending = card("判定中の記事", tier: nil, judged_as: names.second)
+
+      expect { regrade.invoke("apply") }.to output(/判定中 → レア 判定中の記事/).to_stdout
+
+      expect(pending.reload.tier).to eq(names.second)
+    end
+
+    it "apply を付けなければ、動くカードを出すだけで書き換えない" do
+      up = card("上がる記事", tier: names.first, judged_as: names.second)
+
+      expect { regrade.invoke }.to output(/ノーマル → レア 上がる記事\n付け直す 1 枚（判定済み 1 枚のうち）。書き換えるには bin\/rails 'judgments:regrade\[apply\]'/).to_stdout
+
+      expect(up.reload.tier).to eq(names.first)
     end
   end
 

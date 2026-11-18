@@ -16,5 +16,9 @@ FactoryBot.define do
     trait :jackpot do
       tier { Dopamine.top_rarity[:name] }
     end
+
+    trait :pending do
+      tier { nil }
+    end
   end
 end

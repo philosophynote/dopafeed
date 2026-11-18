@@ -406,6 +406,16 @@ TYPESAFE_API_KEY=$(bin/rails credentials:fetch typesafe.api_key)
 
 確かめるのは `bin/rails 'judgments:backfill[3]'`（完読した未判定の記事を新しい順に 3 本採点し、点を出す。本番ではコンテナの中で打つ）と `bin/rails judgments:status`（合計点ごとの本数と実費）。失敗の理由は `ArticleJudgment.failed.pluck(:article_id, :error)`。やり直すにはその行を消して記事を開き直す。4xx で拒まれた要求（鍵の誤り・残高切れ・yml のモデル名の誤り・要求の形）と予算切れは行を残さず、`kamal logs` の `[judgments]` に出る（直せば、開き直した記事から判定される。手元なら `log/development.log`）。`judgments:backfill` はこれらの理由を画面に出して止まり、一時的な失敗（接続エラー・タイムアウト・429・5xx）は理由を出して次の記事へ進む（どちらも行を残さないので、打ち直せばまた試す）。
 
+カードの枠は判定が届いた時に決まり、以後は動かない（ADR 0026）。過去のカードの枠を今の境界（yml `cards.rarities` の `min_total`）で付け直すのは `bin/rails judgments:regrade`。引数なしは下見で、動くカードを 1 行ずつ出すだけ。書き換えるのは `bin/rails 'judgments:regrade[apply]'`（書き換えた枠は元に戻せない。戻すなら §1-c の時刻指定の復元）。判定の無い・失敗した記事のカードは動かさない。抽選の時代のカードは、migration が common をノーマル、jackpot を SS レアに読み替えているので、`judgments:backfill` で採点してから `judgments:regrade` を打つと、中身の点の枠に替わる（金だったカードが下がることがある）。境界を変えたときも、`judgments:status` で分布を見てから打つ。
+
+図鑑に「判定中」のカードが残り続けるとき（Job が例外で終わった、プロセスごと止められた、本文の取得が済んでいない）: 完読前の記事は開き直せば判定を積み直す。完読済みのカードは `judgments:backfill` が拾う（完読した未判定の記事を採点し、枠も書く）。backfill が鍵・残高・上限で止まったときと一時的な失敗のときは、枠を判定中のまま残す（ここで一番下の段に決めると、直して打ち直しても枠が動かないため）。直して打ち直せば決まる。本文の取得が済んでいない記事（`Article.where(content_fetched_at: nil)`）は backfill の対象にならないので、先に `FetchArticleContentJob.perform_now(article)` を打つ。
+
+枠の名前を 4 段に替えた版（ADR 0026）を配った直後は、入れ替わりの数十秒に古い版が古い名前（common / jackpot）で行を作ることがある。その行は開けず、読了もできない。配った後に 1 回確かめる:
+```sh
+bin/rails runner 'p Reading.where.not(tier: [ nil, *Dopamine.rarity_names ]).pluck(:id, :tier)'
+```
+空でなければ読み替える: `bin/rails runner 'Reading.where(tier: "common").update_all(tier: "normal"); Reading.where(tier: "jackpot").update_all(tier: "ss_rare")'`。
+
 ## 3. よく使う
 ```sh
 kamal logs            # tail
@@ -497,5 +507,6 @@ main に push（PR のマージ）すると、Actions の Deploy が CI を通�
 - 失敗した: Actions のログを見る。CI が赤なら deploy は走らない。Kamal は例外で抜けるとき自分のロックを外す。
   ジョブを途中で取り消した・タイムアウトしたときだけロックが残るので、`kamal lock status` を見て Actions のもの（`Locked by:` が空か runner）なら `kamal lock release`
 - 戻す: Actions の Rollback（4.3 の 6）か、Mac の `kamal rollback <SHA>`。DB の migration は戻らないので、壊す migration を含む版の後は戻せないことがある
+  - 枠の名前を 4 段に替えた版（ADR 0026、migration `20261118000000`）より前へ戻すときは、**先に今の版のコンテナで** `bin/rails db:migrate:down VERSION=20261118000000` を打ってから戻す。古いイメージにはこの migration のファイルが無く、戻した後では打てない。打つと S レアはレアに、判定中は通常になる
 - 鍵が漏れた疑い: `~/.ssh/authorized_keys` から `github-actions-deploy` の行を消し、4.1 の 5 と Secrets を作り直す。Tailscale の federated identity は管理画面で消して作り直す
 - サーバーを作り直したとき（§1-a・§0 4-c）: 新しいサーバーで 4.1 の 2・3・5 をやり直す。Tailscale IP が変わるので、Environment の `DEPLOY_HOST` と Mac の `~/.zshrc` を直す。管理画面から古いマシンを消す

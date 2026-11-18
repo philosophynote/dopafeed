@@ -11,32 +11,59 @@ module ReadingsHelper
     I18n.t("dopamine.rarities.#{name}", locale: :ja, default: name)
   end
 
+  # @param name [String, nil] 判定中（nil）は段の名を付けない
   def card_name(name)
-    name == Dopamine.top_rarity[:name] ? "#{rarity_label(name)}のカード" : "#{rarity_label(name)}カード"
+    name ? "#{rarity_label(name)}カード" : "カード"
   end
 
   def base_rarity?(name)
     name == Dopamine.base_rarity[:name]
   end
 
+  # 間の段の色は下から順。名前で引くと yml の綴りに縛られるので、並び順で引く。
+  MIDDLE_TONES = [ "bg-orange-500 text-white", "bg-purple-600 text-white" ].freeze
+
+  # @param base [String] 一番下の段と、判定中（nil）の色
   def rarity_tone(name, base:)
-    if name == Dopamine.top_rarity[:name] then "bg-amber-400 text-amber-950"
-    elsif base_rarity?(name) then base
-    else "bg-orange-500 text-white"
-    end
+    name == Dopamine.top_rarity[:name] ? "bg-amber-400 text-amber-950" : middle_rarity_style(name, MIDDLE_TONES) || base
   end
 
-  # 通常の出目は鳴らさない（毎回鳴ると、上の段が出たときに効かなくなる）
+  # 版の入れ替わりの間に古い版が書いた名前（yml に無い）でも落とさず、一番下の段と同じに扱う。
+  #
+  # @return [String, nil] 間の段でなければ nil
+  def middle_rarity_style(name, styles)
+    position = Dopamine.rarity_names.index(name)
+    styles.fetch(position - 1, styles.last) if position&.positive? && name != Dopamine.top_rarity[:name]
+  end
+
+  # 一番下の段は鳴らさない（毎回鳴ると、上の段が出たときに効かなくなる）
   def rarity_cue(name)
     if name == Dopamine.top_rarity[:name] then "gold"
-    elsif !base_rarity?(name) then "rare"
+    elsif middle_rarity_style(name, [ "rare" ]) then "rare"
     end
   end
 
-  # 1 周だけだと金の手前で止まるとき回った感じが出ないので、段を 2 周させてから出目に止める
+  # 1 周だけだと頂点の手前で止まるとき回った感じが出ないので、段を 2 周させてから止める
   def reel_labels(tier)
     names = Dopamine.rarity_names
-    (names * 2 + names.take(names.index(tier))).map { |name| rarity_label(name) }
+    (names * 2 + names.take(names.index(tier).to_i)).map { |name| rarity_label(name) }
+  end
+
+  # 判定を待つ間は段を回し続ける。最後に先頭の段をもう一度積み、継ぎ目なく繰り返す
+  def pending_reel_labels
+    names = Dopamine.rarity_names
+    (names + names.take(1)).map { |name| rarity_label(name) }
+  end
+
+  # 枠が決まった後に届いた判定や、境界を変える前の判定は、枠と段が食い違う。その点を添えると「24 点 ノーマル」になる。
+  #
+  # @return [String, nil] 枠の根拠。判定の無いまま一番下の段に決まった行は、判定できなかったと添える
+  def judgment_note(reading)
+    judgment = reading.article.judgment
+    if reading.tier.nil? then "判定中"
+    elsif judgment&.judged? then ("#{judgment.total} 点" if judgment.tier == reading.tier)
+    elsif base_rarity?(reading.tier) then "判定できず"
+    end
   end
 
   def highlight_label(kind, highlights)

@@ -11,6 +11,13 @@ RSpec.describe ArticleJudgment do
     expect(judgment.total).to eq(24)
   end
 
+  it "tier は合計点が入る段の名前。失敗の行は一番下の段" do
+    Dopamine.rarity_names.each do |name|
+      expect(build(:article_judgment, **scores_for(name)).tier).to eq(name)
+    end
+    expect(build(:article_judgment, :failed).tier).to eq(Dopamine.base_rarity[:name])
+  end
+
   it "失敗の行には点も合計も無い" do
     judgment = build(:article_judgment, :failed)
 

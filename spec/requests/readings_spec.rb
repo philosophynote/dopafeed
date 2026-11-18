@@ -16,13 +16,17 @@ RSpec.describe "Readings", type: :request do
     expect(response).to redirect_to(new_session_path)
   end
 
+  it "未ログインなら枠の取り直しもログイン画面へ" do
+    get tier_reading_path(create(:reading))
+    expect(response).to redirect_to(new_session_path)
+  end
+
   context "ログイン済み" do
     before { sign_in_as(create(:user)) }
 
     describe "読む（POST /articles/:id/reading）" do
-      it "Reading を作って抽選し、アプリ内のリーダーへ redirect する" do
+      it "Reading を作り、アプリ内のリーダーへ redirect する" do
         article = create(:article, url: "https://example.com/a")
-        allow(RarityDraw).to receive(:draw).and_return(common)
 
         travel_to(noon) { post article_reading_path(article) }
 
@@ -103,7 +107,6 @@ RSpec.describe "Readings", type: :request do
 
       it "モーダルを挟まず、Turbo が辿れる 303 で Reader へ進む" do
         article = create(:article, url: "https://example.com/a")
-        allow(RarityDraw).to receive(:draw).and_return(common)
 
         travel_to(noon) { post_turbo(article) }
 
@@ -112,9 +115,8 @@ RSpec.describe "Readings", type: :request do
         expect(article.reload.reading).to have_attributes(opened_at: noon, tier: common)
       end
 
-      it "頂点の出目でも全画面の予告へは出ず、Reader へ進む" do
-        allow(RarityDraw).to receive(:draw).and_return(jackpot[:name])
-        article = create(:article)
+      it "判定済みで頂点の段の記事でも、全画面の予告へは出ず Reader へ進む" do
+        article = create(:article_judgment, **scores_for(jackpot[:name])).article
 
         post_turbo(article)
 
@@ -122,44 +124,38 @@ RSpec.describe "Readings", type: :request do
         expect(article.reload.reading.tier).to eq(jackpot[:name])
       end
 
-      it "抽選した直後の Reader だけ、出目の帯がリールとして回って止まり、段に合う音を持つ。開き直すと回さない" do
-        allow(RarityDraw).to receive(:draw).and_return(rare[:name])
-        article = create(:article)
+      context "判定が設定済み" do
+        include_context "判定が設定済み"
 
-        post_turbo(article)
-        follow_redirect!
-        band = page.find("[data-tier='#{rare[:name]}']", text: "出目 レア ・ 完読でレアカード")
-        expect(band).to have_css(".reel-inner")
-        expect(band).to have_css("[data-sfx-cue-value='rare']", visible: :all)
+        it "Reader の帯は判定中で、段のリールを回しながら枠の到着を購読する。枠が決まった後に開き直すと、止まった帯で購読しない" do
+          article = create(:article)
 
-        get read_article_path(article)
-        band = page.find("[data-tier='#{rare[:name]}']", text: "出目 レア ・ 完読でレアカード")
-        expect(band).to have_no_css(".reel-inner")
-        expect(band).to have_no_css("[data-sfx-cue-value]", visible: :all)
+          post_turbo(article)
+          follow_redirect!
+          reading = article.reload.reading
+          expect(reading.tier).to be_nil
+          band = page.find("#rarity_reading_#{reading.id}")
+          expect(band).to have_css("[data-state='pending'][data-tier='']", text: /判定中.*中身で枠が決まる/)
+          expect(band.find(".reel-pending .reel-inner", visible: :all)["data-reel"].split("\n").size).to eq(Dopamine.rarity_names.size + 1)
+          expect(band).to have_css("[data-controller='pending-refresh'][data-pending-refresh-url-value='#{tier_reading_path(reading)}'] turbo-cable-stream-source", visible: :all)
+
+          create(:article_judgment, article: article, **scores_for(rare[:name]))
+          Reading.settle_tier!(article)
+          get read_article_path(article)
+          band = page.find("#rarity_reading_#{reading.id}")
+          expect(band).to have_css("[data-state='ready'][data-tier='#{rare[:name]}']", text: "#{rare[:min_total]} 点 レア ・ 完読でレアカード")
+          expect(band).to have_no_css(".reel, turbo-cable-stream-source, [data-sfx-cue-value]", visible: :all)
+        end
       end
 
-      it "redirect の先が読み込まれないまま別の記事の Reader を開いても、その帯は回さない" do
-        allow(RarityDraw).to receive(:draw).and_return(rare[:name])
-        other = create(:reading, tier: rare[:name], opened_at: noon - 1.hour).article
-
-        post_turbo(create(:article))
-        get read_article_path(other)
-
-        band = page.find("[data-tier='#{rare[:name]}']", text: "出目 レア")
-        expect(band).to have_no_css(".reel-inner")
-        expect(band).to have_no_css("[data-sfx-cue-value]", visible: :all)
-      end
-
-      it "未完のまま再び読むと再抽選せず、前回の出目のまま Reader へ進み、帯は回さない" do
+      it "未完のまま再び読むと、前回の枠のまま Reader へ進む" do
         article = create(:article)
         create(:reading, article: article, tier: rare[:name], opened_at: noon - 1.hour, returned_at: noon - 1.hour + 5.seconds)
-        expect(RarityDraw).not_to receive(:draw)
 
         post_turbo(article)
         follow_redirect!
 
-        expect(page).to have_css("[data-tier='#{rare[:name]}']", text: "出目 レア")
-        expect(page).to have_no_css(".reel-inner")
+        expect(page).to have_css("[data-tier='#{rare[:name]}']", text: "レア ・ 完読でレアカード")
         expect(Reading.count).to eq(1)
       end
 
@@ -171,7 +167,7 @@ RSpec.describe "Readings", type: :request do
         allow(ghost).to receive(:save!).and_raise(ActiveRecord::RecordNotUnique.new("二重タップ"))
       end
 
-      it "二重タップで行が同時に作られたら、先に入った行を使って Reader へ進み、後から届いた側の帯は回さない" do
+      it "二重タップで行が同時に作られたら、先に入った行を使って Reader へ進む" do
         article = create(:article)
         race_on(article, existing_tier: rare[:name])
 
@@ -180,17 +176,79 @@ RSpec.describe "Readings", type: :request do
         expect(response).to redirect_to(read_article_path(article))
         expect(Reading.count).to eq(1)
         expect(article.reload.reading.tier).to eq(rare[:name])
-        follow_redirect!
-        expect(page).to have_no_css(".reel-inner")
       end
 
       it "通常の POST（JS 無し）も Reader へ redirect" do
         article = create(:article, url: "https://example.com/a")
-        allow(RarityDraw).to receive(:draw).and_return(common)
 
         post article_reading_path(article)
 
         expect(response).to redirect_to(read_article_path(article))
+      end
+    end
+
+    describe "枠の取り直し（GET /readings/:id/tier。接続前や切断中に配られた枠を、帯が取りに来る）" do
+      let(:jackpot) { Dopamine.top_rarity }
+      let(:rare) { Dopamine.rarity(Dopamine.rarity_names.second) }
+      let(:duration) { Dopamine.settings.dig(:cards, :reveal_duration_ms) }
+
+      def frame(reading)
+        get tier_reading_path(reading)
+        page.find("turbo-frame#rarity_band_reading_#{reading.id}")
+      end
+
+      it "まだ判定中なら、判定中の帯を返す" do
+        expect(frame(create(:reading, :pending))).to have_css("[data-state='pending']", text: /判定中/)
+      end
+
+      it "枠が決まっていたら、段を 2 周してから止まるリールと、止まった瞬間に鳴る段の音を返す（長さは cards.reveal_duration_ms）" do
+        reading = create(:reading, tier: rare[:name])
+        create(:article_judgment, article: reading.article, **scores_for(rare[:name]))
+
+        band = frame(reading).find("[data-state='ready'][data-tier='#{rare[:name]}'].tier-glow", text: "#{rare[:min_total]} 点 レア ・ 完読でレアカード")
+
+        names = Dopamine.rarity_names
+        before_stop = names * 2 + names.take(names.index(rare[:name]))
+        reel = band.find(".reel")
+        expect(reel.find(".reel-inner")["data-reel"].split("\n")).to eq(before_stop.map { |name| ApplicationController.helpers.rarity_label(name) })
+        expect(reel["style"]).to include("--reel-steps: #{before_stop.size}", "--reel-duration: #{duration}ms")
+        expect(reel).to have_text("レア")
+        expect(band.find("[data-sfx-cue-value='rare']", visible: :all)["data-sfx-delay-value"]).to eq(duration.to_s)
+        expect(band).to have_no_css(".reel-gold")
+      end
+
+      it "完読済みの行なら、帯と一緒に区切りの見出しとカードの差し替えも返す（切断中に決まった枠は、区切りにも届いていない）。完読前の行には付けない" do
+        completed = create(:reading, :completed, tier: rare[:name])
+        create(:article_judgment, article: completed.article, **scores_for(rare[:name]))
+
+        streams = frame(completed).all("turbo-stream[action='replace']", visible: :all)
+
+        expect(streams.map { |node| node[:target] }).to eq(%W[card_title_reading_#{completed.id} card_reading_#{completed.id}])
+        html = Capybara.string(response.body.gsub(%r{</?template>}, ""))
+        expect(html).to have_css("#card_title_reading_#{completed.id}", text: "レアカードを手に入れた！")
+        expect(html).to have_css("li#card_reading_#{completed.id}[data-tier='#{rare[:name]}']")
+        expect(html).to have_no_css("li.card-reveal, [role='dialog']")
+
+        expect(frame(create(:reading, tier: rare[:name]))).to have_no_css("turbo-stream", visible: :all)
+        expect(frame(create(:reading, :pending, :completed))).to have_no_css("turbo-stream", visible: :all)
+      end
+
+      it "頂点の段は金のリールで、欄の中にコインを降らせ、金の音を鳴らす" do
+        reading = create(:reading, :jackpot)
+
+        band = frame(reading)
+
+        expect(band).to have_css("[data-tier='#{jackpot[:name]}'].reel-gold", text: "SS レア ・ 完読でSS レアカード")
+        expect(band.find("[data-sfx-cue-value='gold']", visible: :all)["data-sfx-delay-value"]).to eq(duration.to_s)
+        expect(band).to have_css(".coins span", minimum: 1)
+      end
+
+      it "一番下の段は、リールは止まるが光らず鳴らない（毎回だと、上の段が出たときに効かなくなる）" do
+        band = frame(create(:reading, tier: common))
+
+        expect(band).to have_css("[data-tier='#{common}'] .reel-inner", text: "ノーマル")
+        expect(band).to have_text("判定できず ノーマル ・ 完読でノーマルカード")
+        expect(band).to have_no_css(".tier-glow, .coins, [data-sfx-cue-value]", visible: :all)
       end
     end
 
@@ -213,9 +271,8 @@ RSpec.describe "Readings", type: :request do
         page.find("turbo-stream[action='replace'][target='#{dom_id(article, :detail)}']")
       end
 
-      it "抽選して行の下を出目の帯・3 行要約・「記事に遷移」で埋める" do
+      it "行の下を枠の帯・3 行要約・「記事に遷移」で埋める" do
         article = create(:article, url: "https://example.com/a", summary: "・一\n・二\n・三")
-        allow(RarityDraw).to receive(:draw).and_return(common)
 
         travel_to(noon) { post_expand(article) }
 
@@ -223,7 +280,7 @@ RSpec.describe "Readings", type: :request do
         expect(response.media_type).to eq("text/vnd.turbo-stream.html")
         box = detail(article)
         expect(box).to have_css("##{dom_id(article, :detail)}[data-swipe-target='detail']")
-        expect(box).to have_css("[data-tier='#{common}']", text: "出目 通常 ・ 完読で通常カード")
+        expect(box).to have_css("[data-tier='#{common}']", text: "判定できず ノーマル ・ 完読でノーマルカード")
         expect(box).to have_css("section[aria-label='要約'][data-state='ready']", text: "・一")
         link = box.find_link("記事に遷移", href: article.url)
         expect(link[:target]).to eq("_blank")
@@ -237,21 +294,19 @@ RSpec.describe "Readings", type: :request do
         expect(form).to have_button("読み終えた")
       end
 
-      it "抽選した応答では、帯の出目がリールとして段を 2 周してから止まる（長さは cards.reveal_duration_ms）。金は金のリールと欄の中のコイン" do
-        article = create(:article)
-        allow(RarityDraw).to receive(:draw).and_return(jackpot[:name])
+      context "判定が設定済み" do
+        include_context "判定が設定済み"
 
-        travel_to(noon) { post_expand(article) }
+        it "帯は判定中で、枠の到着を購読する" do
+          article = create(:article, summary: "・済み")
 
-        names = Dopamine.rarity_names
-        before_stop = names * 2 + names.take(names.index(jackpot[:name]))
-        band = detail(article).find("[data-tier='#{jackpot[:name]}'].reel-gold", text: "出目 金 ・ 完読で金のカード")
-        reel = band.find(".reel")
-        expect(reel.find(".reel-inner")["data-reel"].split("\n")).to eq(before_stop.map { |name| ApplicationController.helpers.rarity_label(name) })
-        expect(reel["style"]).to include("--reel-steps: #{before_stop.size}", "--reel-duration: #{Dopamine.settings.dig(:cards, :reveal_duration_ms)}ms")
-        expect(reel).to have_text("金")
-        expect(band.find("[data-sfx-cue-value='gold']", visible: :all)["data-sfx-delay-value"]).to eq(Dopamine.settings.dig(:cards, :reveal_duration_ms).to_s) # 止まった瞬間に鳴る
-        expect(detail(article)).to have_css(".coins span", minimum: 1)
+          post_expand(article)
+
+          reading = article.reload.reading
+          expect(reading.tier).to be_nil
+          expect(detail(article)).to have_css("#rarity_reading_#{reading.id} [data-state='pending']", text: /判定中/)
+          expect(detail(article)).to have_css("#rarity_reading_#{reading.id} turbo-cable-stream-source", visible: :all)
+        end
       end
 
       it "要約待ちの記事なら要約の Job を積み、「作成中」と出来上がりの購読を出す（広げた記事だけ要約する。ADR 0015・0019）" do
@@ -263,15 +318,14 @@ RSpec.describe "Readings", type: :request do
         expect(detail(article)).to have_css("turbo-cable-stream-source", visible: :all)
       end
 
-      it "要約済みの記事を広げ直しても Job は積まず、行は 1 つのまま出目を使い回す" do
+      it "要約済みの記事を広げ直しても Job は積まず、行は 1 つのまま枠もそのまま" do
         article = create(:article, summary: "・済み")
         create(:reading, article: article, tier: rare[:name], opened_at: noon - 1.hour, returned_at: noon - 1.hour + 5.seconds)
-        expect(RarityDraw).not_to receive(:draw)
 
         expect { post_expand(article) }.not_to have_enqueued_job(Claude::SummarizeArticleJob)
 
-        expect(detail(article)).to have_css("[data-tier='#{rare[:name]}']", text: "出目 レア ・ 完読でレアカード")
-        expect(detail(article)).to have_no_css(".reel, .coins") # 抽選し直していないので回さない
+        expect(detail(article)).to have_css("[data-tier='#{rare[:name]}']", text: "レア ・ 完読でレアカード")
+        expect(detail(article)).to have_no_css(".reel, .coins")
         expect(Reading.count).to eq(1)
       end
 
@@ -305,13 +359,12 @@ RSpec.describe "Readings", type: :request do
         expect(detail(article)).to have_no_button("読み終えた")
       end
 
-      it "jackpot でも全画面へは出ず、帯に出目を出すだけ" do
-        allow(RarityDraw).to receive(:draw).and_return(jackpot[:name])
-        article = create(:article)
+      it "判定済みで頂点の段でも全画面へは出ず、帯に点と段を出すだけ" do
+        article = create(:article_judgment, **scores_for(jackpot[:name])).article
 
         post_expand(article)
 
-        expect(detail(article)).to have_css("[data-tier='#{jackpot[:name]}']", text: "出目 金 ・ 完読で金のカード")
+        expect(detail(article)).to have_css("[data-tier='#{jackpot[:name]}']", text: "#{jackpot[:min_total]} 点 SS レア ・ 完読でSS レアカード")
         expect(page).to have_no_css("[role='dialog']")
       end
 
@@ -344,7 +397,7 @@ RSpec.describe "Readings", type: :request do
 
         travel_to(noon + threshold) { post_turbo(gold) }
 
-        expect(page).to have_css("section[aria-label='判定'][data-tier='#{gold.tier}'].bg-amber-400", text: "金のカードを手に入れた！")
+        expect(page).to have_css("section[aria-label='判定'][data-tier='#{gold.tier}'].bg-amber-400", text: "SS レアカードを手に入れた！")
       end
 
       it "レアの完読は区切りが橙（通常と同じ色）" do
@@ -356,7 +409,7 @@ RSpec.describe "Readings", type: :request do
         expect(page).to have_no_css("section[aria-label='判定'].bg-amber-400")
       end
 
-      it "未完の区切りは灰で、出目の色を使わない" do
+      it "未完の区切りは灰で、枠の色を使わない" do
         gold = create(:reading, :jackpot, article: create(:article, published_at: noon - 1.hour), opened_at: noon)
 
         travel_to(noon + 5.seconds) { post_turbo(gold) }
@@ -396,6 +449,40 @@ RSpec.describe "Readings", type: :request do
         expect(page.find("turbo-stream[action='append'][target='reader']")).to have_css("h1", text: "Main の未読")
       end
 
+      it "判定済みの記事の区切りには合計点を添える。点の無いまま一番下の段に決まった記事には「判定できず」" do
+        judged = create(:reading, tier: Dopamine.rarity_names.second, article: create(:article, published_at: noon - 2.hours), opened_at: noon)
+        create(:article_judgment, article: judged.article, **scores_for(judged.tier))
+
+        travel_to(noon + threshold) { [ judged, reading ].each { |r| post_turbo(r) } }
+
+        expect(Capybara.string(ApplicationController.render(partial: "readings/divider", locals: { reading: judged.reload }))).to have_text("読了 ・ #{Dopamine.rarity(judged.tier)[:min_total]} 点")
+        expect(page.find("turbo-stream[action='replace'][target='end_reading_#{reading.id}']")).to have_text("読了 ・ 判定できず")
+      end
+
+      it "判定中のまま完読したら、段の名を付けず破線の枠のカードで区切り、頂点が後から届いても全画面は出さない。届いた枠は、区切りの見出し・カード・帯へ 1 通で配る" do
+        reading.update!(tier: nil)
+
+        travel_to(noon + threshold) { post_turbo(reading) }
+
+        divider = page.find("turbo-stream[action='replace'][target='end_reading_#{reading.id}']")
+        expect(divider).to have_css("#card_title_reading_#{reading.id}", text: "読了 ・ 判定中")
+        expect(divider).to have_css("#card_title_reading_#{reading.id}", text: "カードを手に入れた！")
+        expect(divider).to have_css("li#card_reading_#{reading.id}.border-dashed[data-tier=''] [data-rarity-label]", text: "判定中")
+        expect(page).to have_no_css("[role='dialog']")
+
+        top = Dopamine.top_rarity
+        create(:article_judgment, article: reading.article, **scores_for(top[:name]))
+        stream = Turbo::StreamsChannel.send(:stream_name_from, [ reading, :tier ])
+        expect { JudgeArticleJob.settle(reading.article) }.to have_broadcasted_to(stream).with { |html|
+          streams = Capybara.string(html.gsub(%r{</?template>}, ""))
+          expect(streams.all("turbo-stream").map { |node| node[:target] }).to eq(%W[card_title_reading_#{reading.id} card_reading_#{reading.id} rarity_reading_#{reading.id}]), "帯の差し替えが購読を外すので、帯は最後"
+          expect(streams).to have_css("#card_title_reading_#{reading.id}", text: "SS レアカードを手に入れた！")
+          expect(streams).to have_css("#card_title_reading_#{reading.id}", text: "読了 ・ #{top[:min_total]} 点")
+          expect(streams).to have_css("li#card_reading_#{reading.id}.border-amber-400[data-tier='#{top[:name]}']")
+          expect(streams).to have_no_css("li.card-reveal, [role='dialog']")
+        }
+      end
+
       it "完読の区切りには手に入れたカードが裏からめくれて出る（長さは yml）。金でなければ全画面は出ない" do
         travel_to(noon + threshold) { post_turbo(reading) }
 
@@ -413,7 +500,7 @@ RSpec.describe "Readings", type: :request do
         travel_to(noon + threshold) { post_turbo(gold) }
 
         overlay = page.find("[data-controller='reveal'][role='dialog']")
-        expect(overlay).to have_text("金のカードを手に入れた！")
+        expect(overlay).to have_text("SS レアカードを手に入れた！")
         expect(overlay).to have_css("li.card-reveal[data-tier='#{gold.tier}'] h3", text: "金の記事")
         expect(overlay).to have_button("閉じる")
         expect(overlay["data-action"]).to include("reveal#close")
@@ -434,7 +521,7 @@ RSpec.describe "Readings", type: :request do
       it "complete_after_seconds 以上なら完読。「読み終えた」の form を判定で置き換え、古い方の次の未読を開いて継ぎ足す" do
         create(:article, title: "新しい記事", published_at: noon + 1.hour)
         following = create(:article, title: "次の記事", published_at: noon - 1.hour)
-        allow(RarityDraw).to receive(:draw).and_return(common)
+        allow(Reading).to receive(:tier_at_open).and_return(common)
 
         travel_to(noon + 4.minutes + 12.seconds) { post_turbo(reading) }
 
@@ -442,7 +529,7 @@ RSpec.describe "Readings", type: :request do
         expect(reading.reload).to be_completed
         expect(page).to have_css("turbo-stream[action='replace'][target='app-badge'] #app-badge[data-badge-count-value='2']", visible: :all)
         divider = page.find("turbo-stream[action='replace'][target='end_reading_#{reading.id}']")
-        expect(divider).to have_css("section[aria-label='判定'][data-completed='true'][data-tier='#{common}']", text: "通常カードを手に入れた！")
+        expect(divider).to have_css("section[aria-label='判定'][data-completed='true'][data-tier='#{common}']", text: "ノーマルカードを手に入れた！")
         expect(divider).to have_no_text("XP")
         expect(divider).to have_text("滞在 4分12秒 ・ 1 本連続")
         expect(divider).to have_text("今日のゴール 1 / #{goal_articles}")
@@ -455,7 +542,7 @@ RSpec.describe "Readings", type: :request do
         expect(appended).to have_css("form#end_reading_#{next_reading.id}")
       end
 
-      it "連続完読していれば区切りに「n 本連続」。レアの出目なら「レアカードを手に入れた！」" do
+      it "連続完読していれば区切りに「n 本連続」。レアの枠なら「レアカードを手に入れた！」" do
         rare = Dopamine.rarity_names.second
         2.times { |i| create(:reading, :completed, opened_at: noon - (i + 1).hours, returned_at: noon - (i + 1).hours + 5.minutes, completed_at: noon - (i + 1).hours + 5.minutes) }
         reading.update!(tier: rare)
@@ -484,7 +571,6 @@ RSpec.describe "Readings", type: :request do
         following = create(:article, published_at: noon - 1.hour)
         rare = Dopamine.rarity_names.second
         pending = create(:reading, article: following, tier: rare, opened_at: noon - 1.day)
-        expect(RarityDraw).not_to receive(:draw)
 
         travel_to(noon + threshold) { post_turbo(reading) }
 
@@ -500,7 +586,7 @@ RSpec.describe "Readings", type: :request do
         expect(Claude::SummarizeArticleJob).to have_been_enqueued.with(following).once
         appended = page.find("turbo-stream[action='append'][target='reader']")
         expect(appended).to have_css("turbo-frame#summary_article_#{following.id}", text: "要約を作成中")
-        expect(appended).to have_css("[data-controller='summary-refresh'] turbo-cable-stream-source")
+        expect(appended).to have_css("[data-controller='pending-refresh'] turbo-cable-stream-source")
       end
 
       it "古い未読が尽きたら「全部読んだ」と閉じるを継ぎ足す" do
@@ -598,7 +684,7 @@ RSpec.describe "Readings", type: :request do
         expect(divider).to have_css("ul.card-deck li.card-reveal[data-tier='#{common}'] h3", text: "今の記事")
       end
 
-      it "金の完読でも一覧では全画面の開封は出さず、金のカードがめくれるだけ（ADR 0019）" do
+      it "金の完読でも一覧では全画面の開封は出さず、SS レアカードがめくれるだけ（ADR 0019）" do
         gold = create(:reading, :jackpot, article: create(:article, title: "一覧の金", published_at: noon), opened_at: noon)
 
         travel_to(noon + threshold) { post_main(gold) }
@@ -618,7 +704,7 @@ RSpec.describe "Readings", type: :request do
         expect(response).to have_http_status(:ok)
         expect(reading.reload).to be_completed
         expect(following.reload.reading).to be_nil
-        expect(page.find("turbo-stream[action='replace'][target='#{dom_id(reading, :end)}']")).to have_css("section[aria-label='判定']", text: "通常カードを手に入れた！")
+        expect(page.find("turbo-stream[action='replace'][target='#{dom_id(reading, :end)}']")).to have_css("section[aria-label='判定']", text: "ノーマルカードを手に入れた！")
         status = page.find("turbo-stream[action='replace'][target='status-card']")
         expect(status).to have_css("section#status-card[aria-label='今日の進み']")
         expect(status).to have_text("今日のゴール 1 / #{goal_articles}", normalize_ws: true)
@@ -653,7 +739,7 @@ RSpec.describe "Readings", type: :request do
         travel_to(noon + threshold * 3) { post_main(reading) }
 
         expect(reading.reload.attributes).to eq(first)
-        expect(page).to have_css("section[aria-label='判定']", text: "通常カードを手に入れた！")
+        expect(page).to have_css("section[aria-label='判定']", text: "ノーマルカードを手に入れた！")
         expect(Reading.count).to eq(1)
       end
 

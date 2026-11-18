@@ -25,5 +25,6 @@ Rails.application.routes.draw do
   resources :readings, only: [] do
     post :start, on: :member
     post :advance, on: :member
+    get :tier, on: :member
   end
 end

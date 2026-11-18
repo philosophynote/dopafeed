@@ -9,7 +9,7 @@ RSpec.describe "Reader", type: :system do
     "#{Capybara.current_session.server.base_url}/up?#{name}"
   end
 
-  before { allow(RarityDraw).to receive(:draw).and_return(common) }
+  before { allow(Reading).to receive(:tier_at_open).and_return(common) }
 
   def no_horizontal_scroll?
     page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
@@ -52,7 +52,7 @@ RSpec.describe "Reader", type: :system do
 
     open_source_and_return(first.reading) { make_dwell(first.reading, threshold + 5) }
 
-    expect(page).to have_css("section[aria-label='判定']", text: "通常カードを手に入れた！")
+    expect(page).to have_css("section[aria-label='判定']", text: "ノーマルカードを手に入れた！")
     # カードは裏からめくれて表になる。めくりの頭では裏（ロゴ）が手前を向き、表は裏返しで隠れている。めくり終わるまで待ってから次へ
     card = find("section[aria-label='判定'] li.card-reveal")
     expect(card).to have_css("h3", text: "最初の記事")
@@ -97,7 +97,7 @@ RSpec.describe "Reader", type: :system do
     expect(page).to have_no_css(".card-back", visible: :all)
   end
 
-  it "金の全画面は開くと「閉じる」に焦点が移り、Escape で閉じると焦点は区切りへ戻り、金のカードは区切りに残る" do
+  it "金の全画面は開くと「閉じる」に焦点が移り、Escape で閉じると焦点は区切りへ戻り、SS レアカードは区切りに残る" do
     article = create(:article, :opened, title: "金の記事", url: source_url("gold"), summary: "・一")
     article.reading.update!(tier: Dopamine.top_rarity[:name])
     sign_in
@@ -106,7 +106,7 @@ RSpec.describe "Reader", type: :system do
     open_source_and_return(article.reading) { make_dwell(article.reading, threshold + 5) }
 
     overlay = find("[data-controller='reveal'][role='dialog']")
-    expect(overlay).to have_text("金のカードを手に入れた！")
+    expect(overlay).to have_text("SS レアカードを手に入れた！")
     expect(page.evaluate_script("document.activeElement.textContent")).to eq("閉じる")
     expect(overlay).to have_no_link # 全画面の中のカードは押しても元記事へ飛ばない
     # Tab でも後ろの Reader へ焦点が抜けない
@@ -247,7 +247,7 @@ RSpec.describe "Reader", type: :system do
       stream_connected
       article.update!(summary: "・切れている間の要約") # broadcast しない
       page.execute_script(<<~JS)
-        const source = document.querySelector("[data-controller='summary-refresh'] turbo-cable-stream-source")
+        const source = document.querySelector("[data-controller='pending-refresh'] turbo-cable-stream-source")
         source.removeAttribute("connected")
         source.setAttribute("connected", "")
       JS

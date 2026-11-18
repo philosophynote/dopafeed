@@ -39,7 +39,7 @@ RSpec.describe "DailyGoal", type: :request do
       expect(cards).to have_css("li.card-reveal[data-tier]", count: goal_articles)
       expect(cards).to have_css("li[data-tier='#{rare.tier}'].border-orange-500 [data-rarity-label].bg-orange-500", text: "レア")
       expect(cards).to have_css("li[data-tier='#{rare.tier}'] h3", text: "レアの記事")
-      expect(cards).to have_css("li[data-tier='#{gold.tier}'].border-amber-400 [data-rarity-label].bg-amber-400", text: "金")
+      expect(cards).to have_css("li[data-tier='#{gold.tier}'].border-amber-400 [data-rarity-label].bg-amber-400", text: "SS レア")
       expect(cards).to have_css("li[data-tier='#{gold.tier}'] h3", text: "金の記事")
       expect(cards).to have_css("li[data-tier='#{Dopamine.base_rarity[:name]}']", count: goal_articles - 2)
       expect(cards.find("li[data-tier='#{Dopamine.base_rarity[:name]}']", match: :first)).to have_no_css("[data-rarity-label]")

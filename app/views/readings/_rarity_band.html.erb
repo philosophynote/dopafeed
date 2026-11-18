@@ -1,20 +1,40 @@
-<%# 出目の帯。抽選済みの希少度（readings.tier）を、完読で手に入るカードの予告として見せる。
-    色は段が上がるほど目立たせる（レアは橙、頂点の金は金色）。現れた瞬間に光るのは通常以外だけ（毎回光ると慣れる） %>
-<% band = rarity_tone(reading.tier, base: "bg-orange-50 text-orange-700") %>
-<% band = "tier-glow #{band}" unless base_rarity?(reading.tier) %>
-<%# 鳴らすのは抽選した瞬間だけ（sfx: true。Main で行を広げたときと、一覧の外から Reader を開いたとき）。
-    Reader が継ぎ足した次の記事の帯は、同じ瞬間に区切りの音が鳴るので、一番大きい 1 つに譲る %>
-<% cue = rarity_cue(reading.tier) if local_assigns[:sfx] %>
-<%# 抽選した瞬間（sfx: true）だけ、出目をリールとして回して止める。止まるまでの札は ::before に積む（実の要素に置くと、文字にも読み上げにも札が混じる） %>
-<% reel = local_assigns[:sfx] %>
+<%# 枠の帯。記事の中身の判定で決まった希少度（readings.tier）を、完読で手に入るカードの予告として見せる。
+    判定が届くまでは段のリールを回し続け、届いたら配られた帯（stop: true）がリールを止めて段の音を鳴らす。
+    色は段が上がるほど目立たせる。現れた瞬間に光るのは一番下の段以外だけ（毎回光ると慣れる）。
+    購読を外側の div に含めないと、枠が決まった後も購読が溜まる %>
+<% tier = reading.tier %>
+<% stop = tier && local_assigns[:stop] %>
+<% band = tier ? rarity_tone(tier, base: "bg-orange-50 text-orange-700") : "bg-gray-100 text-gray-600" %>
+<% band = "tier-glow #{band}" if rarity_cue(tier) %>
 <% duration = Dopamine.settings.dig(:cards, :reveal_duration_ms) %>
-<p class="inline-block rounded-full px-3 py-1 text-xs font-semibold <%= band %> <%= "reel-gold" if reel && reading.jackpot? %>" data-tier="<%= reading.tier %>"
-   <%= tag.attributes(data: { controller: "fanfare", action: "turbo:before-cache@document->fanfare#skip" }, style: "--glow-delay: #{duration}ms") if reel %>>
-  <%= sfx_cue(cue, delay: (duration if reel)) %>
-  <% if reel %>
-    <% labels = reel_labels(reading.tier) %>
-    出目 <span class="reel" style="--reel-steps: <%= labels.size %>; --reel-duration: <%= duration %>ms"><span class="reel-inner" data-reel="<%= labels.join("\n") %>"><%= rarity_label(reading.tier) %></span></span> ・ 完読で<%= card_name(reading.tier) %>
-  <% else %>
-    出目 <%= rarity_label(reading.tier) %> ・ 完読で<%= card_name(reading.tier) %>
+<div id="<%= dom_id(reading, :rarity) %>">
+  <%= turbo_frame_tag dom_id(reading, :rarity_band) do %>
+    <p class="inline-block rounded-full px-3 py-1 text-xs font-semibold <%= band %> <%= "reel-gold" if stop && reading.jackpot? %>"
+       data-tier="<%= tier %>" data-state="<%= tier ? "ready" : "pending" %>"
+       <%= tag.attributes(data: { controller: "fanfare", action: "turbo:before-cache@document->fanfare#skip" }, style: "--glow-delay: #{duration}ms") if stop %>>
+      <% if tier.nil? %>
+        <%# 回る札は ::before に積む（実の要素に置くと、文字にも読み上げにも札が混じる） %>
+        <% labels = pending_reel_labels %>
+        判定中 <span class="reel reel-pending" aria-hidden="true" data-reel="<%= labels.join("\n") %>" style="--reel-steps: <%= labels.size %>"><span class="reel-inner" data-reel="<%= labels.join("\n") %>">&nbsp;</span></span> ・ 中身で枠が決まる
+      <% else %>
+        <%= sfx_cue(rarity_cue(tier), delay: duration) if stop %>
+        <% label = rarity_label(tier) %>
+        <% label = tag.span(tag.span(label, class: "reel-inner", data: { reel: reel_labels(tier).join("\n") }), class: "reel", style: "--reel-steps: #{reel_labels(tier).size}; --reel-duration: #{duration}ms") if stop %>
+        <%= safe_join([ judgment_note(reading), label ].compact, " ") %> ・ 完読で<%= card_name(tier) %>
+      <% end %>
+    </p>
+    <%# 頂点のコインは、帯のある欄の中だけで降らせる（一覧では全画面を出さない。ADR 0019） %>
+    <% if stop && reading.jackpot? %>
+      <span class="coins" aria-hidden="true" data-controller="fanfare" data-action="turbo:before-cache@document->fanfare#skip"
+            style="--reel-duration: <%= duration %>ms"><% 8.times { |i| %><span style="--i: <%= i %>"></span><% } %></span>
+    <% end %>
+    <%# 取り直しで替わるのは frame の中だけ。区切りへの差し替えを frame に入れて運び、文書に入った時に働かせる %>
+    <%= render "readings/settled_divider", reading: reading if local_assigns[:catch_up] && tier && reading.completed? %>
   <% end %>
-</p>
+  <% if tier.nil? %>
+    <div data-controller="pending-refresh" data-pending-refresh-url-value="<%= tier_reading_path(reading) %>"
+         data-pending-refresh-frame-value="<%= dom_id(reading, :rarity_band) %>">
+      <%= turbo_stream_from reading, :tier %>
+    </div>
+  <% end %>
+</div>

@@ -1,0 +1,3 @@
+<%# 完読していなければ区切りの的は画面に無く、その分は捨てられる。帯は最後に置く（差し替えで購読が外れる） %>
+<%= render partial: "readings/settled_divider", formats: [ :html ], locals: { reading: reading } if reading.completed? %>
+<%= turbo_stream.replace dom_id(reading, :rarity), partial: "readings/rarity_band", locals: { reading: reading, stop: true } %>

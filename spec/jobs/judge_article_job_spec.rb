@@ -17,6 +17,67 @@ RSpec.describe JudgeArticleJob, type: :job do
     expect(article.judgment).to be_judged
   end
 
+  describe "枠（readings.tier）" do
+    let(:rare) { Dopamine.rarity_names.second }
+    let(:stream) { Turbo::StreamsChannel.send(:stream_name_from, [ article.reading, :tier ]) }
+
+    before { article.reading.update!(tier: nil) }
+
+    it "判定が届いたら、合計点の段を書き、待っている帯と区切りへ止まるリールを配る" do
+      allow(scorer).to receive(:call).and_return(result.with(scores: scores_for(rare)))
+
+      expect { described_class.perform_now(article) }.to have_broadcasted_to(stream).with { |html|
+        # turbo-stream の中身は <template> に包まれ、HTML4 の parser は template の子を捨てるので外して読む
+        band = Capybara.string(html.gsub(%r{</?template>}, "")).find("turbo-stream[action='replace'][target='rarity_reading_#{article.reading.id}']")
+        expect(band).to have_css("[data-tier='#{rare}'][data-state='ready']", text: "24 点 レア ・ 完読でレアカード".sub("24", Dopamine.rarity(rare)[:min_total].to_s))
+        expect(band).to have_css(".reel-inner", text: "レア")
+        expect(band).to have_css("[data-sfx-cue-value='rare']", visible: :all)
+        expect(band).to have_no_css("turbo-cable-stream-source", visible: :all)
+      }
+
+      expect(article.reading.reload.tier).to eq(rare)
+    end
+
+    it "時間を置いても通らない失敗・再試行の使い切り・予算切れ・拒否では、一番下の段に決めて配る（待たせ続けない）" do
+      [
+        -> { allow(scorer).to receive(:call).and_raise(Judgments::ArticleScorer::EmptyContent, "本文が空"); described_class.perform_now(article) },
+        -> { allow(scorer).to receive(:call).and_raise(Judgments::ArticleScorer::TransientError, "API エラー (HTTP 503)"); perform_enqueued_jobs { described_class.perform_later(article) } },
+        -> { allow(scorer).to receive(:call).and_raise(Claude::Budget::Exhausted, "limit"); described_class.perform_now(article) },
+        -> { allow(scorer).to receive(:call).and_raise(Judgments::ArticleScorer::RejectedError, "API エラー (HTTP 422)"); described_class.perform_now(article) }
+      ].each do |run|
+        article.reading.update!(tier: nil)
+        ArticleJudgment.delete_all
+
+        expect { run.call }.to have_broadcasted_to(stream)
+        expect(article.reading.reload.tier).to eq(Dopamine.base_rarity[:name])
+      end
+    end
+
+    it "枠を書けなかったら判定の行も残さない（行だけ残ると、次の実行が判定済みと見て枠が空のまま残る）" do
+      allow(scorer).to receive(:call).and_return(result.with(scores: scores_for(rare)))
+      allow(Reading).to receive(:settle_tier!).and_raise(ActiveRecord::StatementTimeout, "busy")
+
+      expect { described_class.new.perform(article) }.to raise_error(ActiveRecord::StatementTimeout)
+      expect(ArticleJudgment.where(article: article)).to be_empty
+      expect(Article.awaiting_judgment).to include(article)
+    end
+
+    it "再試行を待つ間は、枠を決めない" do
+      allow(scorer).to receive(:call).and_raise(Judgments::ArticleScorer::TransientError, "API エラー (HTTP 503)")
+
+      expect { described_class.perform_now(article) }.not_to have_broadcasted_to(stream)
+      expect(article.reading.reload.tier).to be_nil
+    end
+
+    it "すでに枠が決まっている行は動かさず、配らない（過去のカードの付け直しは rake）" do
+      article.reading.update!(tier: Dopamine.base_rarity[:name])
+      allow(scorer).to receive(:call).and_return(result.with(scores: scores_for(rare)))
+
+      expect { described_class.perform_now(article) }.not_to have_broadcasted_to(stream)
+      expect(article.reading.reload.tier).to eq(Dopamine.base_rarity[:name])
+    end
+  end
+
   it "判定済み・失敗済みなら呼ばない（記事 1 本に 1 回。二度払いしない）" do
     create(:article_judgment, :failed, article: article)
 

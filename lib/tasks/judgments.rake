@@ -15,11 +15,31 @@ namespace :judgments do
       line = judgment&.judged? ? "#{judgment.total} 点 #{judgment.points.values.join("/")}" : "失敗 #{judgment&.error || "判定を残せなかった（別の実行と重なったか、記事が消えた）"}"
       puts "#{line} #{article.title}"
     rescue Judgments::ArticleScorer::TransientError => e
-      puts "失敗 #{e.message}（一時的な失敗。行は残していないので、打ち直せばまた試す） #{article.title}"
+      puts "失敗 #{e.message}（一時的な失敗。行は残さず、枠は判定中のまま。打ち直せばまた試す） #{article.title}"
     rescue Claude::Budget::Exhausted, Judgments::ArticleScorer::RejectedError => e
       # 続けても同じ理由で落ち、呼ぶたびに日次の台帳だけが減る。
-      abort "中止 #{e.message}（4xx は鍵・残高・yml のモデル名・要求の形のどれかで拒まれた。limit は日次の上限。行は残していないので、直してから打ち直せ）"
+      # ここで枠を一番下の段に決めると、直して打ち直しても枠が動かない。
+      abort "中止 #{e.message}（4xx は鍵・残高・yml のモデル名・要求の形のどれかで拒まれた。limit は日次の上限。行は残さず、枠は判定中のまま。直してから打ち直せ）"
     end
+  end
+
+  # 判定の届いた枠は、境界を変えても自動では動かさない。付け直すのは、打った人が動くカードを見て決めたときだけ。
+  # 書き換えた枠は元に戻せないので、引数なしでは動くカードを出すだけにする。
+  desc "判定済みの記事のカードの枠を、今の cards.rarities の境界で付け直す。引数なしは下見、書き換えは bin/rails 'judgments:regrade[apply]'（判定の無い・失敗した記事のカードは動かさない）"
+  task :regrade, [ :mode ] => :environment do |_, args|
+    abort "書き換えるなら apply と指定せよ: bin/rails 'judgments:regrade[apply]'" unless args[:mode].in?([ nil, "apply" ])
+
+    label = ->(tier) { tier ? I18n.t(tier, scope: "dopamine.rarities", locale: :ja) : "判定中" }
+    readings = Reading.joins(article: :judgment).merge(ArticleJudgment.judged).includes(article: :judgment).order(:id)
+    moved = readings.count do |reading|
+      tier = reading.article.judgment.tier
+      next false if reading.tier == tier
+
+      puts "#{label.call(reading.tier)} → #{label.call(tier)} #{reading.article.title}"
+      reading.update!(tier: tier) if args[:mode]
+      true
+    end
+    puts args[:mode] ? "付け直した #{moved} 枚（判定済み #{readings.size} 枚のうち）" : "付け直す #{moved} 枚（判定済み #{readings.size} 枚のうち）。書き換えるには bin/rails 'judgments:regrade[apply]'"
   end
 
   desc "判定の本数、合計点ごとの本数、軸ごとの平均、実費の合計を出す"

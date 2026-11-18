@@ -4,7 +4,7 @@ RSpec.describe "区切りの見せ場", type: :system do
   let(:common) { Dopamine.rarity_names.first }
   let(:feed) { create(:feed, title: "いつものフィード") }
 
-  before { allow(RarityDraw).to receive(:draw).and_return(common) }
+  before { allow(Reading).to receive(:tier_at_open).and_return(common) }
 
   def banner
     find("section[aria-label='判定'] [role='status']")
@@ -134,7 +134,7 @@ RSpec.describe "区切りの見せ場", type: :system do
   it "Reader で金と NEW RECORD が重なると、全画面の開封に残りを 1 行で畳み、区切りの見せ場は NEW RECORD を先頭に出す" do
     3.times { |i| card_at(ReadingDay.range(ReadingDay.of - 2).begin + 8.hours + (i * 10).minutes) }
     earlier_cards(3)
-    allow(RarityDraw).to receive(:draw).and_return(Dopamine.top_rarity[:name])
+    allow(Reading).to receive(:tier_at_open).and_return(Dopamine.top_rarity[:name])
     article = create(:article, title: "金の記事", feed: feed, url: "#{Capybara.current_session.server.base_url}/up?gold", summary: "・要約")
     article.bookmark!
     sign_in
@@ -151,13 +151,13 @@ RSpec.describe "区切りの見せ場", type: :system do
     reading.update_columns(opened_at: Time.current - threshold - 5)
     click_on "読み終えた"
 
-    overlay = find("[role='dialog'][aria-label='金のカードの開封']")
+    overlay = find("[role='dialog'][aria-label='SS レアカードの開封']")
     expect(overlay.find("[data-highlight-rest]")).to have_text("NEW RECORD! 4 連続 ・ 4 連続！")
     expect(folded_to_one_line?(overlay.find("[data-highlight-rest]"))).to be(true), "重なりが多くても 1 行に収める"
     screenshot!("gold")
     overlay.click
     expect(banner["data-highlight"]).to eq("new_record")
-    expect(banner.find("[data-highlight-rest]")).to have_text("金のカード！ ・ 4 連続！")
+    expect(banner.find("[data-highlight-rest]")).to have_text("SS レアカード！ ・ 4 連続！")
     expect(folded_to_one_line?(banner.find("[data-highlight-rest]"))).to be(true), "重なりが多くても 1 行に収める"
   end
 

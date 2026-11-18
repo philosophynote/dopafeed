@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_16_160000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_18_000000) do
   create_table "article_judgments", force: :cascade do |t|
     t.integer "article_id", null: false
     t.float "originality"
@@ -104,7 +104,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_160000) do
     t.datetime "opened_at", null: false
     t.datetime "returned_at"
     t.datetime "completed_at"
-    t.string "tier", null: false
+    t.string "tier"
     t.text "note"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false

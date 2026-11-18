@@ -1,6 +1,6 @@
 <% article = reading.article %>
 <div class="flex flex-col gap-4" data-controller="sheet" data-sheet-start-url-value="<%= start_reading_path(reading) %>">
-  <article id="<%= dom_id(article, :reader) %>" class="rounded-2xl bg-white p-4 shadow-sm">
+  <article id="<%= dom_id(article, :reader) %>" class="relative rounded-2xl bg-white p-4 shadow-sm">
     <%= render "articles/image", article: article %>
     <p class="flex items-center gap-2 text-xs text-gray-500">
       <span class="font-semibold text-gray-700"><%= article.feed.title %></span>
@@ -10,7 +10,7 @@
       <% end %>
     </p>
     <h1 class="mt-1 break-words text-xl font-bold leading-snug"><%= article.title %></h1>
-    <div class="mt-2"><%= render "readings/rarity_band", reading: reading, sfx: local_assigns.fetch(:sfx, false) %></div>
+    <div class="mt-2"><%= render "readings/rarity_band", reading: reading %></div>
 
     <%= render "articles/summary", article: article %>
 

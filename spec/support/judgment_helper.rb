@@ -11,7 +11,15 @@ module JudgmentHelper
     end
     { model: SETTINGS[:model], usage: { input_tokens: 1200, output_tokens: 0 }, answers: answers }.to_json
   end
+
+  # @return [Hash{String => Float}] 見せる点の和が、その段の下限ちょうどになる 6 軸の段
+  def scores_for(tier)
+    points, extra = Dopamine.rarity(tier)[:min_total].divmod(ArticleJudgment::AXES.size)
+    ArticleJudgment::AXES.each_with_index.to_h { |axis, i| [ axis, (points + (i < extra ? 1 : 0) - 1).to_f ] }
+  end
 end
+
+RSpec.configure { |config| config.include JudgmentHelper }
 
 RSpec.shared_context "判定が設定済み" do
   include JudgmentHelper

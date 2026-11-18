@@ -69,7 +69,7 @@
 @media (prefers-reduced-motion: reduce) {
   .combo-pop { animation: none; }
 }
-/* 削除モードでは行のタップを「読む」にしない。ボタンを連打する指が少しずれても、読みと抽選に化けない */
+/* 削除モードでは行のタップを「読む」にしない。ボタンを連打する指が少しずれても、読みと判定に化けない */
 [data-delete-mode] [data-swipe-target="read"] {
   pointer-events: none;
 }
@@ -263,7 +263,7 @@ main:has(#toast > *) {
 /* 橙の区切りの上では虹の文字が沈むので、FEVER だけ暗い地に載せる */
 .highlight-fever { background: #141416; }
 
-/* 止まるまでの札を出目の上に積み、窓ごと下ろして最後に出目で止める。札の幅が違っても窓からはみ出さないよう幅を揃える */
+/* 止まるまでの札を段の名の上に積み、窓ごと下ろして最後に決まった段で止める。札の幅が違っても窓からはみ出さないよう幅を揃える */
 .reel {
   display: inline-block;
   min-width: 2em;
@@ -292,6 +292,23 @@ main:has(#toast > *) {
 @keyframes reel-spin {
   from { transform: translateY(calc(var(--reel-steps) * 1rem)); }
   to { transform: none; }
+}
+/* 判定を待つ間は止まる先が無い。最後の札（先頭と同じ段）まで等速で下ろし、先頭へ戻して繰り返す */
+.reel-pending .reel-inner {
+  animation: reel-loop calc((var(--reel-steps) - 1) * 180ms) linear infinite;
+}
+@keyframes reel-loop {
+  from { transform: translateY(calc(var(--reel-steps) * 1rem)); }
+  to { transform: translateY(1rem); }
+}
+/* 止まる帯は決まった段の名が窓の幅を作るが、待つ間は実の文字が無い。見えない札を高さ 0 で置き、一番長い段の名に窓の幅を合わせる */
+.reel-pending::after {
+  content: attr(data-reel);
+  content: attr(data-reel) / "";
+  display: block;
+  height: 0;
+  visibility: hidden;
+  white-space: pre;
 }
 /* tier-glow と同じ詳細度なので、一括指定で上書きすると止まった後の光が消える。二つを並べて書く。光の筋もリールが止まってから走らせ、走る前と後は枠の外に置く */
 .reel-gold {
@@ -361,5 +378,6 @@ main:has(#toast > *) {
 
 @media (prefers-reduced-motion: reduce) {
   .reel-inner, .reel-gold, .finale-drop { animation: none !important; }
+  .reel-pending { display: none; }
   .coins, .fireworks { display: none; }
 }
