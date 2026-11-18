@@ -73,13 +73,28 @@ RSpec.describe "Collection", type: :request do
       travel_to(noon) { get collection_path }
 
       expect(page).to have_text("5 枚", normalize_ws: true)
-      expect(page).to have_text("通常 3 ・ レア 1 ・ 金 1", normalize_ws: true)
+      expect(page).to have_text("ノーマル 3 ・ レア 1 ・ S レア 0 ・ SS レア 1", normalize_ws: true)
       expect(page.find("[role='group'][aria-label='内訳']")).to have_text("1 日連続", normalize_ws: true)
-      expect(page).to have_css("li[data-tier='#{gold}']##{dom_id(gold_card, :card)}.border-amber-400", text: "金 金の記事", normalize_ws: true)
+      expect(page).to have_css("li[data-tier='#{gold}']##{dom_id(gold_card, :card)}.border-amber-400", text: "SS レア 金の記事", normalize_ws: true)
       expect(page).to have_css("li[data-tier='#{rare}']##{dom_id(rare_card, :card)}.border-orange-500", text: "レア レアの記事", normalize_ws: true)
       expect(page).to have_css("li[data-tier='#{common}']", count: 3)
       expect(page.find("li[data-tier='#{common}']", text: "通常 0")).to have_no_css("[data-rarity-label]")
       expect(page).to have_no_css("li.card-reveal") # 図鑑では並べて見るだけで、めくらない
+    end
+
+    it "S レアは紫の枠。判定中のカードは破線の枠と「判定中」のラベルで、内訳には判定中があるときだけ数を出す" do
+      s_rare = Dopamine.rarity_names[-2]
+      card(title: "S レアの記事", completed_at: noon - 1.hour, tier: s_rare)
+
+      travel_to(noon) { get collection_path }
+      expect(page).to have_css("li[data-tier='#{s_rare}'].border-purple-500 [data-rarity-label].bg-purple-600", text: "S レア")
+      expect(page.find("[role='group'][aria-label='内訳']")).to have_no_text("判定中")
+
+      card(title: "まだ判定中の記事", completed_at: noon - 2.hours, tier: nil)
+
+      travel_to(noon) { get collection_path }
+      expect(page.find("[role='group'][aria-label='内訳']")).to have_text("SS レア 0 ・ 判定中 1", normalize_ws: true)
+      expect(page).to have_css("li[data-tier=''].border-dashed", text: "判定中 まだ判定中の記事", normalize_ws: true)
     end
 
     it "未完の行と未読の記事はカードにならない" do

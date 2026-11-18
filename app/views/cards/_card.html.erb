@@ -1,7 +1,7 @@
 <%# カード 1 枚（docs/screens/collection.md）。完読した readings の行がそのままカード。
     表は OGP 画像、無ければ（読めなければ）フィードの色地。見出しとフィード名を下に重ね、枠の色が希少度。
     画像が読めなかったら image-fallback が figure ごと外し、下の色地が出る。
-    リンクは元記事を別窓（iPhone のホーム画面アプリではシート）で開く。読み直しても抽選し直さない（1 記事 1 行）。link: false で開かない面だけにする。
+    リンクは元記事を別窓（iPhone のホーム画面アプリではシート）で開く。読み直しても枠は変わらない（1 記事 1 行）。link: false で開かない面だけにする。
     reveal_order: 束の中の順番（0 から）を渡すと、裏（ロゴ）から表へめくれて現れる。長さは yml の cards.reveal_duration_ms。
     順番ぶん遅らせる幅は cards.reveal_stagger_ms で、鍵が無ければ遅らせない（束が一斉にめくれる）。
     図鑑のように並べて見るだけの場所では渡さない（毎回めくると慣れる）。
@@ -22,10 +22,11 @@
     <% end %>
     <%= content_tag face, href: (article.url if face == :a), target: ("_blank" if face == :a), rel: ("noopener noreferrer" if face == :a), draggable: "false",
                     class: "absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2 text-white [-webkit-tap-highlight-color:transparent] active:bg-black/20" do %>
-      <%# 希少度は読み上げでは「金のカード、」と先に言い、見える方のラベルは重ねて読ませない %>
+      <%# 希少度は読み上げでは「レアカード、」と先に言い、見える方のラベルは重ねて読ませない %>
       <% unless base_rarity?(card.tier) %>
-        <span class="sr-only"><%= card_name(card.tier) %>、</span>
-        <span class="absolute left-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold <%= rarity_tone(card.tier, base: "") %>" data-rarity-label aria-hidden="true"><%= rarity_label(card.tier) %></span>
+        <% label = card.tier ? rarity_label(card.tier) : "判定中" %>
+        <span class="sr-only"><%= card.tier ? card_name(card.tier) : label %>、</span>
+        <span class="absolute left-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold <%= rarity_tone(card.tier, base: "bg-gray-200 text-gray-700") %>" data-rarity-label aria-hidden="true"><%= label %></span>
       <% end %>
       <h3 class="line-clamp-3 break-words text-xs font-bold leading-snug"><%= article.title %></h3>
       <p class="mt-0.5 truncate text-[10px] text-white/80"><%= article.feed.title %></p>

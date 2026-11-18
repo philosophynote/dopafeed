@@ -32,9 +32,27 @@ RSpec.describe Dopamine do
     expect(described_class.base_rarity).to eq(yml.dig(:cards, :rarities).first)
   end
 
-  it "top_rarity は yml の最後の段（名前や確率ではなく並び順で決める）" do
+  it "top_rarity は yml の最後の段（名前ではなく並び順で決める）" do
     expect(described_class.top_rarity).to eq(yml.dig(:cards, :rarities).last)
-    expect(described_class.top_rarity[:probability]).to be < yml.dig(:cards, :rarities).first[:probability]
+  end
+
+  it "段は合計点の下限（min_total）の低い順に並び、一番下の段は取りうる最低の合計でも入る（確率は持たない。ADR 0026）" do
+    floors = yml.dig(:cards, :rarities).map { |rarity| rarity[:min_total] }
+
+    expect(floors).to all(be_a(Integer))
+    expect(floors).to eq(floors.uniq.sort)
+    expect(floors.first).to be <= ArticleJudgment::AXES.size
+    expect(floors.last).to be <= ArticleJudgment::AXES.size * ArticleJudgment::LEVELS
+    expect(yml.dig(:cards, :rarities)).to all(satisfy { |rarity| !rarity.key?(:probability) })
+  end
+
+  it "rarity_for(total) は、下限が合計以下の段のうち一番上の段" do
+    described_class.rarities.each_cons(2) do |lower, upper|
+      expect(described_class.rarity_for(upper[:min_total] - 1)).to eq(lower)
+      expect(described_class.rarity_for(upper[:min_total])).to eq(upper)
+    end
+    expect(described_class.rarity_for(ArticleJudgment::AXES.size)).to eq(described_class.base_rarity)
+    expect(described_class.rarity_for(ArticleJudgment::AXES.size * ArticleJudgment::LEVELS)).to eq(described_class.top_rarity)
   end
 
   it "XP の鍵は無い（ADR 0020）" do

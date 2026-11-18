@@ -406,6 +406,8 @@ TYPESAFE_API_KEY=$(bin/rails credentials:fetch typesafe.api_key)
 
 確かめるのは `bin/rails 'judgments:backfill[3]'`（完読した未判定の記事を新しい順に 3 本採点し、点を出す。本番ではコンテナの中で打つ）と `bin/rails judgments:status`（合計点ごとの本数と実費）。失敗の理由は `ArticleJudgment.failed.pluck(:article_id, :error)`。やり直すにはその行を消して記事を開き直す。4xx で拒まれた要求（鍵の誤り・残高切れ・yml のモデル名の誤り・要求の形）と予算切れは行を残さず、`kamal logs` の `[judgments]` に出る（直せば、開き直した記事から判定される。手元なら `log/development.log`）。`judgments:backfill` はこれらの理由を画面に出して止まり、一時的な失敗（接続エラー・タイムアウト・429・5xx）は理由を出して次の記事へ進む（どちらも行を残さないので、打ち直せばまた試す）。
 
+カードの枠は判定が届いた時に決まり、以後は動かない（ADR 0026）。過去のカードの枠を今の境界（yml `cards.rarities` の `min_total`）で付け直すのは `bin/rails judgments:regrade`。動いたカードを 1 行ずつ出す。判定の無い・失敗した記事のカードは動かさない。抽選の時代のカードは、migration が common をノーマル、jackpot を SS レアに読み替えているので、`judgments:backfill` で採点してから `judgments:regrade` を打つと、中身の点の枠に替わる（金だったカードが下がることがある）。境界を変えたときも、`judgments:status` で分布を見てから打つ。
+
 ## 3. よく使う
 ```sh
 kamal logs            # tail

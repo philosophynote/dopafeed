@@ -63,7 +63,7 @@ RSpec.describe CardHighlights do
     expect(highlights(card(noon)).kinds).not_to include(:comeback)
   end
 
-  it "金のカードは段 huge" do
+  it "SS レアカードは段 huge" do
     subject = highlights(card(noon, tier: Dopamine.top_rarity[:name]))
     expect(subject.lead).to eq(:jackpot)
     expect(subject.tier).to eq(:huge)

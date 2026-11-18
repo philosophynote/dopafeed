@@ -13,33 +13,68 @@ RSpec.describe "Saved から読む", type: :system do
     visit saved_path
   end
 
-  it "未読の行を押すと、モーダルを挟まず Reader が開き、帯のリールが出目で止まる" do
-    allow(RarityDraw).to receive(:draw).and_return(common)
+  it "未読の行を押すと、モーダルを挟まず Reader が開き、帯は判定を待つ。判定が届くとリールが段で止まり、再読込では回さない" do
+    rare = Dopamine.rarity(Dopamine.rarity_names.second)
+    judgment_pending
     article = create_article
     sign_in_to_saved
 
     click_on "読む"
     expect(page).to have_current_path(read_article_path(article))
     expect(page).to have_no_css("[role='dialog']")
-    band = find("[data-tier='#{common}']", text: "出目 通常 ・ 完読で通常カード")
+    expect(page).to have_css("[data-state='pending']", text: /判定中.*中身で枠が決まる/)
+    expect(article.reload.reading.returned_at).to be_nil
+    expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "横スクロールが出ている"
+    screenshot!("judging")
+
+    judgment_arrives(article, rare[:name])
+    band = find("[data-tier='#{rare[:name]}']", text: "#{rare[:min_total]} 点 レア ・ 完読でレアカード")
     expect(band).to have_css(".reel-inner")
     page.evaluate_async_script("const done = arguments[0]; Promise.all(document.querySelector('.reel-inner').getAnimations({ subtree: true }).map((a) => a.finished)).then(() => done(true))")
-    expect(article.reload.reading.returned_at).to be_nil
     expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "横スクロールが出ている"
     screenshot!("reader")
 
     page.refresh
-    expect(find("[data-tier='#{common}']", text: "出目 通常")).to have_no_css(".reel-inner")
+    expect(find("[data-tier='#{rare[:name]}']", text: "#{rare[:min_total]} 点 レア")).to have_no_css(".reel-inner")
   end
 
-  it "頂点の出目でも全画面の予告は出ず Reader が開き、記事を開いて戻ると金のカードを全画面で開封する" do
-    allow(RarityDraw).to receive(:draw).and_return(jackpot[:name])
+  it "判定中のまま完読すると、破線の枠のカードで区切り、判定が届くと見出しとカードの枠が届いた段に替わる。頂点でも全画面は出ない" do
+    judgment_pending
+    article = create_article
+    sign_in_to_saved
+    click_on "読む"
+    page.execute_script(<<~JS)
+      document.addEventListener("click", (event) => { if (event.target.closest("a[target=_blank]")) event.preventDefault() }, true)
+    JS
+    reading = article.reload.reading
+    since = reading.opened_at
+    click_on "記事を開く"
+    Timeout.timeout(Capybara.default_max_wait_time) { sleep 0.05 until reading.reload.opened_at > since }
+    reading.update_columns(opened_at: Time.current - threshold - 5)
+    click_on "読み終えた"
+
+    divider = find("section[aria-label='判定']")
+    expect(divider).to have_text("読了 ・ 判定中")
+    expect(divider).to have_text("カードを手に入れた！")
+    expect(divider).to have_css("li.border-dashed[data-tier=''] [data-rarity-label]", text: "判定中")
+    page.evaluate_async_script("const done = arguments[0]; Promise.all(document.querySelector('section[aria-label=判定] li.card-reveal').getAnimations().map((a) => a.finished)).then(() => done(true))")
+    screenshot!("judging_divider")
+
+    judgment_arrives(article, jackpot[:name])
+    expect(divider).to have_text("読了 ・ #{jackpot[:min_total]} 点")
+    expect(divider).to have_text("SS レアカードを手に入れた！")
+    expect(divider).to have_css("li.border-amber-400[data-tier='#{jackpot[:name]}'] [data-rarity-label]", text: "SS レア")
+    expect(page).to have_no_css("[role='dialog']")
+  end
+
+  it "頂点の段の記事でも全画面の予告は出ず Reader が開き、記事を開いて戻ると SS レアカードを全画面で開封する" do
+    allow(Reading).to receive(:tier_at_open).and_return(jackpot[:name])
     article = create_article
     sign_in_to_saved
 
     click_on "読む"
     expect(page).to have_current_path(read_article_path(article))
-    expect(page).to have_css("[data-tier='#{jackpot[:name]}']", text: "出目 金 ・ 完読で金のカード")
+    expect(page).to have_css("[data-tier='#{jackpot[:name]}']", text: "SS レア ・ 完読でSS レアカード")
     expect(page).to have_no_css("[role='dialog']")
 
     page.go_back
@@ -60,9 +95,9 @@ RSpec.describe "Saved から読む", type: :system do
     end
     source.close
     switch_to_window(reader)
-    # 金は全画面で開封し、どこを押しても閉じる。閉じた後も区切りの金のカードは残る
+    # 金は全画面で開封し、どこを押しても閉じる。閉じた後も区切りのSS レアカードは残る
     overlay = find("[data-controller='reveal'][role='dialog']")
-    expect(overlay).to have_text("金のカードを手に入れた！")
+    expect(overlay).to have_text("SS レアカードを手に入れた！")
     expect(overlay).to have_css("li.card-reveal[data-tier='#{jackpot[:name]}'] h3", text: "読む記事")
     page.evaluate_async_script("const done = arguments[0]; Promise.all(document.querySelector('[data-controller=reveal] li.card-reveal').getAnimations().map((a) => a.finished)).then(() => done(true))")
     expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "横スクロールが出ている"
@@ -70,7 +105,7 @@ RSpec.describe "Saved から読む", type: :system do
     expect(page.evaluate_script("document.activeElement.textContent")).to eq("閉じる")
     overlay.find("p", text: "JACKPOT").click # ボタン以外のどこを押しても閉じる
     expect(page).to have_no_css("[data-controller='reveal'][role='dialog']")
-    expect(page).to have_css("section[aria-label='判定']", text: "金のカードを手に入れた！")
+    expect(page).to have_css("section[aria-label='判定']", text: "SS レアカードを手に入れた！")
     expect(page).to have_css("section[aria-label='判定'] li[data-tier='#{jackpot[:name]}'] h3", text: "読む記事")
     expect(article.reading.reload).to be_completed
   end

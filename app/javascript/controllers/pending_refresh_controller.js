@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
-// 接続前や切断中の broadcast は届かないため、再接続時に作成中の欄を取り直す。
-// frame の取り直しだけでは購読が残って溜まるため、完成後は購読も外す。
+// 接続前や切断中の broadcast は届かないため、再接続時に待っている欄（作成中の要約、判定中の帯）を取り直す。
+// frame の取り直しだけでは購読が残って溜まるため、届いた後は購読も外す。
 // stream source に Stimulus を付けると data-* が購読パラメータに混ざる。
 export default class extends Controller {
   static values = { url: String, frame: String }

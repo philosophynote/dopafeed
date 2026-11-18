@@ -21,7 +21,7 @@ RSpec.describe "AGENTS.md の規約" do
   end
 
   it "確率・秒数・本数の数字は config/dopamine.yml にだけ置く（app/ と lib/）" do
-    pattern = /\b(probability|multiplier|reveal_duration|complete_after|daily_goal)\w*\s*[=:]\s*\d/i
+    pattern = /\b(probability|multiplier|min_total|reveal_duration|complete_after|daily_goal)\w*\s*[=:]\s*\d/i
     offenders = Dir[Rails.root.join("{app,lib}/**/*.rb")].select { |f| File.read(f).match?(pattern) }
     expect(offenders).to be_empty, "数字を config/dopamine.yml に移し、Rails.application.config_for(:dopamine) で読め:\n#{offenders.join("\n")}"
   end

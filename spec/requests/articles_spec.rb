@@ -35,7 +35,7 @@ RSpec.describe "Articles", type: :request do
       expect(page).to have_no_link("宝箱を開く")
     end
 
-    it "見出し・出目の帯・要約・元サイトを別窓で開く「記事を開く」・「読み終えた」form を出す" do
+    it "見出し・枠の帯・要約・元サイトを別窓で開く「記事を開く」・「読み終えた」form を出す" do
       rare = Dopamine.rarity(Dopamine.rarity_names.second)
       article = create(:article, title: "読む記事", url: "https://example.com/posts/1", feed: create(:feed, title: "Ruby Weekly"),
                                  summary: "・一\n・二\n・三")
@@ -48,7 +48,7 @@ RSpec.describe "Articles", type: :request do
       card = reader.find("[data-controller='sheet'][data-sheet-start-url-value='#{start_reading_path(reading)}']")
       expect(card).to have_css("h1", text: "読む記事")
       expect(card).to have_text("Ruby Weekly")
-      expect(card).to have_text("出目 レア ・ 完読でレアカード")
+      expect(card).to have_text("レア ・ 完読でレアカード")
       expect(card).to have_text("・一\n・二\n・三")
       expect(card).to have_css("a[href='https://example.com/posts/1'][target='_blank'][rel='noopener noreferrer'][data-action='sheet#open']",
                                text: "記事を開く")
@@ -101,7 +101,7 @@ RSpec.describe "Articles", type: :request do
       let(:article) { create(:article, :awaiting_summary, :opened) }
 
       def subscribed?
-        page.has_css?("[data-controller='summary-refresh'][data-summary-refresh-url-value='#{summary_article_path(article)}'] turbo-cable-stream-source")
+        page.has_css?("[data-controller='pending-refresh'][data-pending-refresh-url-value='#{summary_article_path(article)}'] turbo-cable-stream-source")
       end
 
       it "要約が無い間は「要約を作成中」を出し、できたら差し替わるよう購読する" do

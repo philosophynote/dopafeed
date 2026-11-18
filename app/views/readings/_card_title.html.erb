@@ -1,0 +1,5 @@
+<%# 完読の時点で判定中なら段の名を付けずに出し、枠が決まったら配られた差し替えで名を付ける %>
+<div id="<%= dom_id(reading, :card_title) %>">
+  <p class="text-xs font-semibold opacity-90"><%= [ "読了", judgment_note(reading) ].compact.join(" ・ ") %></p>
+  <p class="text-2xl font-black"><%= card_name(reading.tier) %>を手に入れた！</p>
+</div>

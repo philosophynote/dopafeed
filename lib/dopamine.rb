@@ -19,9 +19,14 @@ module Dopamine
     rarities.first
   end
 
-  # 名前で頂点を決めると綴りに縛られ、確率では同率の段が増えたときに揺れるため、並び順を使う。
+  # 名前で頂点を決めると綴りに縛られるため、並び順を使う。
   def self.top_rarity
     rarities.last
+  end
+
+  # @param total [Integer] 判定の合計点
+  def self.rarity_for(total)
+    rarities.reverse_each.find { |rarity| total >= rarity[:min_total] } || base_rarity
   end
 
   # 引用符の無い 07:30 は YAML が六十進数（27000 秒）として読むため、時刻表記に戻す。

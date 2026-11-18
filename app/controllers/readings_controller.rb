@@ -45,12 +45,14 @@ class ReadingsController < ApplicationController
     end
   end
 
+  # 接続前や切断中に配られた枠を、帯が取り直す。届いていれば、ここで初めてリールが止まる。
+  def tier
+    render partial: "readings/rarity_band", locals: { reading: Reading.includes(article: :judgment).find(params[:id]), stop: true }
+  end
+
   private
 
-  # 帯を回すのは抽選した直後の 1 回だけ。GET の側では行が今できたのか分からないので、flash で渡す。
-  # 真偽だけを渡すと、redirect の先が読み込まれなかったときに、次に開いた別の記事の帯が回る。
   def open_reader
-    flash[:drawn] = @reading.id if @reading.previously_new_record?
     redirect_to read_article_path(@article), status: :see_other
   end
 

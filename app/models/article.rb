@@ -38,7 +38,7 @@ class Article < ApplicationRecord
     dismissed_at.present?
   end
 
-  # 未完の Reading を消すと、取り消したときに出目と滞在を引き継げない。
+  # 未完の Reading を消すと、取り消したときに枠と滞在を引き継げない。
   def dismiss!(at: Time.current)
     with_lock { update!(dismissed_at: at) unless dismissed? }
     self

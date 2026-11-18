@@ -2,9 +2,10 @@
 ja:
   dopamine:
     rarities:
-      common: 通常
+      normal: ノーマル
       rare: レア
-      jackpot: 金
+      s_rare: S レア
+      ss_rare: SS レア
   judgment:
     axes:
       originality: 独自性

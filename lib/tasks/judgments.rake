@@ -22,6 +22,21 @@ namespace :judgments do
     end
   end
 
+  # 判定の届いた枠は、境界を変えても自動では動かさない。付け直すのは、打った人が動くカードを見て決めたときだけ。
+  desc "判定済みの記事のカードの枠を、今の cards.rarities の境界で付け直す（判定の無い・失敗した記事のカードは動かさない）"
+  task regrade: :environment do
+    label = ->(tier) { tier ? I18n.t(tier, scope: "dopamine.rarities", locale: :ja) : "判定中" }
+    readings = Reading.joins(article: :judgment).merge(ArticleJudgment.judged).includes(article: :judgment).order(:id)
+    moved = readings.count do |reading|
+      tier = reading.article.judgment.tier
+      next false if reading.tier == tier
+
+      puts "#{label.call(reading.tier)} → #{label.call(tier)} #{reading.article.title}"
+      reading.update!(tier: tier)
+    end
+    puts "付け直した #{moved} 枚（判定済み #{readings.size} 枚のうち）"
+  end
+
   desc "判定の本数、合計点ごとの本数、軸ごとの平均、実費の合計を出す"
   task status: :environment do
     judged = ArticleJudgment.judged.to_a

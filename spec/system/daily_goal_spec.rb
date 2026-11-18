@@ -4,7 +4,7 @@ RSpec.describe "DailyGoal", type: :system do
   let(:goal_articles) { settings.dig(:daily_goal, :articles) }
   let(:common) { Dopamine.rarity_names.first }
 
-  before { allow(RarityDraw).to receive(:draw).and_return(common) }
+  before { allow(Reading).to receive(:tier_at_open).and_return(common) }
 
   def no_horizontal_scroll?
     page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
@@ -108,8 +108,8 @@ RSpec.describe "DailyGoal", type: :system do
       expect(running_animations).to be_empty
     end
 
-    it "「もう 1 本だけ」を押すと、モーダルを挟まずに一番新しい未読の Reader が開き、帯のリールが出目で止まる" do
-      allow(RarityDraw).to receive(:draw).and_return(common)
+    it "「もう 1 本だけ」を押すと、モーダルを挟まずに一番新しい未読の Reader が開き、帯は判定を待つ" do
+      judgment_pending
       sign_in
       visit daily_goal_path
 
@@ -117,7 +117,7 @@ RSpec.describe "DailyGoal", type: :system do
 
       expect(page).to have_current_path(read_article_path(Article.find_by!(title: "まだ読んでいない記事")))
       expect(page).to have_no_css("[role='dialog']")
-      expect(find("[data-tier='#{common}']", text: "出目 通常 ・ 完読で通常カード")).to have_css(".reel-inner")
+      expect(page).to have_css("[data-state='pending'] .reel-pending", visible: :all)
       expect(page).to have_css("h1", text: "まだ読んでいない記事")
     end
 

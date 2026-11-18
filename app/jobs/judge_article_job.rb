@@ -5,6 +5,8 @@ class JudgeArticleJob < ApplicationJob
 
   discard_on Claude::Budget::Exhausted, Judgments::ArticleScorer::RejectedError, ActiveJob::DeserializationError do |job, error|
     Rails.logger.warn("[judgments] #{job.class.name} discarded: #{error.message}")
+    # 捨てたまま黙ると、待っている帯のリールが回り続ける。
+    settle(job.arguments.first) unless error.is_a?(ActiveJob::DeserializationError)
   end
 
   retry_on Judgments::ArticleScorer::TransientError, wait: :polynomially_longer do |job, error|
@@ -31,8 +33,18 @@ class JudgeArticleJob < ApplicationJob
   # 重なった別の実行が先に書いていたら、先の結果を残す（記事 1 本に 1 行。DB の一意制約）。
   # 呼んでいる間に記事が消えていたら、残す先が無い。
   def self.record(article, attributes)
-    ArticleJudgment.create!(article: article, **attributes)
-  rescue ActiveRecord::RecordNotUnique, ActiveRecord::InvalidForeignKey
-    nil
+    begin
+      ArticleJudgment.create!(article: article, **attributes)
+    rescue ActiveRecord::RecordNotUnique, ActiveRecord::InvalidForeignKey
+      nil
+    end
+    settle(article)
+  end
+
+  # 帯と区切りを 1 通にまとめて配る。帯の差し替えが購読を外すので、分けて配ると後の分が届かない。
+  def self.settle(article)
+    reading = Reading.settle_tier!(article) or return
+
+    Turbo::StreamsChannel.broadcast_render_to(reading, :tier, partial: "readings/tier_settled", locals: { reading: reading })
   end
 end

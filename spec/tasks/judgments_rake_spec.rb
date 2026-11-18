@@ -91,6 +91,40 @@ RSpec.describe "judgments の rake" do
     end
   end
 
+  describe "judgments:regrade" do
+    let(:regrade) { Rake::Task["judgments:regrade"] }
+    let(:names) { Dopamine.rarity_names }
+
+    after { regrade.reenable }
+
+    def card(title, tier:, judged_as: nil, failed: false)
+      create(:reading, :completed, tier: tier, article: create(:article, title: title)).tap do |reading|
+        create(:article_judgment, article: reading.article, **scores_for(judged_as)) if judged_as
+        create(:article_judgment, :failed, article: reading.article) if failed
+      end
+    end
+
+    it "判定済みの記事のカードの枠を、今の境界の段に付け直し、動いたカードを 1 行ずつ出す。判定の無い・失敗した記事のカードは動かさない" do
+      up = card("上がる記事", tier: names.first, judged_as: names.second)
+      down = card("下がる記事", tier: names.last, judged_as: names.first)
+      same = card("同じ記事", tier: names.second, judged_as: names.second)
+      unjudged = card("判定の無い記事", tier: names.last)
+      failed = card("判定に失敗した記事", tier: names.second, failed: true)
+
+      expect { regrade.invoke }.to output(/ノーマル → レア 上がる記事\nSS レア → ノーマル 下がる記事\n付け直した 2 枚（判定済み 3 枚のうち）/).to_stdout
+
+      expect([ up, down, same, unjudged, failed ].map { |reading| reading.reload.tier }).to eq([ names.second, names.first, names.second, names.last, names.second ])
+    end
+
+    it "判定中のまま残ったカードにも枠を付ける" do
+      pending = card("判定中の記事", tier: nil, judged_as: names.second)
+
+      expect { regrade.invoke }.to output(/判定中 → レア 判定中の記事/).to_stdout
+
+      expect(pending.reload.tier).to eq(names.second)
+    end
+  end
+
   describe "judgments:status" do
     it "判定済み・失敗・待ちの本数、合計点ごとの本数、軸ごとの平均、実費の合計を出す" do
       create(:article_judgment, **scores, cost: 0.0003)

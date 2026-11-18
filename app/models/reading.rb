@@ -3,7 +3,7 @@ class Reading < ApplicationRecord
 
   validates :opened_at, presence: true
   validates :returned_at, presence: true, if: :completed_at
-  validates :tier, inclusion: { in: ->(_) { Dopamine.rarity_names } }
+  validates :tier, inclusion: { in: ->(_) { Dopamine.rarity_names } }, allow_nil: true
   validates :article_id, uniqueness: true
 
   scope :completed, -> { where.not(completed_at: nil) }
@@ -13,15 +13,28 @@ class Reading < ApplicationRecord
     completed.count
   end
 
-  # 二重タップで一意制約に当たったら、先に作られた行を使って再抽選を避ける。
   def self.open!(article, at: Time.current)
     reading = find_or_initialize_by(article: article)
     return reading.reopen!(at: at) if reading.persisted?
 
-    reading.update!(tier: RarityDraw.draw, opened_at: at)
+    reading.update!(tier: tier_at_open(article), opened_at: at)
     reading
   rescue ActiveRecord::RecordNotUnique
     find_by!(article: article)
+  end
+
+  # 枠は判定が届くまで空にしておく。判定を積めない環境では待っても届かないので、最初から一番下の段にする。
+  def self.tier_at_open(article)
+    article.judgment&.tier || (Dopamine.base_rarity[:name] unless Judgments::ArticleScorer.configured?)
+  end
+  private_class_method :tier_at_open
+
+  # 一度決まった枠は書き換えない。境界を後で変えても、手に入れたカードが勝手に変わらないようにする。
+  #
+  # @return [Reading, nil] この呼び出しで枠が決まった行
+  def self.settle_tier!(article)
+    tier = ArticleJudgment.find_by(article_id: article.id)&.tier || Dopamine.base_rarity[:name]
+    find_by(article_id: article.id) if where(article_id: article.id, tier: nil).update_all(tier: tier) == 1
   end
 
   def completed?
@@ -57,7 +70,6 @@ class Reading < ApplicationRecord
     self
   end
 
-  # 読み直しで再抽選すると、同じ記事で出目を引き直せてしまう（ADR 0006）。
   def reopen!(at: Time.current)
     return self if completed?
 
