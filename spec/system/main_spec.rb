@@ -446,6 +446,8 @@ RSpec.describe "Main", type: :system do
       expand("大当たりの記事")
       expect(page).to have_css("[data-state='pending']", text: /判定中.*中身で枠が決まる/)
       expect(page.evaluate_script("getComputedStyle(document.querySelector('.reel-pending .reel-inner')).animationIterationCount")).to eq("infinite")
+      widths = page.evaluate_script("(() => { const reel = document.querySelector('.reel-pending'); return [ reel.scrollWidth, reel.clientWidth ] })()")
+      expect(widths.first).to be <= widths.last, "回る札が窓の幅で切れている"
       expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "横スクロールが出ている"
       screenshot!("judging")
 

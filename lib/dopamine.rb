@@ -24,7 +24,6 @@ module Dopamine
     rarities.last
   end
 
-  # @param total [Integer] 判定の合計点
   def self.rarity_for(total)
     rarities.reverse_each.find { |rarity| total >= rarity[:min_total] } || base_rarity
   end

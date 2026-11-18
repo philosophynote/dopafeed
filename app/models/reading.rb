@@ -15,7 +15,11 @@ class Reading < ApplicationRecord
 
   def self.open!(article, at: Time.current)
     reading = find_or_initialize_by(article: article)
-    return reading.reopen!(at: at) if reading.persisted?
+    if reading.persisted?
+      # 判定の知らせより後に残った空の枠は、ほかに書く者がいない。
+      reading.update!(tier: tier_at_open(article)) if reading.tier.nil?
+      return reading.reopen!(at: at)
+    end
 
     reading.update!(tier: tier_at_open(article), opened_at: at)
     reading

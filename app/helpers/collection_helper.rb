@@ -10,12 +10,11 @@ module CollectionHelper
 
   MIDDLE_FRAMES = %w[border-orange-500 border-purple-500].freeze
 
-  # カードの枠の色。頂点は金、間の段は下から橙・紫、一番低い段は灰、判定中は破線。帯より太く見せるのは、並べたときに希少度が一目で分かるように
+  # 帯より太く見せるのは、並べたときに希少度が一目で分かるように
   def rarity_frame(name)
     if name.nil? then "border-dashed border-gray-300"
     elsif name == Dopamine.top_rarity[:name] then "border-amber-400 shadow-[0_0_0_2px_rgba(251,191,36,0.45)]"
-    elsif base_rarity?(name) then "border-gray-200"
-    else middle_rarity_style(name, MIDDLE_FRAMES)
+    else middle_rarity_style(name, MIDDLE_FRAMES) || "border-gray-200"
     end
   end
 

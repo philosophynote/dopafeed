@@ -23,8 +23,11 @@ namespace :judgments do
   end
 
   # 判定の届いた枠は、境界を変えても自動では動かさない。付け直すのは、打った人が動くカードを見て決めたときだけ。
-  desc "判定済みの記事のカードの枠を、今の cards.rarities の境界で付け直す（判定の無い・失敗した記事のカードは動かさない）"
-  task regrade: :environment do
+  # 書き換えた枠は元に戻せないので、引数なしでは動くカードを出すだけにする。
+  desc "判定済みの記事のカードの枠を、今の cards.rarities の境界で付け直す。引数なしは下見、書き換えは bin/rails 'judgments:regrade[apply]'（判定の無い・失敗した記事のカードは動かさない）"
+  task :regrade, [ :mode ] => :environment do |_, args|
+    abort "書き換えるなら apply と指定せよ: bin/rails 'judgments:regrade[apply]'" unless args[:mode].in?([ nil, "apply" ])
+
     label = ->(tier) { tier ? I18n.t(tier, scope: "dopamine.rarities", locale: :ja) : "判定中" }
     readings = Reading.joins(article: :judgment).merge(ArticleJudgment.judged).includes(article: :judgment).order(:id)
     moved = readings.count do |reading|
@@ -32,9 +35,10 @@ namespace :judgments do
       next false if reading.tier == tier
 
       puts "#{label.call(reading.tier)} → #{label.call(tier)} #{reading.article.title}"
-      reading.update!(tier: tier)
+      reading.update!(tier: tier) if args[:mode]
+      true
     end
-    puts "付け直した #{moved} 枚（判定済み #{readings.size} 枚のうち）"
+    puts args[:mode] ? "付け直した #{moved} 枚（判定済み #{readings.size} 枚のうち）" : "付け直す #{moved} 枚（判定済み #{readings.size} 枚のうち）。書き換えるには bin/rails 'judgments:regrade[apply]'"
   end
 
   desc "判定の本数、合計点ごとの本数、軸ごとの平均、実費の合計を出す"

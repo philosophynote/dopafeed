@@ -48,6 +48,25 @@ RSpec.describe "Collection", type: :system do
     end
   end
 
+  it "4 段と判定中のカードは枠で見分けられ、内訳に判定中の枚数が出て、横スクロールが無い" do
+    noon = Time.zone.local(2026, 11, 6, reset_hour) + 8.hours
+    [ *Dopamine.rarity_names, nil ].each_with_index do |tier, i|
+      card(title: "#{tier || "判定中"} の記事", completed_at: noon - i.minutes, tier: tier)
+    end
+    travel_to(noon) do
+      sign_in
+      visit collection_path
+
+      expect(find("[aria-label='内訳']")).to have_text("ノーマル 1 ・ レア 1 ・ S レア 1 ・ SS レア 1 ・ 判定中 1", normalize_ws: true)
+      frames = page.evaluate_script("Array.from(document.querySelectorAll('li[data-tier]')).map(li => [ getComputedStyle(li).borderTopStyle, getComputedStyle(li).borderTopColor ])")
+      expect(frames.map(&:first)).to eq(%w[solid solid solid solid dashed])
+      expect(frames.map(&:last).uniq.size).to eq(5), "枠の色が段ごとに違わない: #{frames.inspect}"
+      expect(page).to have_css("li[data-tier=''] [data-rarity-label]", text: "判定中")
+      expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "横スクロールが出ている"
+      screenshot!("tiers")
+    end
+  end
+
   it "0 枚なら空状態" do
     sign_in
     visit collection_path

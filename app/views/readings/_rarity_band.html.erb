@@ -5,7 +5,7 @@
 <% tier = reading.tier %>
 <% stop = tier && local_assigns[:stop] %>
 <% band = tier ? rarity_tone(tier, base: "bg-orange-50 text-orange-700") : "bg-gray-100 text-gray-600" %>
-<% band = "tier-glow #{band}" unless tier.nil? || base_rarity?(tier) %>
+<% band = "tier-glow #{band}" if rarity_cue(tier) %>
 <% duration = Dopamine.settings.dig(:cards, :reveal_duration_ms) %>
 <div id="<%= dom_id(reading, :rarity) %>">
   <%= turbo_frame_tag dom_id(reading, :rarity_band) do %>
@@ -15,7 +15,7 @@
       <% if tier.nil? %>
         <%# 回る札は ::before に積む（実の要素に置くと、文字にも読み上げにも札が混じる） %>
         <% labels = pending_reel_labels %>
-        判定中 <span class="reel reel-pending" aria-hidden="true" style="--reel-steps: <%= labels.size %>"><span class="reel-inner" data-reel="<%= labels.join("\n") %>">&nbsp;</span></span> ・ 中身で枠が決まる
+        判定中 <span class="reel reel-pending" aria-hidden="true" data-reel="<%= labels.join("\n") %>" style="--reel-steps: <%= labels.size %>"><span class="reel-inner" data-reel="<%= labels.join("\n") %>">&nbsp;</span></span> ・ 中身で枠が決まる
       <% else %>
         <%= sfx_cue(rarity_cue(tier), delay: duration) if stop %>
         <% label = rarity_label(tier) %>

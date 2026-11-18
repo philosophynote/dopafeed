@@ -124,6 +124,16 @@ RSpec.describe Reading, type: :model do
       expect(reading.returned_at).to be_nil
     end
 
+    it "判定中のまま残った行を開き直すと、届いていた判定の段を書く。判定を積めない環境になっていたら一番下の段" do
+      judged = create(:reading, :pending, opened_at: at - 1.hour)
+      create(:article_judgment, article: judged.article, **scores_for(rare))
+      stranded = create(:reading, :pending, :completed)
+
+      expect(Reading.open!(judged.article, at: at).tier).to eq(rare)
+      expect(Reading.open!(stranded.article, at: at).tier).to eq(Dopamine.base_rarity[:name])
+      expect(stranded.reload.completed_at).to be_present
+    end
+
     it "完読済みの行は変えない" do
       reading = create(:reading, :completed)
       before = reading.attributes

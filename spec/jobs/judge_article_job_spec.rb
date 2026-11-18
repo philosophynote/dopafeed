@@ -53,6 +53,15 @@ RSpec.describe JudgeArticleJob, type: :job do
       end
     end
 
+    it "枠を書けなかったら判定の行も残さない（行だけ残ると、次の実行が判定済みと見て枠が空のまま残る）" do
+      allow(scorer).to receive(:call).and_return(result.with(scores: scores_for(rare)))
+      allow(Reading).to receive(:settle_tier!).and_raise(ActiveRecord::StatementTimeout, "busy")
+
+      expect { described_class.new.perform(article) }.to raise_error(ActiveRecord::StatementTimeout)
+      expect(ArticleJudgment.where(article: article)).to be_empty
+      expect(Article.awaiting_judgment).to include(article)
+    end
+
     it "再試行を待つ間は、枠を決めない" do
       allow(scorer).to receive(:call).and_raise(Judgments::ArticleScorer::TransientError, "API エラー (HTTP 503)")
 

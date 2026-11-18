@@ -301,6 +301,15 @@ main:has(#toast > *) {
   from { transform: translateY(calc(var(--reel-steps) * 1rem)); }
   to { transform: translateY(1rem); }
 }
+/* 止まる帯は決まった段の名が窓の幅を作るが、待つ間は実の文字が無い。見えない札を高さ 0 で置き、一番長い段の名に窓の幅を合わせる */
+.reel-pending::after {
+  content: attr(data-reel);
+  content: attr(data-reel) / "";
+  display: block;
+  height: 0;
+  visibility: hidden;
+  white-space: pre;
+}
 /* tier-glow と同じ詳細度なので、一括指定で上書きすると止まった後の光が消える。二つを並べて書く。光の筋もリールが止まってから走らせ、走る前と後は枠の外に置く */
 .reel-gold {
   background-image: linear-gradient(110deg, transparent 30%, rgb(255 255 255 / 0.7) 50%, transparent 70%);

@@ -309,7 +309,7 @@ RSpec.describe "Readings", type: :request do
         expect { post_expand(article) }.not_to have_enqueued_job(Claude::SummarizeArticleJob)
 
         expect(detail(article)).to have_css("[data-tier='#{rare[:name]}']", text: "レア ・ 完読でレアカード")
-        expect(detail(article)).to have_no_css(".reel, .coins") # 枠はもう決まっているので回さない
+        expect(detail(article)).to have_no_css(".reel, .coins")
         expect(Reading.count).to eq(1)
       end
 
