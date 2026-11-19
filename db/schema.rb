@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_18_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_19_000000) do
   create_table "article_judgments", force: :cascade do |t|
     t.integer "article_id", null: false
     t.float "originality"
@@ -87,6 +87,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_000000) do
     t.index ["url"], name: "index_feeds_on_url", unique: true
   end
 
+  create_table "purged_articles", force: :cascade do |t|
+    t.integer "feed_id", null: false
+    t.string "guid"
+    t.string "url", null: false
+    t.string "reason", null: false
+    t.datetime "purged_at", null: false
+    t.index ["feed_id", "guid"], name: "index_purged_articles_on_feed_id_and_guid", unique: true
+    t.index ["url"], name: "index_purged_articles_on_url", unique: true
+  end
+
   create_table "push_subscriptions", force: :cascade do |t|
     t.string "endpoint", null: false
     t.string "p256dh", null: false
@@ -131,6 +141,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_000000) do
 
   add_foreign_key "article_judgments", "articles", on_delete: :cascade
   add_foreign_key "articles", "feeds"
+  add_foreign_key "purged_articles", "feeds", on_delete: :cascade
   add_foreign_key "readings", "articles"
   add_foreign_key "sessions", "users"
 end

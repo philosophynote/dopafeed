@@ -35,3 +35,21 @@ RSpec.describe "articles:refetch_images" do
     expect(article.reload.content_fetched_at).to eq(fetched_at)
   end
 end
+
+RSpec.describe "articles:purge" do
+  before(:all) { Rails.application.load_tasks if Rake::Task.tasks.none? { |t| t.name == "articles:purge" } }
+
+  let(:task) { Rake::Task["articles:purge"] }
+
+  after { task.reenable }
+
+  it "期限を過ぎた記事を消し、区分ごとの本数を出す" do
+    allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.merge(retention: { dismissed_days: 1, unread_days: 3 }))
+    create(:article, dismissed_at: 2.days.ago)
+    create(:article, created_at: 4.days.ago)
+    kept = create(:article)
+
+    expect { task.invoke }.to output(/削除済み 1 本、未読 1 本/).to_stdout
+    expect(Article.pluck(:id)).to eq([ kept.id ])
+  end
+end
