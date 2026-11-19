@@ -15,6 +15,7 @@ RSpec.describe "config/recurring.yml" do
   it "production で PurgeArticlesJob を定期的に積む" do
     task = recurring.fetch("production").fetch("purge_articles")
     expect(task["class"]).to eq("PurgeArticlesJob")
+    expect(task["queue"]).to eq("feeds")
     expect(task["schedule"]).to be_present
   end
 end

@@ -69,6 +69,63 @@ RSpec.describe ArticleRetention do
     end
   end
 
+  describe "開いた・戻った記事" do
+    it "前の読書日から開いた記事は、3 日を過ぎていても読んでいる途中なので残す" do
+      article = create(:article, created_at: now - 10.days)
+      create(:reading, article: article, opened_at: now - 1.hour)
+
+      expect(purge.unread).to eq(0)
+      expect(Article.exists?(article.id)).to be(true)
+    end
+
+    it "今日の連続を切っている未完の行は消さず、「n 連続」を伸ばさない" do
+      first = create(:article)
+      create(:reading, :completed, article: first, opened_at: now - 3.hours)
+      broken = create(:article, created_at: now - 10.days)
+      create(:reading, article: broken, opened_at: now - 2.hours, returned_at: now - 2.hours + 5.seconds)
+      last = create(:article)
+      create(:reading, :completed, article: last, opened_at: now - 1.hour)
+
+      expect { purge }.not_to change { Combo.new(before: now).count }
+      expect(Article.exists?(broken.id)).to be(true)
+    end
+  end
+
+  describe "抜き出してから消すまでに記事が変わったとき" do
+    let!(:article) { create(:article, :opened, created_at: now - 10.days) }
+
+    def interleave(&change)
+      allow(Article).to receive(:transaction).and_wrap_original do |original, *args, **kwargs, &block|
+        change.call
+        original.call(*args, **kwargs, &block)
+      end
+    end
+
+    it "完読が付いた記事は、カードごと残す" do
+      interleave { article.reading.update!(returned_at: now, completed_at: now) }
+
+      expect(purge.unread).to eq(0)
+      expect(Reading.completed.where(article: article)).to exist
+    end
+
+    it "保存が付いた記事は残す" do
+      interleave { article.update!(bookmarked_at: now) }
+
+      expect(purge.unread).to eq(0)
+      expect(Article.exists?(article.id)).to be(true)
+    end
+  end
+
+  it "途中で失敗したら、目印も記事も書く前に戻す（目印と削除は同じトランザクション）" do
+    article = create(:article, :opened, created_at: now - 10.days)
+    allow(Reading).to receive(:where).and_call_original
+    allow(Reading).to receive(:where).with(article_id: [ article.id ]).and_raise(ActiveRecord::StatementInvalid, "disk I/O error")
+
+    expect { purge }.to raise_error(ActiveRecord::StatementInvalid)
+    expect(PurgedArticle.count).to eq(0)
+    expect(Article.exists?(article.id)).to be(true)
+  end
+
   describe "消したときの記録" do
     it "判定も消え、消した記事の目印が理由つきで 1 行ずつ残る" do
       dismissed = create(:article, guid: "g-1", dismissed_at: now - 2.days)

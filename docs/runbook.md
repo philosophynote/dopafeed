@@ -418,7 +418,7 @@ bin/rails runner 'p Reading.where.not(tier: [ nil, *Dopamine.rarity_names ]).plu
 
 ## 2-j. 古い記事の自動削除（ADR 0027）
 
-毎時 42 分に `PurgeArticlesJob` が、削除済みの記事（削除から `retention.dismissed_days` 日）と未読の記事（取得から `retention.unread_days` 日）を消す。保存した記事と完読した記事（カード）は消さない。消した記事は `purged_articles` に目印が残り、フィードに載っていても取り直さない。
+毎時 42 分に `PurgeArticlesJob` が、削除済みの記事（削除から `retention.dismissed_days` 日）と未読の記事（取得から `retention.unread_days` 日）を消す。保存した記事、完読した記事（カード）、前の読書日から開いた・戻った記事は消さない。消した記事は `purged_articles` に目印が残り、フィードに載っていても取り直さない。
 
 - 手で回す: `bin/rails articles:purge`（本番はコンテナの中で。消した本数を出す）
 - 何本消したか: `kamal logs` の `[retention]`、または `bin/rails runner 'p PurgedArticle.group(:reason).count'`

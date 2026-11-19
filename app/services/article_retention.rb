@@ -1,5 +1,3 @@
-# 保存した記事と完読した記事（カード）は日数を過ぎても消さない。
-# 日数の鍵が無い区分は消さない。消した記事は戻せないので、設定の書き漏れで消えるより残る方を選ぶ。
 class ArticleRetention
   Result = Data.define(:dismissed, :unread)
 
@@ -22,23 +20,34 @@ class ArticleRetention
 
   attr_reader :now
 
+  # 日数の鍵が無い区分は消さない。消した記事は戻せないので、設定の書き漏れで消えるより残る方を選ぶ。
+  # in_batches が渡す batch は rewhere(id:) で id の条件（完読の除外）を落とすため、条件は expired から組み直す。
   def purge(reason, key)
     days = Dopamine.settings.dig(:retention, key)
     return 0 if days.nil?
 
     expired = keepable_excluded(yield(now - days.days))
-    expired.in_batches.sum { |batch| purge_batch(batch, reason) }
+    expired.in_batches.sum { |batch| purge_batch(expired.where(id: batch.ids), reason) }
   end
 
+  # 前の読書日から開いた・戻った記事を消すと、読んでいる途中の記事が消え、
+  # 今日の連続を切っていた未完の行が消えて「n 連続」が伸びる。
   def keepable_excluded(scope)
-    scope.where(liked_at: nil, bookmarked_at: nil).where.not(id: Reading.completed.select(:article_id))
+    touched = Reading.where(opened_at: recent..).or(Reading.where(returned_at: recent..))
+    scope.where(liked_at: nil, bookmarked_at: nil)
+         .where.not(id: Reading.completed.select(:article_id))
+         .where.not(id: touched.select(:article_id))
   end
 
-  # 抜き出してから消すまでの間に保存・完読が付くと、それを消してしまう。条件を持ったままの batch をトランザクションの中で引き直す。
+  def recent
+    @recent ||= ReadingDay.range(ReadingDay.of(now).prev_day).begin
+  end
+
+  # 抜き出してから書き込みのロックを取るまでに保存・完読が付いた記事を消さないよう、トランザクションの中で引き直す。
   # 判定の行は外部キーの on_delete: :cascade で消える。
-  def purge_batch(batch, reason)
+  def purge_batch(candidates, reason)
     Article.transaction do
-      rows = batch.pluck(:id, :feed_id, :guid, :url)
+      rows = candidates.pluck(:id, :feed_id, :guid, :url)
       next 0 if rows.empty?
 
       ids = rows.map(&:first)
