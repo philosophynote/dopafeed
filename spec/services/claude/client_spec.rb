@@ -5,28 +5,37 @@ RSpec.describe Claude::Client do
     end
   end
 
-  it "ANTHROPIC_API_KEY があれば SDK のクライアントを返す" do
+  it "ANTHROPIC_API_KEY があれば、その鍵を持つ RubyLLM の context を返す" do
     with_env("ANTHROPIC_API_KEY" => "test-key") do
-      expect(described_class.build).to be_a(Anthropic::Client)
+      context = described_class.build
+
+      expect(context).to be_a(RubyLLM::Context)
+      expect(context.config.anthropic_api_key).to eq("test-key")
     end
+  end
+
+  it "鍵は呼び出しごとの context にだけ入り、RubyLLM の全体の設定には残らない" do
+    with_env("ANTHROPIC_API_KEY" => "test-key") { described_class.build }
+
+    expect(RubyLLM.config.anthropic_api_key).not_to eq("test-key")
   end
 
   describe "HTTP の待ちと再試行" do
     around { |example| with_env("ANTHROPIC_API_KEY" => "test-key") { example.run } }
 
     it "タイムアウトは claude.timeout_seconds" do
-      expect(described_class.build.timeout).to eq(Dopamine.settings.dig(:claude, :timeout_seconds))
+      expect(described_class.build.config.request_timeout).to eq(Dopamine.settings.dig(:claude, :timeout_seconds))
     end
 
     it "claude.timeout_seconds は同じ記事の要約 Job の重なり止めの期間より短い（長いと期間が切れて 2 本目が走る）" do
       expect(Dopamine.settings.dig(:claude, :timeout_seconds).seconds).to be < Claude::SummarizeArticleJob.concurrency_duration
     end
 
-    it "SDK は再試行しない（やり直しは Job の retry_on だけが持つ）" do
-      expect(described_class.build.max_retries).to eq(0)
+    it "gem は再試行しない（やり直しは Job の retry_on だけが持つ）" do
+      expect(described_class.build.config.max_retries).to eq(0)
     end
 
-    it "claude.timeout_seconds が無ければ KeyError で止まる（黙って 600 秒に落ちない）" do
+    it "claude.timeout_seconds が無ければ KeyError で止まる（黙って gem の既定の 300 秒に落ちない）" do
       settings = Dopamine.settings
       settings[:claude] = settings[:claude].except(:timeout_seconds)
       allow(Dopamine).to receive(:settings).and_return(settings)
