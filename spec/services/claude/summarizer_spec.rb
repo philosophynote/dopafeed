@@ -57,7 +57,8 @@ RSpec.describe Claude::Summarizer do
       expect(content).to eq(file_fixture("claude/summary_prompt.txt").read)
     end
 
-    it "鍵は x-api-key で送り、thinking は明示して切る（モデルの既定の思考が max_tokens を食わないように）。temperature・tools は付けない" do
+    # gem は同梱の一覧に無いモデルの思考を切れず、要求の前に失敗する。yml だけ新しいモデルに替えるとここで落ちる
+    it "鍵は x-api-key で送り、yml のモデルの思考を明示して切る（既定の思考が max_tokens を食わないように）。temperature・tools は付けない" do
       described_class.new(article).call
 
       expect(@request.headers["X-Api-Key"]).to eq("test-key")
@@ -150,9 +151,18 @@ RSpec.describe Claude::Summarizer do
       expect(described_class.new(article).call).to eq(three_lines)
     end
 
-    it "200 でも本文が Messages API の形でなければ、gem の外の例外を漏らさず Error" do
+    it "JSON として読めない 200 は記録して終わりの Error（再試行しない）" do
       stub_claude(body: "<html>bad gateway</html>")
-      expect { described_class.new(article).call }.to raise_error(described_class::Error)
+      expect { described_class.new(article).call }.to raise_error(described_class::Error, "応答の形式が不正 (HTTP 200)") do |error|
+        expect(error).not_to be_a(described_class::TransientError)
+      end
+    end
+
+    it "gem が RubyLLM::Error 以外を上げても Job の外へ漏らさず、記録して終わりの Error（漏れると失敗が残らず開くたびに払い直す）" do
+      stub_request(:post, endpoint).to_return(status: 200, body: "<html>ok</html>", headers: { "Content-Type" => "text/html" })
+      expect { described_class.new(article).call }.to raise_error(described_class::Error, /\A応答の形式が不正 \((?!HTTP)/) do |error|
+        expect(error).not_to be_a(described_class::TransientError)
+      end
     end
   end
 
