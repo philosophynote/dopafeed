@@ -154,7 +154,7 @@ RSpec.describe "Reader", type: :system do
     expect(page).to have_no_css("figure")
   end
 
-  it "戻りの合図を拾えなかったときは、開いた後に出る「読み終えた」で判定する" do
+  it "戻りの合図を拾えなかったときは、開いた後に出る「読み終えた」を指で押して判定する" do
     article = create(:article, title: "合図の無い記事", url: source_url("silent"), summary: "・一")
     sign_in
 
@@ -162,9 +162,12 @@ RSpec.describe "Reader", type: :system do
     expect(page).to have_no_button("読み終えた")
 
     # 合図を拾えなかった体にする（iPhone のシートで focus も visibilitychange も来ない場合）。
-    # 別窓を開かせなければ Reader は隠れも focus を失いもしないので、リンクの遷移だけ止める（sheet#open は走る）
+    # 別窓を開かせなければ Reader は隠れも focus を失いもしないので、リンクの遷移だけ止める（sheet#open は走る）。
+    # 二重送信は画面では数えられない（2 本目の応答が置き換える form は 1 本目の応答で消えている）ので、送信の始まりを数える
     page.execute_script(<<~JS)
       document.addEventListener("click", (event) => { if (event.target.closest("a[target=_blank]")) event.preventDefault() }, true)
+      window.__finishSubmits = 0
+      document.addEventListener("turbo:submit-start", (event) => { if (event.target.matches("[data-sheet-target~=finish]")) window.__finishSubmits += 1 })
     JS
     since = article.reload.reading.opened_at
     click_on "記事を開く"
@@ -175,10 +178,11 @@ RSpec.describe "Reader", type: :system do
     expect(article.reading.reload.returned_at).to be_nil
     screenshot!("opened")
 
-    click_on "読み終えた"
+    native_click(find_button("読み終えた"))
 
     expect(page).to have_css("section[aria-label='判定']", text: "カードを手に入れた！")
     expect(page).to have_text("全部読んだ")
+    expect(page.evaluate_script("window.__finishSubmits")).to eq(1)
     expect(article.reading.reload).to be_completed
   end
 

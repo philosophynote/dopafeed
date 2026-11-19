@@ -91,6 +91,9 @@ export default class extends Controller {
       }
     }
     const handed = this.dispatch("finish", { detail: { form, submitter, send }, cancelable: true })
-    if (!handed.defaultPrevented) send()
+    if (handed.defaultPrevented) return
+
+    // 指で押した submit を配っている最中の requestSubmit は仕様どおり黙って無視されるので、その場では送らない
+    setTimeout(() => { if (form.isConnected) send() })
   }
 }
