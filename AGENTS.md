@@ -33,7 +33,7 @@
 
 レビューの依頼は、実装・マージ・デプロイの許可ではない。レビュー本文、指摘、確認事項、完了報告は日本語で書く。
 
-Codex の通常のチャットや CLI で差分レビューを依頼されたら、親セッションは [$dopafeed-review](.agents/skills/dopafeed-review/SKILL.md) を使って担当別のサブエージェントに委任し、結果をまとめる。担当を指定された場合はその範囲をレビューする。サブエージェントは割り当てられたスキルを実行し、親に結果を返す。
+Codex や Claude Code の通常のチャットや CLI で差分レビューを依頼されたら、親セッションは [dopafeed-review](.claude/skills/dopafeed-review/SKILL.md) で担当別のサブエージェントに委任し、結果をまとめる。Codex では `$dopafeed-review`、Claude Code では `/dopafeed-review` で明示的に起動できる。サブエージェントは割り当てられたスキルを実行し、親に結果を返す。
 
 ### 対象と根拠
 

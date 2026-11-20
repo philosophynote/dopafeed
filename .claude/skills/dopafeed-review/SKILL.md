@@ -14,17 +14,17 @@ description: Dopafeed の PR、ブランチ、コミット、作業ツリーの�
 
 ## 担当別にレビューする
 
-親セッションから次のカスタムサブエージェントを1体ずつ並列に起動する。依頼で観点を限定された場合は、該当する担当だけを起動する。
+親セッションから、使用中のクライアントの列にあるカスタムサブエージェントを担当ごとに1体ずつ並列に起動する。Claude Code では `Agent` ツールの `subagent_type` に Claude Code のエージェント名を指定する。依頼で観点を限定された場合は、該当する担当だけを起動する。
 
-| エージェント名 | 実行するスキル | 担当 |
-| --- | --- | --- |
-| `dopafeed_review_data` | [dopafeed-review-data](../dopafeed-review-data/SKILL.md) | モデル、SQLite、ジョブ、外部 API |
-| `dopafeed_review_web` | [dopafeed-review-web](../dopafeed-review-web/SKILL.md) | ルーティング、認証、画面、Hotwire |
-| `dopafeed_review_quality` | [dopafeed-review-quality](../dopafeed-review-quality/SKILL.md) | 受け入れ条件、RSpec、保守性、設定や文書 |
+| Codex のエージェント名 | Claude Code のエージェント名 | 実行するスキル | 担当 |
+| --- | --- | --- | --- |
+| `dopafeed_review_data` | `dopafeed-review-data` | [dopafeed-review-data](../dopafeed-review-data/SKILL.md) | モデル、SQLite、ジョブ、外部 API |
+| `dopafeed_review_web` | `dopafeed-review-web` | [dopafeed-review-web](../dopafeed-review-web/SKILL.md) | ルーティング、認証、画面、Hotwire |
+| `dopafeed_review_quality` | `dopafeed-review-quality` | [dopafeed-review-quality](../dopafeed-review-quality/SKILL.md) | 受け入れ条件、RSpec、保守性、設定や文書 |
 
 各担当に比較元・対象の版、変更ファイル、関連資料、取得できなかった情報を渡す。担当スキルを読み、担当外の差分も接続先を確認するために参照するよう依頼する。各担当には検査した経路、対象外の理由、指摘と根拠、実行した検証と結果、未確認事項を返してもらう。
 
-エージェントの起動数に制約があれば、結果を回収して今回起動した完了済みのスレッドを閉じ、空いた枠で残りを実行する。委任が利用できない担当は親が同じスキルで検査し、代行した担当と検査の制約を報告する。
+エージェントの起動数に制約があれば、結果を回収して空いた枠で残りを起動する。Codex では今回起動した完了済みのスレッドを閉じて枠を空ける。委任が利用できない担当は親が同じスキルで検査し、代行した担当と検査の制約を報告する。
 
 ## 結果を統合する
 
