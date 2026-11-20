@@ -30,9 +30,14 @@ module Comments
     rescue Commenter::Error => e
       self.class.record_failure(article, e.message)
     rescue Claude::Budget::Exhausted
-      # 捨てるのは親の discard_on。頼んだ印を残すと、読み直すたびに「考え中」のまま待ち続ける
+      # 捨てるのは親の discard_on。頼んだ印を残すと、読み直しても待ち状態のまま残る
       article.update!(comments_requested_at: nil)
       self.class.broadcast(article, exhausted: true)
+      raise
+    rescue StandardError => e
+      # 設定の誤りは畳まずに上げるが、記録しないと頼んだ印だけが残り、押し直す手段が無くなる。
+      # 例外の文面は SQL や要求を含みうるので、クラス名だけを残す
+      self.class.record_failure(article, "予期しない失敗 (#{e.class.name.demodulize})")
       raise
     end
 
@@ -43,7 +48,7 @@ module Comments
       broadcast(article)
     end
 
-    # 読み直してから描く。重なった別の実行が先に保存していれば、失敗や上限ではなくそちらを出す
+    # 重なった別の実行が先に保存していれば、失敗や上限ではなくそちらを出す
     def self.broadcast(article, exhausted: false)
       article.reload
       Turbo::StreamsChannel.broadcast_replace_to(article, :comments, target: ActionView::RecordIdentifier.dom_id(article, :comments_box),

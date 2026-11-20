@@ -73,6 +73,15 @@ RSpec.describe Comments::CommentArticleJob, type: :job do
     expect(article.comments_failed_at).to be_present
   end
 
+  it "想定外の例外（鍵の欠け・DB の混雑など）も失敗として記録してから上げ直し、頼んだまま待ち続けさせない" do
+    article.update!(comments_requested_at: Time.current)
+    allow(commenter).to receive(:call).and_raise(KeyError, "key not found: \"XAI_API_KEY\"")
+
+    expect { described_class.perform_now(article) }.to raise_error(KeyError)
+    expect(article.reload).to have_attributes(comments_error: "予期しない失敗 (KeyError)")
+    expect(article.comments_failed_at).to be_present
+  end
+
   it "予算切れは捨て、記事には何も残さない" do
     allow(commenter).to receive(:call).and_raise(Claude::Budget::Exhausted, "Claude daily call limit reached (200/200)")
 

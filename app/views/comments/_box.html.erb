@@ -12,7 +12,7 @@
         <%= link_to "別の #{shown.size} 人を見る", article_comments_path(article, except: shown.map(&:persona_id).join(",")),
                     class: "mt-3 flex h-11 w-full items-center justify-center rounded-full border border-gray-300 bg-white text-sm font-bold text-gray-700 active:bg-gray-100" %>
       <% when :pending %>
-        <p class="py-4 text-center text-sm text-gray-400 animate-pulse" role="status">誰が口を出すか、考え中…</p>
+        <p class="py-4 text-center text-sm text-gray-400 motion-safe:animate-pulse" role="status">誰が口を出すか、考え中…</p>
       <% when :failed %>
         <p class="pt-2 text-center text-sm text-gray-500">口を出せませんでした</p>
         <%= button_to "もう一度", article_comments_path(article), form_class: "mt-3",

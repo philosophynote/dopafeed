@@ -39,6 +39,46 @@ RSpec.describe "Comments", type: :system do
     expect(page).to have_current_path(root_path)
   end
 
+  it "出来上がりの知らせを取りこぼしても、購読がつながり直したときに欄を取り直して 3 人を出す" do
+    allow(Comments::Commenter).to receive(:new).and_return(instance_double(Comments::Commenter, call: bodies))
+    allow(Comments::CommentArticleJob).to receive(:broadcast)
+    article = create(:article, :awaiting_summary, summary: "・要約", title: "知らせを落とす記事")
+    sign_in
+
+    expand("知らせを落とす記事")
+    click_button "コメントを見る"
+    source = find("##{ActionView::RecordIdentifier.dom_id(article, :comments_box)} turbo-cable-stream-source[connected]", visible: :all)
+
+    Comments::CommentArticleJob.perform_now(article)
+    expect(page).to have_css("section[aria-label='コメント']", text: "考え中")
+    source.execute_script("this.removeAttribute('connected'); this.setAttribute('connected', '')")
+
+    expect(page).to have_css("[data-persona-id]", count: 3)
+    expect(page).to have_no_css("##{ActionView::RecordIdentifier.dom_id(article, :comments_box)} turbo-cable-stream-source", visible: :all)
+  end
+
+  it "失敗が届くと「口を出せませんでした」、「もう一度」で頼み直して「考え中」に戻る" do
+    allow(Comments::Commenter).to receive(:new).and_return(instance_double(Comments::Commenter).tap do |commenter|
+      allow(commenter).to receive(:call).and_raise(Comments::Commenter::MalformedResponse, "応答の形式が不正")
+    end)
+    article = create(:article, :awaiting_summary, summary: "・要約", title: "失敗する記事")
+    sign_in
+
+    expand("失敗する記事")
+    click_button "コメントを見る"
+    find("##{ActionView::RecordIdentifier.dom_id(article, :comments_box)} turbo-cable-stream-source[connected]", visible: :all)
+    Comments::CommentArticleJob.perform_now(article)
+
+    expect(page).to have_css("section[aria-label='コメント']", text: "口を出せませんでした")
+    screenshot!("failed")
+    requested_at = article.reload.comments_requested_at
+    click_button "もう一度"
+
+    expect(page).to have_css("section[aria-label='コメント']", text: "考え中")
+    expect(article.reload).to have_attributes(comments_failed_at: nil, comments_error: nil)
+    expect(article.comments_requested_at).to be > requested_at
+  end
+
   it "今日の上限に達していれば、押すと「今日はもう口を出せません」" do
     create(:article, :awaiting_summary, summary: "・要約", title: "上限の日の記事")
     allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true))

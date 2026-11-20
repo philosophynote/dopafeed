@@ -18,7 +18,7 @@ module CommentsHelper
     :closed
   end
 
-  # 直前の組と重ならないよう残りから選ぶ。残りが足りなければ全員から選ぶ。
+  # 人物を減らして残りが足りなくなっても、空や欠けた組を出さないよう全員から選び直す。
   def shown_persona_comments(article, except: [])
     count = Dopamine.settings.dig(:comments, :personas_shown)
     saved = article.persona_comments.select(&:persona)
