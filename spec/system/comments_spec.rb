@@ -47,14 +47,18 @@ RSpec.describe "Comments", type: :system do
 
     expand("知らせを落とす記事")
     click_button "コメントを見る"
-    source = find("##{ActionView::RecordIdentifier.dom_id(article, :comments_box)} turbo-cable-stream-source[connected]", visible: :all)
+    box_id = ActionView::RecordIdentifier.dom_id(article, :comments_box)
+    find("##{box_id} turbo-cable-stream-source[connected]", visible: :all)
 
+    # 知らせは止めてあるので、3 人が出るのは購読のつながり直しで欄を取り直したときだけ
     Comments::CommentArticleJob.perform_now(article)
-    expect(page).to have_css("section[aria-label='コメント']", text: "考え中")
-    source.execute_script("this.removeAttribute('connected'); this.setAttribute('connected', '')")
+    page.execute_script(<<~JS, box_id)
+      const source = document.querySelector(`#${arguments[0]} turbo-cable-stream-source`)
+      if (source) { source.removeAttribute("connected"); source.setAttribute("connected", "") }
+    JS
 
     expect(page).to have_css("[data-persona-id]", count: 3)
-    expect(page).to have_no_css("##{ActionView::RecordIdentifier.dom_id(article, :comments_box)} turbo-cable-stream-source", visible: :all)
+    expect(page).to have_no_css("##{box_id} turbo-cable-stream-source", visible: :all)
   end
 
   it "失敗が届くと「口を出せませんでした」、「もう一度」で頼み直して「考え中」に戻る" do
@@ -79,15 +83,15 @@ RSpec.describe "Comments", type: :system do
     expect(article.comments_requested_at).to be > requested_at
   end
 
-  it "今日の上限に達していれば、押すと「今日はもう口を出せません」" do
+  it "今日の上限に達していれば、広げた欄に「今日はもう口を出せません」が出て、押すボタンは出ない" do
     create(:article, :awaiting_summary, summary: "・要約", title: "上限の日の記事")
     allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true))
     sign_in
 
     expand("上限の日の記事")
-    click_button "コメントを見る"
 
     expect(page).to have_css("section[aria-label='コメント']", text: "今日はもう口を出せません")
+    expect(page).to have_no_button("コメントを見る")
     screenshot!("exhausted")
   end
 

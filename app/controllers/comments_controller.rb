@@ -30,7 +30,10 @@ class CommentsController < ApplicationController
 
   def request_comments
     @article.update!(comments_requested_at: Time.current, comments_failed_at: nil, comments_error: nil)
-    Comments::CommentArticleJob.perform_later(@article)
+    return if Comments::CommentArticleJob.perform_later(@article)
+
+    # 積めなかったのに頼んだ印を残すと、走る Job が無いまま待ち続けて押し直せない
+    @article.update!(comments_requested_at: nil, comments_failed_at: Time.current, comments_error: "Job を積めなかった")
   end
 
   def set_article

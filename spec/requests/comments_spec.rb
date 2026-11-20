@@ -68,6 +68,25 @@ RSpec.describe "Comments", type: :request do
       expect(response.body).to include("今日はもう口を出せません")
     end
 
+    it "Job を積めなかったら頼んだ印を残さず、失敗として「もう一度」を出す（待ち続けない）" do
+      allow(Comments::CommentArticleJob).to receive(:perform_later).and_return(false)
+
+      post article_comments_path(article), as: :turbo_stream
+
+      expect(article.reload).to have_attributes(comments_requested_at: nil, comments_error: "Job を積めなかった")
+      expect(article.comments_failed_at).to be_present
+      expect(response.body).to include("口を出せませんでした", "もう一度")
+    end
+
+    it "Job の中で上限に達して知らせを取りこぼしても、取り直すと「今日はもう口を出せません」" do
+      allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true))
+
+      get article_comments_path(article)
+
+      expect(page).to have_text("今日はもう口を出せません")
+      expect(page).to have_no_button("コメントを見る")
+    end
+
     it "JS が無いときは積んだ後にコメントの画面へ戻す" do
       post article_comments_path(article)
 

@@ -14,6 +14,8 @@ module CommentsHelper
     return :exhausted if exhausted
     return :failed if article.comments_failed_at.present?
     return :pending if article.comments_requested_at.present?
+    # Job の中で切れた知らせを取りこぼしても、取り直したときに上限を出す
+    return :exhausted if comments_budget_exhausted?
 
     :closed
   end
