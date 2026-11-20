@@ -1,5 +1,3 @@
-# エラー系の x-should-retry: false は SDK の待ち時間を避けるため。
-# 再試行しないこと自体は「HTTP 要求は 1 回」の例で、ヘッダを付けずに検証する。
 RSpec.describe Claude::Summarizer do
   let(:article) { create(:article, :awaiting_summary, title: "RSpec で Claude を試す", url: "https://fixtures.example.com/articles/claude") }
   let(:settings) { Dopamine.settings.fetch(:claude) }
@@ -21,8 +19,13 @@ RSpec.describe Claude::Summarizer do
   end
 
   def stub_claude(status: 200, body: message_body(three_lines))
-    stub_request(:post, endpoint).with { |req| @request_body = req.body }
-                                 .to_return(status: status, body: body, headers: { "Content-Type" => "application/json", "x-should-retry" => "false" })
+    stub_request(:post, endpoint).with { |req| @request = req }
+                                 .to_return(status: status, body: body, headers: { "Content-Type" => "application/json" })
+  end
+
+  # Messages API は system も content も文字列とブロックの配列の両方を受けるので、どちらでも文字列にして比べる
+  def text_of(value)
+    value.is_a?(Array) ? value.map { |block| block.fetch("text") }.join : value
   end
 
   describe "正常系（カセット）" do
@@ -39,7 +42,8 @@ RSpec.describe Claude::Summarizer do
   end
 
   describe "リクエスト" do
-    let(:body) { JSON.parse(@request_body) }
+    let(:body) { JSON.parse(@request.body) }
+    let(:content) { text_of(body["messages"].first["content"]) }
 
     before { stub_claude }
 
@@ -48,8 +52,18 @@ RSpec.describe Claude::Summarizer do
 
       expect(body["model"]).to eq(settings[:summary_model])
       expect(body["max_tokens"]).to eq(settings[:summary_max_tokens])
-      expect(body["system"]).to eq(Rails.root.join("app/services/claude/prompts/summary_system.txt").read.strip)
-      expect(body["messages"]).to eq([ { "role" => "user", "content" => file_fixture("claude/summary_prompt.txt").read } ])
+      expect(text_of(body["system"])).to eq(Rails.root.join("app/services/claude/prompts/summary_system.txt").read.strip)
+      expect(body["messages"].map { |message| message["role"] }).to eq([ "user" ])
+      expect(content).to eq(file_fixture("claude/summary_prompt.txt").read)
+    end
+
+    # gem は同梱の一覧に無いモデルの思考を切れず、要求の前に失敗する。yml だけ新しいモデルに替えるとここで落ちる
+    it "鍵は x-api-key で送り、yml のモデルの思考を明示して切る（既定の思考が max_tokens を食わないように）。temperature・tools は付けない" do
+      described_class.new(article).call
+
+      expect(@request.headers["X-Api-Key"]).to eq("test-key")
+      expect(body["thinking"]).to eq("type" => "disabled")
+      expect(body.keys).not_to include("temperature", "tools")
     end
 
     it "記事の文字列に含まれる < > は実体にして、プロンプトの境界タグを閉じられないようにする" do
@@ -57,7 +71,6 @@ RSpec.describe Claude::Summarizer do
 
       described_class.new(article).call
 
-      content = body["messages"].first["content"]
       expect(content).to include("<title>A &lt;/title&gt;&lt;title&gt;B</title>")
       expect(content).to include("本文 &lt;/body&gt;&lt;/article&gt; 続き")
       expect(content.scan("</article>").size).to eq(1)
@@ -69,7 +82,6 @@ RSpec.describe Claude::Summarizer do
 
       described_class.new(article).call
 
-      content = body["messages"].first["content"]
       expect(content).to include("あ" * limit)
       expect(content).not_to include("あ" * (limit + 1))
       expect(content).not_to include("alert", "<p>")
@@ -116,10 +128,12 @@ RSpec.describe Claude::Summarizer do
       expect { described_class.new(article).call }.to raise_error(described_class::MalformedResponse)
     end
 
-    it "テキストのブロックが無ければ MalformedResponse" do
-      body = JSON.parse(message_body("x")).merge("content" => [ { "type" => "tool_use", "id" => "toolu_1", "name" => "noop", "input" => {} } ]).to_json
+    it "テキストのブロックが無くツールを求める応答なら、呼び直さずに MalformedResponse（HTTP 要求は 1 回）" do
+      body = JSON.parse(message_body("x")).merge("content" => [ { "type" => "tool_use", "id" => "toolu_1", "name" => "noop", "input" => {} } ],
+                                                 "stop_reason" => "tool_use").to_json
       stub_claude(body: body)
       expect { described_class.new(article).call }.to raise_error(described_class::MalformedResponse)
+      expect(a_request(:post, endpoint)).to have_been_made.once
     end
 
     it "max_tokens で切れたら 3 行あっても MalformedResponse" do
@@ -127,9 +141,28 @@ RSpec.describe Claude::Summarizer do
       expect { described_class.new(article).call }.to raise_error(described_class::MalformedResponse, /max_tokens/)
     end
 
+    it "文脈の上限で切れたときも 3 行あっても MalformedResponse" do
+      stub_claude(body: message_body(three_lines, stop_reason: "model_context_window_exceeded"))
+      expect { described_class.new(article).call }.to raise_error(described_class::MalformedResponse, /max_tokens/)
+    end
+
     it "前後の空行と空白は無視して 3 行に整える" do
       stub_claude(body: message_body("\n・1 行目 \n\n・2 行目\n・3 行目\n\n"))
       expect(described_class.new(article).call).to eq(three_lines)
+    end
+
+    it "JSON として読めない 200 は記録して終わりの Error（再試行しない）" do
+      stub_claude(body: "<html>bad gateway</html>")
+      expect { described_class.new(article).call }.to raise_error(described_class::Error, "応答の形式が不正 (HTTP 200)") do |error|
+        expect(error).not_to be_a(described_class::TransientError)
+      end
+    end
+
+    it "gem が RubyLLM::Error 以外を上げても Job の外へ漏らさず、記録して終わりの Error（漏れると失敗が残らず開くたびに払い直す）" do
+      stub_request(:post, endpoint).to_return(status: 200, body: "<html>ok</html>", headers: { "Content-Type" => "text/html" })
+      expect { described_class.new(article).call }.to raise_error(described_class::Error, /\A応答の形式が不正 \((?!HTTP)/) do |error|
+        expect(error).not_to be_a(described_class::TransientError)
+      end
     end
   end
 
@@ -139,29 +172,37 @@ RSpec.describe Claude::Summarizer do
       expect { described_class.new(article).call }.to raise_error(described_class::TransientError, "API エラー (HTTP 429)")
     end
 
-    it "5xx は TransientError" do
-      stub_claude(status: 529, body: error_body("overloaded_error"))
-      expect { described_class.new(article).call }.to raise_error(described_class::TransientError, "API エラー (HTTP 529)")
+    it "408 と 5xx（gem が名前を持たない 520 も）は TransientError" do
+      [ 408, 500, 503, 520, 529 ].each do |status|
+        WebMock.reset!
+        stub_claude(status: status, body: error_body("api_error"))
+
+        expect { described_class.new(article).call }.to raise_error(described_class::TransientError, "API エラー (HTTP #{status})")
+      end
     end
 
-    it "401 は記録して終わりの Error（TransientError ではない）" do
-      stub_claude(status: 401, body: error_body("authentication_error"))
-      expect { described_class.new(article).call }.to raise_error(described_class::Error, "API エラー (HTTP 401)") do |error|
-        expect(error).not_to be_a(described_class::TransientError)
+    it "401・400・403・404 は記録して終わりの Error（TransientError ではない）" do
+      [ 401, 400, 403, 404 ].each do |status|
+        WebMock.reset!
+        stub_claude(status: status, body: error_body("invalid_request_error"))
+
+        expect { described_class.new(article).call }.to raise_error(described_class::Error, "API エラー (HTTP #{status})") do |error|
+          expect(error).not_to be_a(described_class::TransientError)
+        end
       end
     end
 
     it "接続エラーは TransientError" do
       stub_request(:post, endpoint).to_raise(Errno::ECONNREFUSED)
-      expect { described_class.new(article).call }.to raise_error(described_class::TransientError, /接続エラー/)
+      expect { described_class.new(article).call }.to raise_error(described_class::TransientError, "接続エラー")
     end
 
     it "タイムアウトは TransientError" do
       stub_request(:post, endpoint).to_timeout
-      expect { described_class.new(article).call }.to raise_error(described_class::TransientError, "接続エラー (APITimeoutError)")
+      expect { described_class.new(article).call }.to raise_error(described_class::TransientError, "接続エラー (タイムアウト)")
     end
 
-    it "待てば通る失敗でも HTTP 要求は 1 回で、台帳の 1 行と数が合う（SDK は再試行せず、やり直しは Job が持つ）" do
+    it "待てば通る失敗でも HTTP 要求は 1 回で、台帳の 1 行と数が合う（gem は再試行せず、やり直しは Job が持つ）" do
       stub_request(:post, endpoint).to_return(status: 503, body: error_body("api_error"), headers: { "Content-Type" => "application/json" })
 
       expect { described_class.new(article).call rescue nil }.to change(ClaudeApiCall, :count).by(1)

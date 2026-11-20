@@ -6,14 +6,14 @@ http_interactions:
     uri: https://api.anthropic.com/v1/messages
     body:
       encoding: UTF-8
-      string: '{"model":"claude-haiku-5-5","max_tokens":300,"system":"(summary_system.txt)","messages":[{"role":"user","content":"(summary.erb)"}]}'
+      string: '{"model":"claude-haiku-5-5","messages":[{"role":"user","content":[{"type":"text","text":"(summary.erb)"}]}],"stream":false,"max_tokens":300,"thinking":{"type":"disabled"},"system":[{"type":"text","text":"(summary_system.txt)"}]}'
     headers:
       Content-Type:
       - application/json
       X-Api-Key:
       - "<ANTHROPIC_API_KEY>"
       Anthropic-Version:
-      - '2026-10-21'
+      - '2023-06-01'
   response:
     status:
       code: 200

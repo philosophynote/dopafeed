@@ -3,7 +3,7 @@ RSpec.describe "AGENTS.md の規約" do
 
   it "Claude API は app/services/claude/ の中からしか呼ばない" do
     offenders = Dir[app.join("**/*.rb")].reject { |f| f.include?("/services/claude/") }
-                                        .select { |f| File.read(f).match?(/Anthropic::|ANTHROPIC_API_KEY/) }
+                                        .select { |f| File.read(f).match?(/Anthropic::|ANTHROPIC_API_KEY|anthropic_api_key|provider:\s*:anthropic/) }
     expect(offenders).to be_empty, "Claude API の呼び出しは app/services/claude/ に移し、Job から呼べ:\n#{offenders.join("\n")}"
   end
 
@@ -13,11 +13,11 @@ RSpec.describe "AGENTS.md の規約" do
     expect(offenders).to be_empty, "コントローラ・モデルから Claude:: を直接呼ぶな。app/jobs/ の Job に perform_later させよ:\n#{offenders.join("\n")}"
   end
 
-  it "RubyLLM は app/judges/ と app/services/judgments/ の中からしか呼ばず、コントローラ・モデルからは Job 経由にする" do
-    callers = Dir[app.join("**/*.rb")].reject { |f| f.match?(%r{/(judges|services/judgments)/}) }
+  it "RubyLLM は app/judges/・app/services/judgments/・app/services/claude/ の中からしか呼ばず、コントローラ・モデルからは Job 経由にする" do
+    callers = Dir[app.join("**/*.rb")].reject { |f| f.match?(%r{/(judges|services/judgments|services/claude)/}) }
                                       .select { |f| File.read(f).match?(/RubyLLM|TYPESAFE_API_KEY/) }
     direct = Dir[app.join("{controllers,models}/**/*.rb")].select { |f| File.read(f).match?(/(Judgments::\w+|\w+Judge)\.(new|call|judge)\b/) }
-    expect(callers + direct).to be_empty, "判定の呼び出しは app/services/judgments/ に移し、Job から呼べ:\n#{(callers + direct).join("\n")}"
+    expect(callers + direct).to be_empty, "RubyLLM の呼び出しは app/services/judgments/（判定）か app/services/claude/（Claude）に移し、Job から呼べ:\n#{(callers + direct).join("\n")}"
   end
 
   it "確率・秒数・本数の数字は config/dopamine.yml にだけ置く（app/ と lib/）" do

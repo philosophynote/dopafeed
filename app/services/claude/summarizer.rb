@@ -8,6 +8,7 @@ module Claude
     class TransientError < Error; end
 
     PURPOSE = "summary".freeze
+    TRANSIENT_STATUSES = [ 408, 429 ].freeze
     BULLET = "・".freeze
     # 要約の 3 行は製品仕様であり、報酬の調整値ではないので dopamine.yml には置かない。
     LINES = 3
@@ -37,22 +38,35 @@ module Claude
       @client ||= Client.build
     end
 
+    # gem はモデルの既定で思考を有効にし、3 行ぶんの max_tokens を思考が食って切れるので、明示して切る。
+    # ask はツールを求める応答に答えて呼び直し続け、台帳の 1 行を超えて払うので、1 回だけ生成する generate を使う。
     def request(text)
-      client.messages.create(model: model, max_tokens: max_tokens, system_: system_prompt, messages: [ { role: :user, content: user_prompt(text) } ])
-    rescue Anthropic::Errors::APIConnectionError => e
-      raise TransientError, "接続エラー (#{e.class.name.demodulize})"
-    rescue Anthropic::Errors::RateLimitError, Anthropic::Errors::InternalServerError => e
-      raise TransientError, "API エラー (HTTP #{e.status})"
-    rescue Anthropic::Errors::APIStatusError => e
-      raise Error, "API エラー (HTTP #{e.status})"
-    rescue Anthropic::Errors::Error => e
-      raise Error, "SDK エラー (#{e.class.name.demodulize})"
+      client.chat(model: model, provider: Client::PROVIDER, assume_model_exists: true)
+            .with_instructions(system_prompt)
+            .with_max_output_tokens(max_tokens)
+            .with_thinking(false)
+            .ask_later(user_prompt(text))
+            .generate
+    rescue RubyLLM::Error => e
+      raise classify(e)
+    rescue StandardError => e
+      raise Error, "応答の形式が不正 (#{e.class.name.demodulize})"
+    end
+
+    # gem の例外クラスは 408 や一覧に無い 5xx を素の Error にするので、状態で分ける。
+    # 応答の文面は要求を引用しうるので、失敗の理由には状態だけを残す。
+    def classify(error)
+      status = error.response&.status
+      return TransientError.new(error.try(:timeout?) ? "接続エラー (タイムアウト)" : "接続エラー") if status.nil?
+      return Error.new("応答の形式が不正 (HTTP #{status})") if status < 400
+
+      (status >= 500 || TRANSIENT_STATUSES.include?(status) ? TransientError : Error).new("API エラー (HTTP #{status})")
     end
 
     def parse(message)
-      raise MalformedResponse, "応答の形式が不正 (max_tokens で切れた)" if message.stop_reason.to_s == "max_tokens"
+      raise MalformedResponse, "応答の形式が不正 (max_tokens で切れた)" if message.finish_reason == :max_tokens
 
-      lines = message.content.filter_map { |block| block.text if block.respond_to?(:text) }.join.lines.map(&:strip).reject(&:blank?)
+      lines = message.content.to_s.lines.map(&:strip).reject(&:blank?)
       raise MalformedResponse, "応答の形式が不正" unless lines.size == LINES && lines.all? { |line| line.start_with?(BULLET) }
 
       lines.join("\n")

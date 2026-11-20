@@ -1,5 +1,5 @@
 # CI で未収録の実通信を許さないよう record: :none にする。API キーはカセットから除く。
-# 録り直し: VCR_RECORD=all ANTHROPIC_API_KEY=<実キー> bin/rspec spec/services/claude/summarizer_spec.rb
+# 録り直し: VCR_RECORD=all ANTHROPIC_API_KEY=<実キー> bin/rspec spec/services/claude/summarizer_spec.rb（照合は method と URI だけなので、要求の形が変わっても再生は通る）
 # localhost は Capybara が使うため素通しにする。
 require "vcr"
 

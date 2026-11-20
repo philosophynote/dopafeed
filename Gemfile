@@ -31,7 +31,6 @@ gem "feedjira"
 gem "ruby-readability"
 gem "guess_html_encoding"
 
-gem "anthropic"
 gem "ruby_llm", "~> 2.2"
 
 gem "web-push"
