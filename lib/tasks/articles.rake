@@ -18,4 +18,10 @@ namespace :articles do
     end
     puts "#{count} 本の本文取得を積みました"
   end
+
+  desc "削除済み・未読の記事のうち、config/dopamine.yml の retention の日数を過ぎたものを消す"
+  task purge: :environment do
+    result = ArticleRetention.call
+    puts "削除済み #{result.dismissed} 本、未読 #{result.unread} 本を消しました"
+  end
 end

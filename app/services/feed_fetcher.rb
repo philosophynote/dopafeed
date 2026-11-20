@@ -42,7 +42,7 @@ class FeedFetcher
       next false if title.blank? || !url.start_with?("http://", "https://")
 
       guid = entry.entry_id.presence || url
-      next false if feed.articles.exists?(guid: guid) || Article.exists?(url: url)
+      next false if feed.articles.exists?(guid: guid) || Article.exists?(url: url) || purged?(guid, url)
 
       Article.transaction do
         article = feed.articles.create!(title: title, url: url, guid: guid, published_at: entry.published, content: entry.content.presence || entry.summary)
@@ -52,6 +52,10 @@ class FeedFetcher
     rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
       false
     end
+  end
+
+  def purged?(guid, url)
+    feed.purged_articles.exists?(guid: guid) || PurgedArticle.exists?(url: url)
   end
 
   # 移転先が他の購読の URL なら直さない（同じフィードを二つ購読している。どちらを残すかは人が決める）。

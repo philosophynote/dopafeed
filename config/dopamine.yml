@@ -18,6 +18,9 @@ shared:
   fetch:
     timeout_seconds: 10
     max_body_megabytes: 5
+  retention:
+    dismissed_days: 1
+    unread_days: 3
   swipe:
     dismiss_threshold_ratio: 0.4
     submit_timeout_seconds: 10

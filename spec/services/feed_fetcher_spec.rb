@@ -104,6 +104,27 @@ RSpec.describe FeedFetcher do
     end
   end
 
+  describe "自動で消した記事がまだフィードに載っているとき" do
+    before { stub_feed }
+
+    it "同じ guid の目印があれば、url が変わっていても記事に戻さない" do
+      create(:purged_article, feed: feed, guid: "rss-1", url: "https://fixtures.example.com/rss/1-old")
+      described_class.new(feed).call
+      expect(feed.articles.pluck(:guid)).to contain_exactly("rss-2", "https://fixtures.example.com/rss/3")
+    end
+
+    it "同じ url の目印があれば、別のフィードで消したものでも記事に戻さない" do
+      create(:purged_article, guid: "other-guid", url: "https://fixtures.example.com/rss/2")
+      described_class.new(feed).call
+      expect(feed.articles.pluck(:guid)).to contain_exactly("rss-1", "https://fixtures.example.com/rss/3")
+    end
+
+    it "別のフィードの同じ guid の目印では飛ばさない（guid はフィードの中でだけ一意）" do
+      create(:purged_article, guid: "rss-1")
+      expect { described_class.new(feed).call }.to change(feed.articles, :count).by(3)
+    end
+  end
+
   describe "304 Not Modified" do
     before do
       feed.update!(etag: '"v1"', last_error: "サーバーエラー (HTTP 503)")

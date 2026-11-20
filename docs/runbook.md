@@ -416,6 +416,15 @@ bin/rails runner 'p Reading.where.not(tier: [ nil, *Dopamine.rarity_names ]).plu
 ```
 空でなければ読み替える: `bin/rails runner 'Reading.where(tier: "common").update_all(tier: "normal"); Reading.where(tier: "jackpot").update_all(tier: "ss_rare")'`。
 
+## 2-j. 古い記事の自動削除（ADR 0027）
+
+毎時 42 分に `PurgeArticlesJob` が、削除済みの記事（削除から `retention.dismissed_days` 日）と未読の記事（取得から `retention.unread_days` 日）を消す。保存した記事、完読した記事（カード）、前の読書日から開いた・戻った記事は消さない。消した記事は `purged_articles` に目印が残り、フィードに載っていても取り直さない。
+
+- 手で回す: `bin/rails articles:purge`（本番はコンテナの中で。消した本数を出す）
+- 何本消したか: `kamal logs` の `[retention]`、または `bin/rails runner 'p PurgedArticle.group(:reason).count'`
+- 止める: `config/dopamine.yml` の `retention` の鍵を消してデプロイする（鍵の無い区分は消さない）
+- 誤って消えた: 1-c の時刻指定の復元（72 時間まで）。目印だけ消しても記事は戻らない（次の取得で、まだフィードに載っている項目だけが新着として入り直す）
+
 ## 3. よく使う
 ```sh
 kamal logs            # tail

@@ -11,4 +11,11 @@ RSpec.describe "config/recurring.yml" do
     classes = recurring.fetch("production").values.filter_map { |task| task["class"] }
     expect(classes.grep(/Summar/)).to be_empty
   end
+
+  it "production で PurgeArticlesJob を定期的に積む" do
+    task = recurring.fetch("production").fetch("purge_articles")
+    expect(task["class"]).to eq("PurgeArticlesJob")
+    expect(task["queue"]).to eq("feeds")
+    expect(task["schedule"]).to be_present
+  end
 end
