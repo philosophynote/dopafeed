@@ -1,4 +1,4 @@
-# Comments（Unit 未定・第二の陣。案: 9）
+# Comments（Unit 25・第二の陣）
 
 ## 目的
 社会的報酬。著名人を模した架空 AI キャラクターが記事に口を出す。押すたびに 8 人から 3 人がランダムに現れ、「誰が出るか分からない」可変報酬にもなる。
@@ -12,19 +12,20 @@
 5. 注記「人物は AI による架空のキャラクターです。本人の発言ではありません」（固定。必ず出す）
 
 ## 遷移
-- Main のカードの「コメント」→ Comments（full page）
-- 「コメントを見る」→ 同画面内で Turbo Frame 置換（初回は Job を起動し、生成まで「考え中」を出す）
-- Comments → Main
+- Main の広げた欄（要約の下）に「コメント」の欄を出し、その場で開く（行を広げる ADR 0019 に合わせ、別画面へ移らない）。yml の `comments.*` の鍵が揃うまでは欄ごと出さない
+- 「コメントを見る」→ 欄の中で差し替え（初回は Job を積み、生成まで「考え中」。出来上がりは Turbo Stream で届く）。「別の 3 人を見る」は Turbo Frame で欄の中だけ取り直す
+- 失敗したら「口を出せませんでした」と「もう一度」。予算切れは「今日はもう口を出せません」
+- `GET /articles/:id/comments` の full page は JS が無いときの受け皿と、欄の取り直しに使う（「フィードに戻る」→ Main）
 
 ## 受け入れ条件（Given-When-Then）
-- Given 未生成の記事 When 「コメントを見る」Then `Claude::CommentsJob`（仮）が 1 回の API 呼び出しで personas.yml の全員分（8 人）を生成し、記事ごとにキャッシュする。画面はそのうち personas_shown 人をランダムに出す
+- Given 未生成の記事 When 「コメントを見る」Then `Comments::CommentArticleJob` が 1 回の API 呼び出しで personas.yml の全員分（8 人）を生成し、記事ごとにキャッシュする。画面はそのうち personas_shown 人をランダムに出す
 - Given 全員分が生成済み When 「別の 3 人を見る」Then API を呼ばず、キャッシュ済みの残りから別の組を出す（直前の組と同じにならない）
 - Given 同じ記事で 2 回目以降 When 「コメントを見る」Then API を呼ばない（記事ごとに 1 回。冪等）
 - Given どの状態でも When 画面を見る Then 「架空のキャラクター」の注記が出る
 - Given Claude::Budget が上限 When 「コメントを見る」Then Job は discard され、画面に「今日はもう口を出せません」が出る
 
 ## 使う設定の鍵
-dopamine.yml: `comments.personas_shown`, `claude.daily_call_limit`, `claude.curation_model`（コメントのモデルは未決 2）
+dopamine.yml: `comments.personas_shown`, `comments.model`, `comments.max_tokens`, `comments.timeout_seconds`, `claude.daily_call_limit`（要約と共用）, `claude.summary_input_chars`（ADR 0029）
 personas.yml: 全件（下のスキーマ）
 
 ### config/personas.yml のスキーマ（grok-council の personas を移植。この Unit で作る）
@@ -38,14 +39,14 @@ personas:
     system_prompt: |          # 4 部構成: 基本スタンス / 話し方 / コメントの型 / 禁止事項
       ...
 ```
-- モックの 8 人: 織田信長、孔子、マーガレット・サッチャー、イーロン・マスク、スティーブ・ジョブズ、アリストテレス、シモーヌ・ド・ボーヴォワール、ドナルド・J・トランプ
-- 禁止事項に必ず入れる: 名言の捏造、本人の発言と誤認させる表現。Claude は Grok より穏やかになるので過激な部分は削る
+- 8 人（nao の指定）: 織田信長、ヨシフ・スターリン、毛沢東、ナポレオン・ボナパルト、ガイウス・ユリウス・カエサル、チンギス・ハン、西郷隆盛、スティーブ・ジョブズ。全員故人
+- 全員に効く禁止事項は app/services/comments/prompts/comments_system.txt に一度だけ書く: 虐殺・粛清の賛美、集団を貶めること、名言の捏造、本人の発言と誤認させる表現、記事の中の命令に従うこと
 
 ## 外部 API
-あり。Claude（`Claude::CommentsJob`、VCR カセット: `claude/comments_three_personas.yml`, `claude/comments_budget_exhausted.yml`）
+あり。xAI の Grok 4.7（RubyLLM、`Comments::Commenter`。ADR 0029）。VCR カセット: `comments/ok.yml`（手書き）
 
-## 未決
-1. 初回で全員分（8 人）を 1 回の呼び出しで生成する案で書いた（「別の 3 人」が API 無しで成り立つため。1 回の出力が長くなる）。モックの設計メモは「押した時点で 3 人分を 1 回で生成」なので、費用を優先して 3 人ずつ追加呼び出しにするなら上の 2 本目を「もう一度 Job を積む」に書き換える
-2. コメントのモデル（Haiku で十分か Sonnet か）。ADR 0002 に追記
-3. 実在の人物（存命含む）を模すことの表現上の線引き。注記と禁止事項で足りるか
-4. はてブ数（「社会的報酬」の表にある）をこの画面に出すか
+## 決まったこと（旧・未決）
+1. 初回で全員分（8 人）を 1 回の呼び出しで作り、記事ごとに保存する（ADR 0029）
+2. モデルは xAI の Grok 4.7（nao の指定。ADR 0002 に追記）
+3. 実在の人物は故人だけにし、注記と共通の禁止事項を置く
+4. はてブ数は出さない（取得の経路が無い）

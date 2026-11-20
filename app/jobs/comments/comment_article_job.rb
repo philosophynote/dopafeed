@@ -13,7 +13,8 @@ module Comments
     limits_concurrency key: ->(article) { article.id }
 
     def perform(article)
-      return if article.persona_comments.exists?
+      # 押し直しで積まれた分も、待っている側が出来上がりを受け取れるよう知らせてから終わる
+      return self.class.broadcast(article) if article.persona_comments.exists?
 
       bodies = Commenter.new(article).call
       article.with_lock do
@@ -23,16 +24,30 @@ module Comments
         PersonaComment.insert_all!(bodies.map { |persona_id, body| { article_id: article.id, persona_id:, body:, created_at: now, updated_at: now } })
         article.update!(comments_failed_at: nil, comments_error: nil)
       end
+      self.class.broadcast(article)
     rescue Commenter::TransientError
       raise
     rescue Commenter::Error => e
       self.class.record_failure(article, e.message)
+    rescue Claude::Budget::Exhausted
+      # 捨てるのは親の discard_on。頼んだ印を残すと、読み直すたびに「考え中」のまま待ち続ける
+      article.update!(comments_requested_at: nil)
+      self.class.broadcast(article, exhausted: true)
+      raise
     end
 
     def self.record_failure(article, message)
       article.with_lock do
         article.update!(comments_failed_at: Time.current, comments_error: message) unless article.persona_comments.exists?
       end
+      broadcast(article)
+    end
+
+    # 読み直してから描く。重なった別の実行が先に保存していれば、失敗や上限ではなくそちらを出す
+    def self.broadcast(article, exhausted: false)
+      article.reload
+      Turbo::StreamsChannel.broadcast_replace_to(article, :comments, target: ActionView::RecordIdentifier.dom_id(article, :comments_box),
+                                                                     partial: "comments/box", locals: { article: article, exhausted: exhausted })
     end
   end
 end

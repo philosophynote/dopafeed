@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_20_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_20_010000) do
   create_table "article_judgments", force: :cascade do |t|
     t.integer "article_id", null: false
     t.float "originality"
@@ -50,6 +50,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_000000) do
     t.string "image_url"
     t.datetime "comments_failed_at"
     t.string "comments_error"
+    t.datetime "comments_requested_at"
     t.index ["bookmarked_at"], name: "index_articles_on_bookmarked_at"
     t.index ["dismissed_at"], name: "index_articles_on_dismissed_at"
     t.index ["feed_id", "guid"], name: "index_articles_on_feed_id_and_guid", unique: true
