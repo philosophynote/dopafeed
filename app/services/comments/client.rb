@@ -1,5 +1,4 @@
 module Comments
-  # 要約の Claude::Client と同じく、gem の再試行は切り、待ち時間は設定から必ず取り、鍵は呼ぶたびの context にだけ入れる。
   # 思考込みで 8 人分を書くので、要約の claude.timeout_seconds とは別の待ち時間を使う。
   module Client
     PROVIDER = :xai

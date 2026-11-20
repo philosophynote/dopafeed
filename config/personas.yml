@@ -1,4 +1,4 @@
-# 実在した人物の気質と口調を借りた架空のキャラクター。全員に効く決まりは app/services/comments/prompts/comments_system.txt にある。
+# 全員に効く禁止事項は人物ごとに書かず、app/services/comments/prompts/comments_system.txt に一度だけ書く。
 personas:
   - id: oda-nobunaga
     name: 織田信長

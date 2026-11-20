@@ -29,7 +29,6 @@ module Comments
       self.class.record_failure(article, e.message)
     end
 
-    # 失敗の記録も、先に保存した実行があれば残さない
     def self.record_failure(article, message)
       article.with_lock do
         article.update!(comments_failed_at: Time.current, comments_error: message) unless article.persona_comments.exists?

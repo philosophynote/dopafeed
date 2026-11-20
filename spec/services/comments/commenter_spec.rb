@@ -94,12 +94,20 @@ RSpec.describe Comments::Commenter do
     expect(ClaudeApiCall.count).to eq(0)
   end
 
-  it "API キーか yml の comments.model が無ければ台帳を減らさずに KeyError（設定の誤りは畳まない）" do
+  it "API キーが無ければ台帳を減らさずに KeyError（設定の誤りは畳まない）" do
     with_env("XAI_API_KEY" => nil) { expect { described_class.new(article).call }.to raise_error(KeyError) }
-    comments.delete(:model)
-    expect { described_class.new(article).call }.to raise_error(KeyError, /model/)
-
     expect(ClaudeApiCall.count).to eq(0)
+  end
+
+  %i[model max_tokens].each do |key|
+    it "yml の comments.#{key} が無ければ API を呼ばず台帳も減らさずに KeyError（形式不正に畳まない）" do
+      stub_xai
+      comments.delete(key)
+
+      expect { described_class.new(article).call }.to raise_error(KeyError, /#{key}/)
+      expect(ClaudeApiCall.count).to eq(0)
+      expect(a_request(:post, endpoint)).not_to have_been_made
+    end
   end
 
   it "予算切れなら API を呼ばずに Exhausted" do

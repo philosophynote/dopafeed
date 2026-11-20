@@ -1,5 +1,5 @@
 module Comments
-  # 「別の 3 人」を API なしで出せるよう、1 回で全員分を作る。1 人でも欠けた応答は保存せず失敗として残す。
+  # 組を替えるたびに払わないよう、1 回で全員分を作る。1 人でも欠けた応答は返さず失敗にする。
   class Commenter
     class Error < StandardError; end
     class EmptyContent < Error; end
@@ -23,9 +23,12 @@ module Comments
       text = article.plain_content.first(input_chars)
       raise EmptyContent, "本文が空" if text.blank?
 
-      client # API キーの無い箱で台帳だけ減っていかないよう、記録の前に作る
+      # 設定の欠けで台帳だけ減っていかないよう、鍵と yml の値は記録の前にすべて読む
+      client
+      model = settings.fetch(:model)
+      max_tokens = settings.fetch(:max_tokens)
       budget.record!(purpose: PURPOSE, model: model)
-      parse(request(text))
+      parse(request(text, model:, max_tokens:))
     end
 
     private
@@ -37,7 +40,7 @@ module Comments
     end
 
     # ask はツールを求める応答に答えて呼び直し続け、台帳の 1 行を超えて払うので、1 回だけ生成する generate を使う。
-    def request(text)
+    def request(text, model:, max_tokens:)
       client.chat(model: model, provider: Client::PROVIDER, assume_model_exists: true)
             .with_instructions(system_prompt)
             .with_max_output_tokens(max_tokens)
@@ -116,12 +119,8 @@ module Comments
       string.to_s.gsub("<", "&lt;").gsub(">", "&gt;")
     end
 
-    def model
-      Dopamine.settings.fetch(:comments).fetch(:model)
-    end
-
-    def max_tokens
-      Dopamine.settings.fetch(:comments).fetch(:max_tokens)
+    def settings
+      Dopamine.settings.fetch(:comments)
     end
 
     def input_chars
