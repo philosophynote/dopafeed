@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_19_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_20_000000) do
   create_table "article_judgments", force: :cascade do |t|
     t.integer "article_id", null: false
     t.float "originality"
@@ -48,6 +48,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_000000) do
     t.string "summary_error"
     t.datetime "dismissed_at"
     t.string "image_url"
+    t.datetime "comments_failed_at"
+    t.string "comments_error"
     t.index ["bookmarked_at"], name: "index_articles_on_bookmarked_at"
     t.index ["dismissed_at"], name: "index_articles_on_dismissed_at"
     t.index ["feed_id", "guid"], name: "index_articles_on_feed_id_and_guid", unique: true
@@ -85,6 +87,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_000000) do
     t.string "etag"
     t.string "last_modified"
     t.index ["url"], name: "index_feeds_on_url", unique: true
+  end
+
+  create_table "persona_comments", force: :cascade do |t|
+    t.integer "article_id", null: false
+    t.string "persona_id", null: false
+    t.text "body", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["article_id", "persona_id"], name: "index_persona_comments_on_article_id_and_persona_id", unique: true
+    t.index ["article_id"], name: "index_persona_comments_on_article_id"
   end
 
   create_table "purged_articles", force: :cascade do |t|
@@ -141,6 +153,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_000000) do
 
   add_foreign_key "article_judgments", "articles", on_delete: :cascade
   add_foreign_key "articles", "feeds"
+  add_foreign_key "persona_comments", "articles", on_delete: :cascade
   add_foreign_key "purged_articles", "feeds", on_delete: :cascade
   add_foreign_key "readings", "articles"
   add_foreign_key "sessions", "users"

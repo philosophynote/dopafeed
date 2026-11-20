@@ -7,17 +7,23 @@ RSpec.describe "AGENTS.md の規約" do
     expect(offenders).to be_empty, "Claude API の呼び出しは app/services/claude/ に移し、Job から呼べ:\n#{offenders.join("\n")}"
   end
 
-  it "Claude のサービスはコントローラ・モデルから直接呼ばない（Job 経由）" do
-    offenders = Dir[app.join("{controllers,models}/**/*.rb")]
-                  .select { |f| File.read(f).match?(/Claude::\w+\.(new|call|perform)\b/) }
-    expect(offenders).to be_empty, "コントローラ・モデルから Claude:: を直接呼ぶな。app/jobs/ の Job に perform_later させよ:\n#{offenders.join("\n")}"
+  it "xAI（Grok）は app/services/comments/ の中からしか呼ばない" do
+    offenders = Dir[app.join("**/*.rb")].reject { |f| f.include?("/services/comments/") }
+                                        .select { |f| File.read(f).match?(/XAI_API_KEY|xai_api_key|provider:\s*:xai|PROVIDER\s*=\s*:xai/) }
+    expect(offenders).to be_empty, "xAI の呼び出しは app/services/comments/ に移し、Job から呼べ:\n#{offenders.join("\n")}"
   end
 
-  it "RubyLLM は app/judges/・app/services/judgments/・app/services/claude/ の中からしか呼ばず、コントローラ・モデルからは Job 経由にする" do
-    callers = Dir[app.join("**/*.rb")].reject { |f| f.match?(%r{/(judges|services/judgments|services/claude)/}) }
+  it "Claude とコメントのサービスはコントローラ・モデルから直接呼ばない（Job 経由）" do
+    offenders = Dir[app.join("{controllers,models}/**/*.rb")]
+                  .select { |f| File.read(f).match?(/(Claude|Comments)::\w+\.(new|call|perform|build)\b/) }
+    expect(offenders).to be_empty, "コントローラ・モデルから Claude:: / Comments:: のサービスを直接呼ぶな。app/jobs/ の Job に perform_later させよ:\n#{offenders.join("\n")}"
+  end
+
+  it "RubyLLM は app/judges/・app/services/judgments/・app/services/claude/・app/services/comments/ の中からしか呼ばず、コントローラ・モデルからは Job 経由にする" do
+    callers = Dir[app.join("**/*.rb")].reject { |f| f.match?(%r{/(judges|services/judgments|services/claude|services/comments)/}) }
                                       .select { |f| File.read(f).match?(/RubyLLM|TYPESAFE_API_KEY/) }
     direct = Dir[app.join("{controllers,models}/**/*.rb")].select { |f| File.read(f).match?(/(Judgments::\w+|\w+Judge)\.(new|call|judge)\b/) }
-    expect(callers + direct).to be_empty, "RubyLLM の呼び出しは app/services/judgments/（判定）か app/services/claude/（Claude）に移し、Job から呼べ:\n#{(callers + direct).join("\n")}"
+    expect(callers + direct).to be_empty, "RubyLLM の呼び出しは app/services/judgments/（判定）、app/services/claude/（Claude）、app/services/comments/（コメント）に移し、Job から呼べ:\n#{(callers + direct).join("\n")}"
   end
 
   it "確率・秒数・本数の数字は config/dopamine.yml にだけ置く（app/ と lib/）" do

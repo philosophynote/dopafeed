@@ -23,6 +23,7 @@
 - Hotwire（Turbo Frames / Streams + Stimulus）。SPA 化・React・外部 JS フレームワーク持ち込み禁止
 - Claude API は app/services/claude/ に集約し、必ず ActiveJob（Solid Queue）経由。コントローラ・モデルから直接呼ぶな。呼び出しの道具は RubyLLM（ADR 0028）
 - 記事の判定（RubyLLM の Judge。ADR 0024）は app/judges/ と app/services/judgments/ に集約し、同じく Job 経由
+- 架空の人物のコメント（xAI の Grok を RubyLLM で。ADR 0029）は app/services/comments/ に集約し、同じく Job 経由
 - XP 量・確率・閾値・秒数・本数は config/dopamine.yml。コードに数字を埋めるな（spec/structure/ が落とす）
 - 外部通信（Claude API、判定 API、RSS）はテストで VCR / WebMock。CI は実通信ゼロ
 - DB 変更は migration のみ。設計変更は docs/decisions/ に ADR を足す

@@ -2,6 +2,7 @@ class Article < ApplicationRecord
   belongs_to :feed
   has_one :reading, dependent: :destroy
   has_one :judgment, class_name: "ArticleJudgment", dependent: :destroy
+  has_many :persona_comments, dependent: :delete_all
 
   validates :title, presence: true
   # URL はリンクの href に使うので、javascript: などを通さない。
@@ -28,6 +29,11 @@ class Article < ApplicationRecord
         published_at.eq(nil).and(id.lt(article.id))
       end
     unread.newest_first.where(older).first
+  end
+
+  def plain_content
+    Loofah.fragment(content.to_s).scrub!(:prune).to_text(encode_special_chars: false)
+          .lines.map(&:squish).reject(&:blank?).join("\n")
   end
 
   def saved?

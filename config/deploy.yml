@@ -29,6 +29,7 @@ env:
     - VAPID_SUBJECT
     - ANTHROPIC_API_KEY
     - TYPESAFE_API_KEY
+    - XAI_API_KEY
   clear:
     LITESTREAM_BUCKET: dopafeed-litestream
     LITESTREAM_REGION: ap-northeast-1
