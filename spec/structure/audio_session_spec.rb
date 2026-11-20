@@ -7,6 +7,6 @@ RSpec.describe "効果音の audioSession（ADR 0025）" do
         "#{path}:#{no}: #{line.strip}" if !line.match?(%r{^\s*(//|/\*|\*)}) && line.sub(%r{//.*}, "").include?("audioSession")
       end
     end
-    expect(offenders).to be_empty, "\"ambient\" を明示すると iOS 27 で消音を切っても鳴らなかった。audioSession には触れない（ADR 0025）:\n#{offenders.join("\n")}"
+    expect(offenders).to be_empty, "audioSession の種類は iOS の既定に任せると決めた。触れるなら ADR 0025 を改めよ:\n#{offenders.join("\n")}"
   end
 end
