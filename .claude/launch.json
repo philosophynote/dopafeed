@@ -4,7 +4,7 @@
     {
       "name": "dev",
       "runtimeExecutable": "/bin/sh",
-      "runtimeArgs": ["-c", "export PATH=\"$HOME/.local/share/mise/installs/ruby/4.0.7/bin:$PATH\"; exec bin/dev"],
+      "runtimeArgs": ["-c", "export PATH=\"$HOME/.local/share/mise/installs/ruby/4.0.10/bin:$PATH\"; exec bin/dev"],
       "port": 3000
     }
   ]
