@@ -1,6 +1,6 @@
 RSpec.describe Persona do
   it "config/personas.yml の 8 人を並び順のまま読む" do
-    expect(described_class.all.map(&:name)).to eq(%w[織田信長 ヨシフ・スターリン 毛沢東 ナポレオン・ボナパルト ガイウス・ユリウス・カエサル チンギス・ハン 西郷隆盛 スティーブ・ジョブズ])
+    expect(described_class.all.map(&:name)).to eq(%w[織田信長 ヨシフ・スターリン 毛沢東 松岡修造 オットー・フォン・ビスマルク チンギス・ハン ドナルド・J・トランプ マーガレット・サッチャー])
   end
 
   it "id は英小文字とハイフンで重ならず、色は #RRGGBB、名前・肩書き・人物像・口調の指示はどれも空でない" do
@@ -15,7 +15,7 @@ RSpec.describe Persona do
   end
 
   it "id で引ける。無い id は nil" do
-    expect(described_class.find("napoleon-bonaparte").name).to eq("ナポレオン・ボナパルト")
+    expect(described_class.find("shuzo-matsuoka").name).to eq("松岡修造")
     expect(described_class.find("elon-musk")).to be_nil
   end
 end

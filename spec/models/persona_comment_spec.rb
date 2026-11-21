@@ -20,6 +20,6 @@ RSpec.describe PersonaComment do
   end
 
   it "persona で personas.yml の人物を引ける" do
-    expect(described_class.new(persona_id: "steve-jobs").persona.name).to eq("スティーブ・ジョブズ")
+    expect(described_class.new(persona_id: "margaret-thatcher").persona.name).to eq("マーガレット・サッチャー")
   end
 end
