@@ -9,6 +9,7 @@ tmp/screenshots/ の絵をここに貼る（390×844）。
 
 ## 確認
 - [ ] `bin/ci` 緑
+- [ ] `bin/screens` 緑（画面を触った Unit のみ。CI は system を回さない）
 - [ ] テストを先に書いて赤を確認した
 - [ ] 数字は config/dopamine.yml にある（変更提案があれば下に書く）
 - [ ] 新しい技術判断は docs/decisions/ に ADR

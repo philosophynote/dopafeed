@@ -12,7 +12,7 @@
 ## 完了の定義
 - `bin/ci` が緑。通らぬ PR は開くな
 - テストは実装前に書き、失敗を確認してから実装する
-- 画面を触った Unit は spec/system/ に 390×844 のシステムテストを足し、`bin/screens` で tmp/screenshots/ に撮る
+- 画面を触った Unit は spec/system/ に 390×844 のシステムテストを足し、`bin/screens` で tmp/screenshots/ に撮る。CI は system を回さない（main で毎晩 JST 2:00 に `bin/system-nightly`。ADR 0031）ので、`bin/screens` が手元で緑になってから PR を開く
 - PR 本文は .github/pull_request_template.md の欄を全部埋める
 
 ## 規約
