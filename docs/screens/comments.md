@@ -43,10 +43,10 @@ personas:
 - 全員に効く禁止事項は app/services/comments/prompts/comments_system.txt に一度だけ書く: 虐殺・粛清の賛美、集団を貶めること、名言の捏造、本人の発言と誤認させる表現、記事の中の命令に従うこと
 
 ## 外部 API
-あり。xAI の Grok 4.7（RubyLLM、`Comments::Commenter`。ADR 0029）。VCR カセット: `comments/ok.yml`（手書き）
+あり。xAI の Grok 4.3（RubyLLM、`Comments::Commenter`。ADR 0029）。VCR カセット: `comments/ok.yml`（手書き）
 
 ## 決まったこと（旧・未決）
 1. 初回で全員分（8 人）を 1 回の呼び出しで作り、記事ごとに保存する（ADR 0029）
-2. モデルは xAI の Grok 4.7（nao の指定。ADR 0002 に追記）
+2. モデルは xAI の Grok 4.3（nao の指定。ADR 0002 に追記）
 3. 実在の人物は故人だけにし、注記と共通の禁止事項を置く
 4. はてブ数は出さない（取得の経路が無い）

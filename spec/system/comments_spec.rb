@@ -1,5 +1,5 @@
 RSpec.describe "Comments", type: :system do
-  let(:comments) { { personas_shown: 3, model: "grok-4.7", max_tokens: 4000, timeout_seconds: 60 } }
+  let(:comments) { { personas_shown: 3, model: "grok-4.3", max_tokens: 4000, timeout_seconds: 60 } }
   let(:bodies) { Persona.all.to_h { |persona| [ persona.id, "#{persona.name}がこの記事にひとこと。" ] } }
 
   before { allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.merge(comments: comments)) }

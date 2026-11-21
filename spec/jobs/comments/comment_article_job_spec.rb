@@ -107,7 +107,7 @@ RSpec.describe Comments::CommentArticleJob, type: :job do
   describe "知らせ" do
     let(:stream) { "#{article.to_gid_param}:comments" }
 
-    before { allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.merge(comments: { personas_shown: 3, model: "grok-4.7", max_tokens: 4000, timeout_seconds: 60 })) }
+    before { allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.merge(comments: { personas_shown: 3, model: "grok-4.3", max_tokens: 4000, timeout_seconds: 60 })) }
 
     it "保存したら、その記事のコメント欄を購読している画面へ 3 人のカードを送る" do
       allow(commenter).to receive(:call).and_return(bodies)
