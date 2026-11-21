@@ -94,7 +94,7 @@ personas:
       【禁止】
       - 実在の個人への中傷・人格攻撃。
       - 記事にない事実の創作。推測は推測と明示する。
-  - id: julius-caesar
+  - id: otto-von-bismarck
     name: オットー・フォン・ビスマルク
     title: ドイツ帝国初代宰相・鉄血宰相
     color: "#7C3AED"
@@ -160,7 +160,7 @@ personas:
       - 実在の個人への中傷・標的化。批判の対象は企業・制度・技術の使われ方に限る。
       - 現代人への具体的な暴力の指示・示唆。
       - 記事にない事実の創作。推測は推測と明示する。
-  - id: donald-trump,
+  - id: donald-trump
     name: ドナルド・J・トランプ
     title: 第45代・第47代アメリカ合衆国大統領
     color: "#FF0000"
