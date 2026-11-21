@@ -2,6 +2,7 @@ module SystemScreen
   SCREEN_SIZE = [ 390, 844 ].freeze
   SCREENSHOT_DIR = Rails.root.join("tmp/screenshots")
   DRIVER_READ_TIMEOUT_SECONDS = 20
+  WARM_UP_READ_TIMEOUT_SECONDS = 120
   CHROMEDRIVER_LOG = Rails.root.join("log/chromedriver.log")
   IPHONE_USER_AGENT = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1".freeze
 
@@ -62,6 +63,44 @@ module SystemScreen
     Capybara.current_session.quit
   end
 
+  # window-size だけだとブラウザ枠の分だけ viewport が狭くなる。端末エミュレーションで CSS 幅を 390 に固定する。
+  # touch は false と明示する（省くと chromedriver は true 扱い）。true だと chromedriver が click を touch イベントで送り、
+  # Chrome が touchEnd の応答を返さずに固まることがある
+  def self.emulate_iphone(options)
+    options.add_emulation(
+      device_metrics: { width: SCREEN_SIZE[0], height: SCREEN_SIZE[1], pixelRatio: 3, touch: false },
+      user_agent: IPHONE_USER_AGENT
+    )
+    options
+  end
+
+  # CI の新しいランナーで最初に立てた Chrome は、最初の命令が 20 秒を越えて返らないことがある。
+  # 例の read timeout を延ばすと固まったときの待ちが全部延びるので、使い捨ての Chrome に初回の重さを肩代わりさせる。
+  # プロファイルは chromedriver がセッションごとに作り直すので、温まるのはバイナリとフォントのキャッシュまで。
+  def self.warm_up_chrome!
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    browser = nil
+    Timeout.timeout(WARM_UP_READ_TIMEOUT_SECONDS) do
+      options = emulate_iphone(Selenium::WebDriver::Options.chrome(args: [ "--headless=new", "--window-size=#{SCREEN_SIZE.join(",")}" ]))
+      http_client = Selenium::WebDriver::Remote::Http::Default.new(read_timeout: WARM_UP_READ_TIMEOUT_SECONDS)
+      browser = Selenium::WebDriver.for(:chrome, options: options, http_client: http_client)
+      browser.navigate.to("data:text/html;charset=utf-8,<p>DopaFeed 読む 保存 図鑑</p>")
+    end
+    warn format("Chrome warm-up: %.1fs", Process.clock_gettime(Process::CLOCK_MONOTONIC) - started)
+  rescue StandardError => e
+    warn format("Chrome warm-up failed after %.1fs (examples start anyway): %s", Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, e.class)
+  ensure
+    quit_warm_up(browser)
+  end
+
+  # 固まった Chrome への quit も返らないので、例 1 回ぶんの待ちで見切る。quit の ensure が chromedriver を止める。
+  def self.quit_warm_up(browser)
+    Timeout.timeout(DRIVER_READ_TIMEOUT_SECONDS) { browser&.quit }
+  rescue StandardError => e
+    warn "Chrome warm-up failed to quit: #{e.class}"
+  end
+  private_class_method :quit_warm_up
+
   private
 
   def screenshot_name(suffix)
@@ -89,17 +128,15 @@ end
 RSpec.configure do |config|
   config.include SystemScreen, type: :system
 
+  config.when_first_matching_example_defined(type: :system) do
+    config.before(:suite) { SystemScreen.warm_up_chrome! }
+  end
+
   config.before(:each, type: :system) do
     http_client = Selenium::WebDriver::Remote::Http::Default.new(read_timeout: SystemScreen::DRIVER_READ_TIMEOUT_SECONDS)
     service = Selenium::WebDriver::Service.chrome(args: [ "--log-path=#{SystemScreen::CHROMEDRIVER_LOG}" ])
     driven_by :selenium, using: :headless_chrome, screen_size: SystemScreen::SCREEN_SIZE, options: { http_client: http_client, service: service } do |options|
-      # window-size だけだとブラウザ枠の分だけ viewport が狭くなる。端末エミュレーションで CSS 幅を 390 に固定する。
-      # touch は false と明示する（省くと chromedriver は true 扱い）。true だと chromedriver が click を touch イベントで送り、
-      # Chrome が touchEnd の応答を返さずに固まることがある
-      options.add_emulation(
-        device_metrics: { width: SystemScreen::SCREEN_SIZE[0], height: SystemScreen::SCREEN_SIZE[1], pixelRatio: 3, touch: false },
-        user_agent: SystemScreen::IPHONE_USER_AGENT
-      )
+      SystemScreen.emulate_iphone(options)
     end
   end
 end
