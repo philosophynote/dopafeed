@@ -9,7 +9,7 @@ RSpec.describe Comments::CommentArticleJob, type: :job do
     expect(described_class.new(article).queue_name).to eq("claude")
   end
 
-  it "8 人分を記事に保存し、前に残した失敗の記録を消す" do
+  it "全員分を記事に保存し、前に残した失敗の記録を消す" do
     article.update!(comments_failed_at: Time.current, comments_error: "応答の形式が不正")
     allow(commenter).to receive(:call).and_return(bodies)
 

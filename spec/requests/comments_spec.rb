@@ -33,7 +33,7 @@ RSpec.describe "Comments", type: :request do
 
       expect(page).to have_text("? ? ?")
       expect(page).to have_text("この記事に、誰が口を出すか")
-      expect(page).to have_text("8 人の中から 3 人がランダムに現れます")
+      expect(page).to have_text("#{Persona.all.size} 人の中から 3 人がランダムに現れます")
       expect(page).to have_button("コメントを見る")
       expect(page).to have_text("人物は AI による架空のキャラクターです。本人の発言ではありません")
     end
@@ -125,7 +125,7 @@ RSpec.describe "Comments", type: :request do
       expect(page).to have_button("もう一度")
     end
 
-    it "保存済みなら 8 人から 3 人を名前・肩書き・AI・本文つきで出し、注記も出す" do
+    it "保存済みなら全員から 3 人を名前・肩書き・AI・本文つきで出し、注記も出す" do
       save_all(article)
 
       get article_comments_path(article)
@@ -142,15 +142,16 @@ RSpec.describe "Comments", type: :request do
       expect(page).to have_text("人物は AI による架空のキャラクターです")
     end
 
-    it "「別の 3 人を見る」は直前の 3 人を除いた残りから選ぶ（API は呼ばない）" do
+    it "「別の 2 人を見る」は直前の 2 人を除いた残りから選ぶ（API は呼ばない）" do
+      comments[:personas_shown] = 2
       save_all(article)
       get article_comments_path(article)
       before = shown_names
 
       10.times do
-        get page.find_link("別の 3 人を見る")[:href]
+        get page.find_link("別の 2 人を見る")[:href]
         expect(shown_names & before).to be_empty
-        expect(shown_names.size).to eq(3)
+        expect(shown_names.size).to eq(2)
         before = shown_names
       end
       expect(Comments::CommentArticleJob).not_to have_been_enqueued
