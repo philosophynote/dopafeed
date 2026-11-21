@@ -73,8 +73,7 @@ module Claude
     end
 
     def input_text
-      Loofah.fragment(article.content.to_s).scrub!(:prune).to_text(encode_special_chars: false)
-            .lines.map(&:squish).reject(&:blank?).join("\n").first(input_chars)
+      article.plain_content.first(input_chars)
     end
 
     def system_prompt
