@@ -18,11 +18,12 @@ export default class extends Controller {
   disconnect() {
     this.settleCleanup?.()
     this.submitCleanup?.()
+    this.laggingCleanup?.()
   }
 
   start(event) {
     this.swiped = false
-    if (this.flying || this.opening || !event.isPrimary || event.button !== 0 || event.clientX < EDGE_PX) return
+    if (this.flying || this.lagging || this.opening || !event.isPrimary || event.button !== 0 || event.clientX < EDGE_PX) return
     const control = event.target.closest("a, button, input, select, textarea")
     if (control && control !== this.readTarget) return
 
@@ -70,7 +71,10 @@ export default class extends Controller {
 
     // pointercancel はスクロール等でも起こるため、速さによる払い判定は pointerup に限る。
     const flicked = event.type === "pointerup" && this.flicked(event.timeStamp)
-    if (this.dx !== 0 && (Math.abs(this.dx) >= this.threshold() || flicked)) {
+    // 引いている間に「読む」へ戻されたら、左へ引いた分は削除にしない
+    if (this.dx < 0 && !this.canDismiss()) {
+      this.settle(0)
+    } else if (this.dx !== 0 && (Math.abs(this.dx) >= this.threshold() || flicked)) {
       this.flyOut(Math.sign(this.dx))
     } else {
       this.settle(0)
@@ -180,14 +184,32 @@ export default class extends Controller {
   }
 
   submit(form, counted) {
-    const done = (success) => {
+    const done = (success, { timedOut = false } = {}) => {
       if (success) return
 
       noteSwipeFailed()
       if (counted) this.dispatch("process-failed", { detail: { form } })
+      if (timedOut) this.holdUntilEnded(form)
       this.restore()
     }
     this.enqueue(form, null, done, { send: () => { this.stamp(form, noteSwipeSent()); form.requestSubmit() } })
+  }
+
+  // 待ちの上限を越えた送信は止めずに列だけ進めるので、成功が後から届くことがある。届くまでに逆へ払い直せると、
+  // 遅れて届いた先の成功と合わせて削除と保存の両方が入るので、その送信が終わる（成功・失敗・Turbo の中断）まで引かせない
+  holdUntilEnded(form) {
+    this.lagging = true
+    const ended = (event) => {
+      if (event.target !== form) return
+
+      this.laggingCleanup()
+      this.lagging = false
+    }
+    document.addEventListener("turbo:submit-end", ended)
+    this.laggingCleanup = () => {
+      document.removeEventListener("turbo:submit-end", ended)
+      this.laggingCleanup = null
+    }
   }
 
   // 送った回数を送信に付ける。応答のトーストがそれを持ち、後から来た送信に置き換わる側かを見分ける（submission_queue）
@@ -226,7 +248,7 @@ export default class extends Controller {
       const timer = setTimeout(() => {
         finish()
         if (stopOnTimeout) submission?.stop()
-        done(false)
+        done(false, { timedOut: true })
       }, this.submitTimeoutSecondsValue * 1000)
       document.addEventListener("turbo:submit-start", started)
       document.addEventListener("turbo:submit-end", ended)

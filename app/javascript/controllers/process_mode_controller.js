@@ -44,12 +44,10 @@ export default class extends Controller {
     }
   }
 
-  // 待ちの上限を越えて戻った行は逆向きにも払い直せる。先の送信の成功が遅れて届いても、同じ記事を 2 件に数えない
   processed({ detail: { form } }) {
     if (!this.processing) return
 
-    const article = this.article(form)
-    this.late.forEach((key) => { if (key.startsWith(`${article}/`)) this.late.delete(key) })
+    this.late.delete(this.key(form))
     this.counted.add(this.key(form))
     this.setCombo(this.combo + 1)
     play("melody", this.combo)
@@ -128,10 +126,6 @@ export default class extends Controller {
 
   key(form) {
     return new URL(form.action).pathname
-  }
-
-  article(form) {
-    return this.key(form).replace(/\/[^/]+$/, "")
   }
 
   kind(form) {

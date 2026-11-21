@@ -390,7 +390,7 @@ RSpec.describe "Process mode", type: :system do
       expect(combo).to have_text("1 COMBO", normalize_ws: true)
     end
 
-    it "待ちの上限を越えて戻った行を逆へ払い直したら、後から届いた先の成功は数え直さない（同じ記事を 2 件に数えない）" do
+    it "待ちの上限を越えて戻った行は、先の送信の応答が届くまで払い直せない。届いた成功は数え直す" do
       allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.deep_merge(swipe: { submit_timeout_seconds: 1 }))
       sign_in
       enter_process_mode
@@ -404,18 +404,35 @@ RSpec.describe "Process mode", type: :system do
       save_row("一本目")
       expect(combo).to have_text("0 COMBO", normalize_ws: true, wait: 2)
       expect(page).to have_no_css("li.swipe-active")
-      # 左へ払い直した瞬間だけを起こす。実際に送ると Turbo が先の保存を止め、遅れた成功が届く場面を作れない
-      page.execute_script(<<~JS)
-        const row = document.querySelector("li#article_#{Article.find_by!(title: "一本目").id}")
-        row.dispatchEvent(new CustomEvent("swipe:processed", { bubbles: true, detail: { form: row.querySelector("form[action$='/dismissal']") } }))
-      JS
-      expect(combo).to have_text("1 COMBO", normalize_ws: true)
-      page.document.synchronize(5) { raise Capybara::ExpectationNotMet, "保存の成功が届かない" unless Article.find_by!(title: "一本目").bookmarked? }
-      expect(page).to have_no_css("article", text: "一本目")
+      width = card_width("一本目")
+      drag_card("一本目", from: [ width * 0.8, 40 ], to: [ width * 0.8 - width * ratio * 1.3, 40 ], release: false)
+      expect(card_shift("一本目")).to eq(0)
+      drag_card("一本目", from: [ width * 0.8, 40 ], to: [ width * 0.8 - width * ratio * 1.4, 40 ], down: false)
+      expect(combo).to have_text("0 COMBO", normalize_ws: true)
 
+      expect(page).to have_no_css("article", text: "一本目", wait: 5)
       expect(combo).to have_text("1 COMBO", normalize_ws: true)
+      expect(Article.find_by!(title: "一本目")).to be_bookmarked
+      expect(Article.find_by!(title: "一本目")).not_to be_dismissed
       choose "読む", allow_label_click: true
-      expect(find("dialog[open]")).to have_text("削除 1 ・ 保存 0", normalize_ws: true)
+      expect(find("dialog[open]")).to have_text("削除 0 ・ 保存 1", normalize_ws: true)
+    end
+
+    it "左へ引いたまま「読む」に戻してから離しても、削除しない" do
+      sign_in
+      enter_process_mode
+      width = card_width("一本目")
+      drag_card("一本目", from: [ width * 0.8, 40 ], to: [ width * 0.8 - width * ratio * 1.3, 40 ], release: false)
+      expect(card_shift("一本目")).to be < 0
+      page.execute_script("document.querySelector('input[name=mode][value=read]').click()")
+      expect(page).to have_no_css("[data-process-mode]")
+      # 動かさずに離す（動かせば引いた幅は読むモードの決まりで 0 に戻る）
+      drag_card("一本目", from: [ width * 0.8, 40 ], to: [ width * 0.8, 40 ], steps: 0, down: false)
+
+      expect(settled_shift("一本目")).to eq(0)
+      sleep 0.5
+      expect(Article.find_by!(title: "一本目")).not_to be_dismissed
+      expect(page).to have_no_css("#toast [data-controller='toast']")
     end
 
     it "待ちの上限を越えて失敗に見えた削除も、後から成功が届けばコンボに数え直す" do

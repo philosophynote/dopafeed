@@ -124,6 +124,16 @@ RSpec.describe "Dismissals", type: :request do
         expect(page).to have_no_css("turbo-stream[target='unread-count']")
       end
 
+      it "保存も入っている記事は、行を戻さず隠した跡を消す（未読ではない）" do
+        saved = create(:article, :dismissed, :bookmarked, title: "保存もした記事")
+
+        delete article_dismissal_path(saved), headers: turbo
+
+        expect(saved.reload).not_to be_dismissed
+        expect(page).to have_css("turbo-stream[action='remove'][target='#{dom_id(saved)}']")
+        expect(page).to have_no_css("turbo-stream[action='replace'][target='#{dom_id(saved)}']")
+      end
+
       it "JS が無ければ Main へ戻る" do
         delete article_dismissal_path(article)
 
