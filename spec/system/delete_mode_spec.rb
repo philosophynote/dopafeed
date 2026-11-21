@@ -413,4 +413,167 @@ RSpec.describe "Delete mode", type: :system do
       page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: [])
     end
   end
+
+  context "コンボの節目" do
+    def sfx_log
+      page.evaluate_script('JSON.parse(sessionStorage.getItem("sfx-log") || "[]")')
+    end
+
+    def band
+      find("[data-delete-mode-target='band']")
+    end
+
+    def cheer
+      find("[data-delete-mode-target='cheer']", visible: :all)
+    end
+
+    # 行は上から順に消す。元に戻した行は飛ばしたままでよい（どの行でも 1 コンボ）
+    def delete_until(count)
+      @deleted ||= 0
+      count.times { delete_row(format("記事%02d", @deleted += 1)) }
+    end
+
+    def with_milestones(small:, large:)
+      settings = Dopamine.settings.deep_merge(delete_mode: { combo_small_every: small, combo_large_every: large })
+      allow(Dopamine).to receive(:settings).and_return(settings)
+    end
+
+    let(:small) { Dopamine.settings.dig(:delete_mode, :combo_small_every) }
+    let(:large) { Dopamine.settings.dig(:delete_mode, :combo_large_every) }
+
+    before do
+      12.times { |i| create(:article, title: "記事#{format("%02d", i + 1)}", published_at: now - (i + 1).hours) }
+    end
+
+    it "yml の節目（5 で小、10 で大）に届くと、小は帯が光って「NICE!」、大は帯が虹色になり火花が散って「GREAT!!」が出る。節目でもメロディは鳴らす" do
+      expect([ small, large ]).to eq([ 5, 10 ])
+      sign_in
+      enter_delete_mode
+
+      delete_until(small - 1)
+      expect(band).to have_text("#{small - 1} COMBO", normalize_ws: true)
+      expect(cheer.text).to eq("")
+      expect(sfx_log).not_to include("combo_nice")
+
+      delete_until(1)
+      expect(band).to have_text("#{small} COMBO", normalize_ws: true)
+      expect(cheer).to have_text("NICE!")
+      expect(band[:class]).to include("is-nice")
+      expect(sfx_log.last(2)).to eq(%w[melody combo_nice])
+      screenshot!("nice")
+
+      delete_until(large - small)
+      expect(band).to have_text("#{large} COMBO", normalize_ws: true)
+      expect(cheer).to have_text("GREAT!!")
+      expect(band[:class]).to include("is-great")
+      expect(page).to have_css("[data-delete-mode-target='burst'].is-bursting span", visible: :all, minimum: 1)
+      expect(sfx_log.last(2)).to eq(%w[melody combo_great])
+      expect(sfx_log.count("combo_nice")).to eq(1)
+      expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "火花で横スクロールが出ている"
+      screenshot!("great")
+
+      delete_until(1)
+      expect(band).to have_text("#{large + 1} COMBO", normalize_ws: true)
+      expect(band[:class]).to include("is-great")
+      expect(sfx_log.last).to eq("melody")
+    end
+
+    it "節目は繰り返す。小と大が重なる数では大だけを出す" do
+      with_milestones(small: 2, large: 4)
+      sign_in
+      enter_delete_mode
+
+      delete_until(2)
+      expect(cheer).to have_text("NICE!")
+      delete_until(2)
+      expect(cheer).to have_text("GREAT!!")
+      expect(sfx_log.count("combo_nice")).to eq(1)
+      delete_until(2)
+      expect(band).to have_text("6 COMBO", normalize_ws: true)
+      expect(cheer).to have_text("NICE!")
+      expect(band[:class]).to include("is-great")
+      delete_until(2)
+      expect(cheer).to have_text("GREAT!!")
+      expect(sfx_log.count("combo_nice")).to eq(2)
+      expect(sfx_log.count("combo_great")).to eq(2)
+    end
+
+    it "元に戻して節目の手前に下がってから届き直しても、同じ節目の演出は出し直さない" do
+      with_milestones(small: 2, large: 4)
+      sign_in
+      enter_delete_mode
+
+      delete_until(2)
+      expect(cheer).to have_text("NICE!")
+      find("#toast").click_on("元に戻す")
+      expect(band).to have_text("1 COMBO", normalize_ws: true)
+      delete_until(1)
+      expect(band).to have_text("2 COMBO", normalize_ws: true)
+      expect(sfx_log.count("combo_nice")).to eq(1)
+      expect(sfx_log.last).to eq("melody")
+    end
+
+    it "「読む」に戻してまた「削除」に入ると、帯は黒に戻り、節目は 0 から数え直す" do
+      with_milestones(small: 2, large: 4)
+      sign_in
+      enter_delete_mode
+      delete_until(4)
+      expect(band[:class]).to include("is-great")
+
+      choose "読む", allow_label_click: true
+      find("dialog[open]").click_on "閉じる"
+      enter_delete_mode
+
+      expect(band[:class]).not_to include("is-great")
+      expect(cheer.text).to eq("")
+      delete_until(2)
+      expect(cheer).to have_text("NICE!")
+      expect(sfx_log.count("combo_nice")).to eq(2)
+    end
+
+    it "演出の最中でも次の削除ボタンを押せて、一覧の位置は動かない" do
+      with_milestones(small: 2, large: 4)
+      sign_in
+      enter_delete_mode
+      list_top = find("section[aria-label='記事']").evaluate_script("this.getBoundingClientRect().top")
+
+      delete_until(4)
+      expect(cheer).to have_text("GREAT!!")
+      delete_until(1)
+
+      expect(band).to have_text("5 COMBO", normalize_ws: true)
+      expect(find("section[aria-label='記事']").evaluate_script("this.getBoundingClientRect().top")).to eq(list_top)
+      expect(Article.where.not(dismissed_at: nil).count).to eq(5)
+    end
+
+    it "動きを減らす設定では、文字と音は出るが帯も文字も火花も動かない" do
+      with_milestones(small: 2, large: 4)
+      sign_in
+      page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: [ { name: "prefers-reduced-motion", value: "reduce" } ])
+      enter_delete_mode
+
+      delete_until(4)
+      expect(cheer).to have_text("GREAT!!")
+      expect(sfx_log).to include("combo_great")
+      expect(band.evaluate_script("getComputedStyle(this).animationName")).to eq("none")
+      expect(cheer.evaluate_script("getComputedStyle(this).animationName")).to eq("none")
+      expect(page).to have_no_css("[data-delete-mode-target='burst'].is-bursting", visible: :all)
+    ensure
+      page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: [])
+    end
+
+    it "yml に節目の鍵が無ければ、節目の演出は出ない" do
+      settings = Dopamine.settings.deep_dup
+      settings.delete(:delete_mode)
+      allow(Dopamine).to receive(:settings).and_return(settings)
+      sign_in
+      enter_delete_mode
+
+      delete_until(10)
+      expect(band).to have_text("10 COMBO", normalize_ws: true)
+      expect(cheer.text).to eq("")
+      expect(band[:class]).not_to include("is-nice", "is-great")
+      expect(sfx_log).not_to include("combo_nice", "combo_great")
+    end
+  end
 end

@@ -6,8 +6,9 @@ const COUNT_UP_MS = 600
 // 戻ってきたときは読むつもりのことが多いので、モードを写し・bfcache・ブラウザのフォーム復元に持ち越さない。
 // コンボはサーバーに残さない。読了の「n 連続」やストリークに混ぜると、消すだけで読書の報酬が増える
 export default class extends Controller {
-  static targets = ["list", "switch", "status", "combo", "count", "result", "resultCount", "resultTime", "resultPace"]
+  static targets = ["list", "switch", "status", "combo", "count", "band", "cheer", "burst", "result", "resultCount", "resultTime", "resultPace"]
   static outlets = ["swipe"]
+  static values = { smallEvery: Number, largeEvery: Number }
 
   connect() {
     this.reset()
@@ -37,6 +38,7 @@ export default class extends Controller {
       this.counted = new Set()
       this.late = new Set()
       this.setCombo(0)
+      this.clearMilestones()
     } else if (this.combo > 0) {
       this.showResult(this.combo, performance.now() - this.startedAt)
     }
@@ -50,9 +52,8 @@ export default class extends Controller {
     this.counted.add(this.key(form))
     this.setCombo(this.combo + 1)
     play("melody", this.combo)
-    this.countTarget.classList.remove("combo-pop")
-    void this.countTarget.offsetWidth
-    this.countTarget.classList.add("combo-pop")
+    this.restartAnimation(this.countTarget, "combo-pop")
+    this.celebrate()
   }
 
   // 待ちの上限を越えた送信は止めずに列だけ進めるので、失敗に見えた削除の成功が後から届くことがある。そのときは数え直す
@@ -71,7 +72,55 @@ export default class extends Controller {
     } else if (this.late.delete(this.key(form))) {
       this.counted.add(this.key(form))
       this.setCombo(this.combo + 1)
+      this.celebrate()
     }
+  }
+
+  // 回の中で届いた一番上の数を超えたときだけ節目を見る。元に戻して届き直すたびに出すと、戻して押すだけで報酬が出る。
+  // 大と小が重なる数では大だけを出す（演出は一度に一番大きい 1 つ。ADR 0022）
+  celebrate() {
+    if (this.combo <= this.best) return
+    this.best = this.combo
+
+    if (this.reached(this.largeEveryValue)) {
+      this.cheer("great", "GREAT!!")
+      this.bandTarget.classList.add("is-great")
+      if (!matchMedia("(prefers-reduced-motion: reduce)").matches) this.restartAnimation(this.burstTarget, "is-bursting")
+      play("combo_great")
+    } else if (this.reached(this.smallEveryValue)) {
+      this.cheer("nice", "NICE!")
+      this.restartAnimation(this.bandTarget, "is-nice")
+      play("combo_nice")
+    }
+  }
+
+  // 鍵が無いと 0 が届く。0 で割ると毎回節目になるので出さない
+  reached(every) {
+    return every > 0 && this.combo % every === 0
+  }
+
+  cheer(tier, text) {
+    if (!this.hasCheerTarget) return
+
+    this.cheerTarget.textContent = text
+    this.cheerTarget.classList.remove("is-nice", "is-great")
+    this.restartAnimation(this.cheerTarget, `is-${tier}`)
+  }
+
+  clearMilestones() {
+    this.best = 0
+    if (!this.hasBandTarget) return
+
+    this.bandTarget.classList.remove("is-nice", "is-great")
+    this.burstTarget.classList.remove("is-bursting")
+    this.cheerTarget.textContent = ""
+    this.cheerTarget.classList.remove("is-nice", "is-great")
+  }
+
+  restartAnimation(element, className) {
+    element.classList.remove(className)
+    void element.offsetWidth
+    element.classList.add(className)
   }
 
   uncount(form) {
@@ -130,6 +179,7 @@ export default class extends Controller {
     this.counted = new Set()
     this.late = new Set()
     this.setCombo(0)
+    this.clearMilestones()
     this.element.removeAttribute("data-delete-mode")
     if (this.hasResultTarget && this.resultTarget.open) this.resultTarget.close()
     if (!this.hasListTarget) return

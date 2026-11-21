@@ -69,6 +69,49 @@
 @media (prefers-reduced-motion: reduce) {
   .combo-pop { animation: none; }
 }
+/* 節目の演出は帯の中に収める。Main に全画面を重ねると一覧が隠れ、連打の指が止まる */
+/* 帯の右の空きは 390px 幅で 100px ほど。文字を大きくすると「n COMBO」に重なるので、大は大きさでなく色と弾み方で分ける */
+.combo-cheer {
+  font-size: 1.125rem;
+  color: var(--color-orange-300);
+  transform-origin: right center;
+}
+.combo-cheer.is-nice {
+  animation: combo-cheer 0.9s ease-out both;
+}
+.combo-cheer.is-great {
+  color: #fff;
+  text-shadow: 0 0 0.5rem rgb(0 0 0 / 0.45);
+  animation: combo-cheer 1.4s cubic-bezier(0.2, 0.9, 0.3, 1.4) both;
+}
+@keyframes combo-cheer {
+  0% { opacity: 0; transform: scale(0.4) rotate(-8deg); }
+  25% { opacity: 1; transform: scale(1.25) rotate(0); }
+  45% { transform: scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.combo-band.is-nice {
+  animation: combo-glow 0.6s ease-out;
+}
+@keyframes combo-glow {
+  40% { box-shadow: 0 0 0 4px var(--color-orange-400), 0 0 1.5rem var(--color-orange-400); }
+}
+/* 大の後はモードを抜けるまで虹のまま。読了の FEVER の虹と同じ流れ方にそろえる */
+.combo-band.is-great {
+  background: linear-gradient(90deg, #ff2e6b, #ff9f1c, #ffd166, #34d399, #3b82f6, #8b5cf6, #ff2e6b);
+  background-size: 200% 100%;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.5);
+  animation: fever-flow 2s linear infinite;
+}
+.combo-band.is-great.is-nice {
+  animation: fever-flow 2s linear infinite, combo-glow 0.6s ease-out;
+}
+.combo-band.is-great .combo-label { color: #fff; }
+@media (prefers-reduced-motion: reduce) {
+  .combo-band.is-nice, .combo-band.is-great, .combo-band.is-great.is-nice, .combo-cheer.is-nice, .combo-cheer.is-great { animation: none; }
+  .combo-burst span { display: none; }
+}
 /* 削除モードでは行のタップを「読む」にしない。ボタンを連打する指が少しずれても、読みと判定に化けない */
 [data-delete-mode] [data-swipe-target="read"] {
   pointer-events: none;
@@ -204,7 +247,8 @@ main:has(#toast > *) {
 @keyframes fever-flow {
   to { background-position: 200% 0; }
 }
-.burst span {
+.burst span,
+.combo-burst.is-bursting span {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -215,7 +259,8 @@ main:has(#toast > *) {
   animation: burst 0.9s ease-out both;
   transform: rotate(calc(var(--i) * 36deg)) translateX(0);
 }
-.burst span:nth-child(2n) { background: #fff; }
+.burst span:nth-child(2n),
+.combo-burst.is-bursting span:nth-child(2n) { background: #fff; }
 @keyframes burst {
   to { transform: rotate(calc(var(--i) * 36deg)) translateX(9rem); opacity: 0; }
 }
