@@ -33,6 +33,9 @@ shared:
     timeout_seconds: 30
   comments:
     personas_shown: 3
+    model: grok-4.3
+    max_tokens: 4000
+    timeout_seconds: 60
   push:
     digest_at: "07:30"
     streak_warning_at: "21:00"

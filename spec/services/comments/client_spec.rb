@@ -1,5 +1,5 @@
 RSpec.describe Comments::Client do
-  let(:comments) { { personas_shown: 3, model: "grok-4.7", max_tokens: 4000, timeout_seconds: 60 } }
+  let(:comments) { { personas_shown: 3, model: "grok-4.3", max_tokens: 4000, timeout_seconds: 60 } }
 
   before { allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.merge(comments: comments)) }
 

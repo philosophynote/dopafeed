@@ -1,26 +1,26 @@
 # 手書きのカセット（xAI の Responses API の応答の形）。本物に置き換えるには spec/support/vcr.rb の冒頭を見よ
 ---
 http_interactions:
-- request:
-    method: post
-    uri: https://api.x.ai/v1/responses
-    body:
-      encoding: UTF-8
-      string: '{"model":"grok-4.7","input":[{"role":"user","content":"(comments.erb)"}],"instructions":"(comments_system.txt と personas.yml)","stream":false,"store":false,"include":["reasoning.encrypted_content"],"max_output_tokens":4000,"text":{"format":{"type":"json_schema","name":"response","schema":{},"strict":true}},"reasoning":{"effort":"low"}}'
-    headers:
-      Content-Type:
-      - application/json
-      Authorization:
-      - Bearer <XAI_API_KEY>
-  response:
-    status:
-      code: 200
-      message: OK
-    headers:
-      Content-Type:
-      - application/json
-    body:
-      encoding: UTF-8
-      string: '{"id": "resp_fixture0000", "object": "response", "status": "completed", "model": "grok-4.7", "incomplete_details": null, "output": [{"type": "reasoning", "id": "rs_fixture0000", "summary": []}, {"type": "message", "id": "msg_fixture0000", "role": "assistant", "status": "completed", "content": [{"type": "output_text", "text": "{\"comments\": [{\"persona_id\": \"oda-nobunaga\", \"body\": \"SQLite を本番に据えるか。古い常識にしがみつく理由は無い。一人用なら軽さこそ武器じゃ。試して良ければ、わしの城にもすぐ布け。\"}, {\"persona_id\": \"joseph-stalin\", \"body\": \"移行の手順はある。だが期限と担当が書かれていない。バックアップを誰が、いつ確かめるのか。計画の無い本番運用は認めない。\"}, {\"persona_id\": \"mao-zedong\", \"body\": \"机上で RDBMS を比べるより、まず小さく本番に出して使う者の声を聞くことだ。この記事は実践から書かれている。そこを評価する。\"}, {\"persona_id\": \"napoleon-bonaparte\", \"body\": \"書き込みの競合が難しいだと？ 吾輩が先頭に立つ。WAL を敷き、ロックの段取りを整えて三日で突破せよ。退く理由を探す暇は無い。\"}, {\"persona_id\": \"julius-caesar\", \"body\": \"読んだ。手元で試した。Litestream の複製も確かめた。前置きが短く、要点が先にある。私はこの構成を採る。\"}, {\"persona_id\": \"genghis-khan\", \"body\": \"サーバーを一つ減らせば、道は短く速くなる。出自が軽いデータベースでも、役に立つなら迎え入れる。ただし複製の掟は皆に守らせよ。\"}, {\"persona_id\": \"saigo-takamori\", \"body\": \"よか記事でごわす。失敗した所まで隠さず書いちょるのが誠実じゃ。急いで全部を移さんでも、一つずつ確かめればよか。\"}, {\"persona_id\": \"steve-jobs\", \"body\": \"設定の項目が多すぎる。半分は削れる。残すべきはバックアップの一行だけだ。それが動けば、使う人は何も気にしなくていい。\"}]}", "annotations": []}]}], "usage": {"input_tokens": 2380, "output_tokens": 910, "total_tokens": 3290}}'
-  recorded_at: Fri, 20 Nov 2026 15:00:00 GMT
+  - request:
+      method: post
+      uri: https://api.x.ai/v1/responses
+      body:
+        encoding: UTF-8
+        string: '{"model":"grok-4.3","input":[{"role":"user","content":"(comments.erb)"}],"instructions":"(comments_system.txt と personas.yml)","stream":false,"store":false,"include":["reasoning.encrypted_content"],"max_output_tokens":4000,"text":{"format":{"type":"json_schema","name":"response","schema":{},"strict":true}},"reasoning":{"effort":"low"}}'
+      headers:
+        Content-Type:
+          - application/json
+        Authorization:
+          - Bearer <XAI_API_KEY>
+    response:
+      status:
+        code: 200
+        message: OK
+      headers:
+        Content-Type:
+          - application/json
+      body:
+        encoding: UTF-8
+        string: '{"id": "resp_fixture0000", "object": "response", "status": "completed", "model": "grok-4.3", "incomplete_details": null, "output": [{"type": "reasoning", "id": "rs_fixture0000", "summary": []}, {"type": "message", "id": "msg_fixture0000", "role": "assistant", "status": "completed", "content": [{"type": "output_text", "text": "{\"comments\": [{\"persona_id\": \"oda-nobunaga\", \"body\": \"SQLite を本番に据えるか。古い常識にしがみつく理由は無い。一人用なら軽さこそ武器じゃ。試して良ければ、わしの城にもすぐ布け。\"}, {\"persona_id\": \"joseph-stalin\", \"body\": \"移行の手順はある。だが期限と担当が書かれていない。バックアップを誰が、いつ確かめるのか。計画の無い本番運用は認めない。\"}, {\"persona_id\": \"mao-zedong\", \"body\": \"机上で RDBMS を比べるより、まず小さく本番に出して使う者の声を聞くことだ。この記事は実践から書かれている。そこを評価する。\"}, {\"persona_id\": \"napoleon-bonaparte\", \"body\": \"書き込みの競合が難しいだと？ 吾輩が先頭に立つ。WAL を敷き、ロックの段取りを整えて三日で突破せよ。退く理由を探す暇は無い。\"}, {\"persona_id\": \"julius-caesar\", \"body\": \"読んだ。手元で試した。Litestream の複製も確かめた。前置きが短く、要点が先にある。私はこの構成を採る。\"}, {\"persona_id\": \"genghis-khan\", \"body\": \"サーバーを一つ減らせば、道は短く速くなる。出自が軽いデータベースでも、役に立つなら迎え入れる。ただし複製の掟は皆に守らせよ。\"}, {\"persona_id\": \"saigo-takamori\", \"body\": \"よか記事でごわす。失敗した所まで隠さず書いちょるのが誠実じゃ。急いで全部を移さんでも、一つずつ確かめればよか。\"}, {\"persona_id\": \"steve-jobs\", \"body\": \"設定の項目が多すぎる。半分は削れる。残すべきはバックアップの一行だけだ。それが動けば、使う人は何も気にしなくていい。\"}]}", "annotations": []}]}], "usage": {"input_tokens": 2380, "output_tokens": 910, "total_tokens": 3290}}'
+    recorded_at: Fri, 20 Nov 2026 15:00:00 GMT
 recorded_with: VCR 6.4.1
