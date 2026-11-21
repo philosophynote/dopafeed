@@ -396,7 +396,7 @@ RSpec.describe "Main", type: :system do
       expand("最初の記事")
       first = open_link("最初の記事") # 隠れる合図が来ないまま戻った
       expand("次の記事")
-      expect(expanded?("最初の記事")).to be(false)
+      expect(find("article", text: "最初の記事")).to have_css("button[aria-expanded='false']")
       second = open_link("次の記事")
       leave_and_return(dwell: threshold + 5, reading: second)
 

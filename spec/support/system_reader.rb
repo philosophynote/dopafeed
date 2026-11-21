@@ -11,8 +11,10 @@ module SystemReader
   end
 
   # 帯が購読を始める前に配ると届かず、取り直しの側を通ってしまう
+  # 「読む」の click は応答を待たずに返り、その時点では Reading の行がまだ無いことがある
   def judgment_arrives(article, tier)
-    expect(page).to have_css("#rarity_reading_#{article.reload.reading.id} turbo-cable-stream-source[connected]", visible: :all)
+    Timeout.timeout(Capybara.default_max_wait_time) { sleep 0.05 until article.reload.reading }
+    expect(page).to have_css("#rarity_reading_#{article.reading.id} turbo-cable-stream-source[connected]", visible: :all)
     create(:article_judgment, article: article, **scores_for(tier))
     JudgeArticleJob.settle(article)
   end
