@@ -6,7 +6,7 @@
     <%= render "articles/swipe_rail", target: "saveRail", modifier: "swipe-save-rail", icon: :bookmark, label: "保存" %>
     <article class="swipe-card relative flex items-start gap-3 bg-white px-4 py-2.5" data-swipe-target="card"
              data-action="pointerdown->swipe#start pointermove->swipe#move pointerup->swipe#end pointercancel->swipe#end">
-      <%= button_to article_dismissal_path(article), form: { class: "delete-mode-only relative z-10 shrink-0", data: { action: "submit->swipe#remove" } },
+      <%= button_to article_dismissal_path(article), form: { class: "process-mode-only relative z-10 shrink-0", data: { action: "submit->swipe#remove" } },
                     class: "flex h-11 w-11 items-center justify-center rounded-full bg-red-500 text-white shadow-sm active:bg-red-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500" do %>
         <%= render "shared/icon_trash" %>
         <span class="sr-only">削除</span>

@@ -1,8 +1,8 @@
-RSpec.describe "Delete mode", type: :system do
+RSpec.describe "Process mode", type: :system do
   let(:now) { Time.current }
   let(:ratio) { Dopamine.settings.dig(:swipe, :dismiss_threshold_ratio) }
 
-  it "「削除」に切り替えると行ごとに削除ボタンが出て、押すと行が消えてトーストが出て未読数が減る。「読む」に戻すとボタンが消える" do
+  it "「処理」に切り替えると行ごとに削除ボタンが出て、押すと行が消えてトーストが出て未読数が減る。「読む」に戻すとボタンが消える" do
     create(:article, title: "上の記事", published_at: now - 1.hour)
     create(:article, title: "消す記事", published_at: now - 2.hours)
     create(:article, title: "下の記事", published_at: now - 3.hours)
@@ -10,10 +10,12 @@ RSpec.describe "Delete mode", type: :system do
 
     mode = find("fieldset", text: "読む")
     expect(mode).to have_checked_field("読む", visible: :all)
+    expect(mode).to have_unchecked_field("処理", visible: :all)
+    expect(mode).to have_no_field("削除", visible: :all)
     mode.all("label").each { |label| expect(label.evaluate_script("this.getBoundingClientRect().height")).to be >= 44 }
     expect(page).to have_no_button("削除")
 
-    enter_delete_mode
+    enter_process_mode
     expect(page).to have_button("削除", count: 3)
     expect(page).to have_css("button[data-swipe-target='read'][inert]", visible: :all, count: 3)
     button = find("li", text: "消す記事").find_button("削除")
@@ -62,7 +64,7 @@ RSpec.describe "Delete mode", type: :system do
     titles = %w[一本目 二本目 三本目 四本目]
     titles.each_with_index { |title, i| create(:article, title: title, published_at: now - (i + 1).hours) }
     sign_in
-    enter_delete_mode
+    enter_process_mode
 
     delete_row("一本目", native: true)
     delete_row("二本目")
@@ -76,14 +78,14 @@ RSpec.describe "Delete mode", type: :system do
     expect(Article.where.not(dismissed_at: nil).pluck(:title)).to match_array(%w[一本目 二本目 三本目])
   end
 
-  it "削除モードでは行を押しても広がらず、左右に引いても動かない。切り替えると広げていた欄は畳む" do
+  it "処理モードでは行を押しても広がらず、左右に引いても動かない。切り替えると広げていた欄は畳む" do
     create(:article, title: "広げた記事", summary: "・要約", published_at: now - 1.hour)
     create(:article, title: "触る記事", published_at: now - 2.hours)
     sign_in
     find("article", text: "広げた記事").find_button("読む").execute_script("this.click()")
     expect(page).to have_link("記事に遷移")
 
-    enter_delete_mode
+    enter_process_mode
     expect(page).to have_no_link("記事に遷移")
 
     page.execute_script("window.__starts = 0; document.addEventListener('turbo:submit-start', () => window.__starts++)")
@@ -105,7 +107,7 @@ RSpec.describe "Delete mode", type: :system do
     create(:article, title: "二度押す記事", published_at: now - 1.hour)
     create(:article, title: "残る記事", published_at: now - 2.hours)
     sign_in
-    enter_delete_mode
+    enter_process_mode
     # 応答の描画を遅らせ、押した行がまだ画面にある間にもう一度押す
     page.execute_script(<<~JS)
       window.__starts = 0
@@ -125,7 +127,7 @@ RSpec.describe "Delete mode", type: :system do
     expect(page.evaluate_script("window.__starts")).to eq(1)
   end
 
-  it "「読む」の応答を待つ間に「削除」へ切り替えたら、届いた応答で行は開かない" do
+  it "「読む」の応答を待つ間に「処理」へ切り替えたら、届いた応答で行は開かない" do
     create(:article, title: "待つ記事", summary: "・要約", published_at: now - 1.hour)
     sign_in
     # POST の応答を、切り替えた後まで手で止めておく
@@ -139,7 +141,7 @@ RSpec.describe "Delete mode", type: :system do
     read_button = find("article", text: "待つ記事").find_button("読む")
     read_button.execute_script("this.click()")
     page.document.synchronize { raise Capybara::ElementNotFound, "「読む」が送られない" unless page.evaluate_script("typeof window.__release") == "function" }
-    enter_delete_mode
+    enter_process_mode
     page.execute_script("window.__release()")
 
     expect(page).to have_css("[data-swipe-target='detail'] *", visible: :all, wait: 5)
@@ -150,7 +152,7 @@ RSpec.describe "Delete mode", type: :system do
   it "画面を移って戻る・再読込すると「読む」で始まる" do
     create(:article, title: "記事", published_at: now - 1.hour)
     sign_in
-    enter_delete_mode
+    enter_process_mode
 
     click_on "設定"
     expect(page).to have_css("h1", text: "設定")
@@ -158,35 +160,35 @@ RSpec.describe "Delete mode", type: :system do
     expect(page).to have_checked_field("読む", visible: :all)
     expect(page).to have_no_button("削除")
 
-    enter_delete_mode
+    enter_process_mode
     page.refresh
     expect(page).to have_checked_field("読む", visible: :all)
     expect(page).to have_no_button("削除")
   end
 
-  it "削除モードで最後の 1 本を消しても切り替えは残り、「読む」に戻すと空状態とともに切り替えが消える。元に戻せばまた出る" do
+  it "処理モードで最後の 1 本を消しても切り替えは残り、「読む」に戻すと空状態とともに切り替えが消える。元に戻せばまた出る" do
     create(:article, title: "最後の記事", published_at: now - 1.hour)
     sign_in
-    enter_delete_mode
+    enter_process_mode
 
     delete_row("最後の記事")
     expect(page).to have_text("全部読んだ。")
-    expect(page).to have_css("fieldset.delete-mode-switch")
+    expect(page).to have_css("fieldset.process-mode-switch")
 
     choose "読む", allow_label_click: true
     find("dialog[open]").click_on "閉じる"
-    expect(page).to have_no_css("fieldset.delete-mode-switch")
+    expect(page).to have_no_css("fieldset.process-mode-switch")
     expect(page).to have_link("設定")
 
     find("#toast").click_on("元に戻す")
     expect(page).to have_css("article", text: "最後の記事")
-    expect(page).to have_css("fieldset.delete-mode-switch")
+    expect(page).to have_css("fieldset.process-mode-switch")
   end
 
   it "未読が 0 本ならモードの切り替えは出ない" do
     sign_in
     expect(page).to have_text("全部読んだ。")
-    expect(page).to have_no_field("削除", visible: :all)
+    expect(page).to have_no_field("処理", visible: :all)
   end
 
   context "コンボとリザルト" do
@@ -224,7 +226,7 @@ RSpec.describe "Delete mode", type: :system do
     end
 
     def combo
-      find("[data-delete-mode-target='combo']")
+      find("[data-process-mode-target='combo']")
     end
 
     before do
@@ -236,7 +238,7 @@ RSpec.describe "Delete mode", type: :system do
       sign_in
       status_top = find("section[aria-label='記事']").evaluate_script("this.getBoundingClientRect().top")
       expect(page).to have_css("[data-combo]", text: "2 連続", visible: :all)
-      enter_delete_mode
+      enter_process_mode
       expect(combo).to have_text("0 COMBO", normalize_ws: true)
       expect(combo["aria-atomic"]).to eq("true")
       expect(find("section[aria-label='記事']").evaluate_script("this.getBoundingClientRect().top")).to eq(status_top)
@@ -270,7 +272,7 @@ RSpec.describe "Delete mode", type: :system do
     it "「読む」に戻すと、かかった時間と件数と 1 件あたりの秒数のリザルトが重なって出て、ファンファーレが鳴る。閉じると次の回は 0 から" do
       sign_in
       freeze_clock
-      enter_delete_mode
+      enter_process_mode
       delete_row("一本目")
       delete_row("二本目")
       delete_row("三本目")
@@ -289,13 +291,13 @@ RSpec.describe "Delete mode", type: :system do
 
       result.click_on "閉じる"
       expect(page).to have_no_css("dialog[open]")
-      enter_delete_mode
+      enter_process_mode
       expect(combo).to have_text("0 COMBO", normalize_ws: true)
     end
 
     it "続けて押してすぐ「読む」に戻しても、押した分がリザルトに入る。後から届いた応答は次の回のコンボに数えない" do
       sign_in
-      enter_delete_mode
+      enter_process_mode
       hold_posts
       delete_row("一本目")
       delete_row("二本目")
@@ -304,7 +306,7 @@ RSpec.describe "Delete mode", type: :system do
 
       expect(find("dialog[open]")).to have_text("3 件", normalize_ws: true)
       find("dialog[open]").click_on "閉じる"
-      enter_delete_mode
+      enter_process_mode
       release_posts
 
       expect(page).to have_css("article", count: 1)
@@ -316,7 +318,7 @@ RSpec.describe "Delete mode", type: :system do
 
     it "送れなかった削除はコンボから引く" do
       sign_in
-      enter_delete_mode
+      enter_process_mode
       # 圏外で送れなかったときと同じく、最初の削除の POST だけを失敗させる
       page.execute_script(<<~JS)
         const original = window.fetch
@@ -340,7 +342,7 @@ RSpec.describe "Delete mode", type: :system do
     it "待ちの上限を越えて失敗に見えた削除も、後から成功が届けばコンボに数え直す" do
       allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.deep_merge(swipe: { submit_timeout_seconds: 1 }))
       sign_in
-      enter_delete_mode
+      enter_process_mode
       page.execute_script(<<~JS)
         const original = window.fetch
         window.fetch = (url, options) => (options?.method || "GET").toUpperCase() === "POST"
@@ -357,25 +359,25 @@ RSpec.describe "Delete mode", type: :system do
     it "1 件も消さずに「読む」に戻すとリザルトは出ない。1 分に満たなければ秒だけ出す" do
       sign_in
       freeze_clock
-      enter_delete_mode
+      enter_process_mode
       choose "読む", allow_label_click: true
       sleep 0.3
       expect(page).to have_no_css("dialog[open]")
 
-      enter_delete_mode
+      enter_process_mode
       delete_row("一本目")
       expect(combo).to have_text("1 COMBO", normalize_ws: true)
       advance_clock(9_500)
       choose "読む", allow_label_click: true
       result = find("dialog[open]")
-      expect(result).to have_text("1 件", normalize_ws: true)
+      expect(result).to have_text("1 件 処理した", normalize_ws: true)
       expect(result).to have_text("9 秒", normalize_ws: true)
       expect(result).to have_no_text("分")
     end
 
     it "リザルトは枠の外を押すと閉じ、枠の中の余白を押しても閉じない。開いたまま画面を移って戻ると閉じている" do
       sign_in
-      enter_delete_mode
+      enter_process_mode
       delete_row("一本目")
       expect(combo).to have_text("1 COMBO", normalize_ws: true)
       choose "読む", allow_label_click: true
@@ -387,7 +389,7 @@ RSpec.describe "Delete mode", type: :system do
       page.driver.browser.action.move_to_location(rect["left"] / 2, rect["top"] / 2).click.perform
       expect(page).to have_no_css("dialog[open]")
 
-      enter_delete_mode
+      enter_process_mode
       delete_row("二本目")
       expect(combo).to have_text("1 COMBO", normalize_ws: true)
       choose "読む", allow_label_click: true
@@ -402,13 +404,13 @@ RSpec.describe "Delete mode", type: :system do
     it "動きを減らす設定では、件数をカウントアップせずに最後の数で出す" do
       sign_in
       page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: [ { name: "prefers-reduced-motion", value: "reduce" } ])
-      enter_delete_mode
+      enter_process_mode
       delete_row("一本目")
       delete_row("二本目")
       expect(combo).to have_text("2 COMBO", normalize_ws: true)
 
       choose "読む", allow_label_click: true
-      expect(find("dialog[open] [data-delete-mode-target='resultCount']").text).to eq("2")
+      expect(find("dialog[open] [data-process-mode-target='resultCount']").text).to eq("2")
     ensure
       page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: [])
     end
@@ -425,11 +427,11 @@ RSpec.describe "Delete mode", type: :system do
     end
 
     def band
-      find("[data-delete-mode-target='band']")
+      find("[data-process-mode-target='band']")
     end
 
     def cheer
-      find("[data-delete-mode-target='cheer']", visible: :all)
+      find("[data-process-mode-target='cheer']", visible: :all)
     end
 
     # 行は上から順に消す。元に戻した行は飛ばしたままでよい（どの行でも 1 コンボ）
@@ -453,7 +455,7 @@ RSpec.describe "Delete mode", type: :system do
     it "yml の節目（5 で小、10 で大）に届くと、小は帯が光って「NICE!」、大は帯が虹色になり火花が散って「GREAT!!」が出る。節目でもメロディは鳴らす" do
       expect([ small, large ]).to eq([ 5, 10 ])
       sign_in
-      enter_delete_mode
+      enter_process_mode
 
       delete_until(small - 1)
       expect(band).to have_text("#{small - 1} COMBO", normalize_ws: true)
@@ -476,7 +478,7 @@ RSpec.describe "Delete mode", type: :system do
       expect(band).to have_text("#{large} COMBO", normalize_ws: true)
       expect(cheer).to have_text("GREAT!!")
       expect(band[:class]).to include("is-great")
-      expect(page).to have_css("[data-delete-mode-target='burst'].is-bursting span", visible: :all, minimum: 1)
+      expect(page).to have_css("[data-process-mode-target='burst'].is-bursting span", visible: :all, minimum: 1)
       expect(sfx_log.last(2)).to eq(%w[melody combo_great])
       expect(sfx_log.count("combo_nice")).to eq(1)
       expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "火花で横スクロールが出ている"
@@ -492,7 +494,7 @@ RSpec.describe "Delete mode", type: :system do
     it "節目は繰り返す。小と大が重なる数では大だけを出す" do
       with_milestones(small: 2, large: 4)
       sign_in
-      enter_delete_mode
+      enter_process_mode
 
       delete_until(2)
       expect(cheer).to have_text("NICE!")
@@ -512,7 +514,7 @@ RSpec.describe "Delete mode", type: :system do
     it "元に戻して節目の手前に下がってから届き直しても、同じ節目の演出は出し直さない" do
       with_milestones(small: 2, large: 4)
       sign_in
-      enter_delete_mode
+      enter_process_mode
 
       delete_until(2)
       expect(cheer).to have_text("NICE!")
@@ -524,16 +526,16 @@ RSpec.describe "Delete mode", type: :system do
       expect(sfx_log.last).to eq("melody")
     end
 
-    it "「読む」に戻してまた「削除」に入ると、帯は黒に戻り、節目は 0 から数え直す" do
+    it "「読む」に戻してまた「処理」に入ると、帯は黒に戻り、節目は 0 から数え直す" do
       with_milestones(small: 2, large: 4)
       sign_in
-      enter_delete_mode
+      enter_process_mode
       delete_until(4)
       expect(band[:class]).to include("is-great")
 
       choose "読む", allow_label_click: true
       find("dialog[open]").click_on "閉じる"
-      enter_delete_mode
+      enter_process_mode
 
       expect(band[:class]).not_to include("is-great")
       expect(cheer.text).to eq("")
@@ -545,7 +547,7 @@ RSpec.describe "Delete mode", type: :system do
     it "演出の最中でも次の削除ボタンを押せて、一覧の位置は動かない" do
       with_milestones(small: 2, large: 4)
       sign_in
-      enter_delete_mode
+      enter_process_mode
       list_top = find("section[aria-label='記事']").evaluate_script("this.getBoundingClientRect().top")
 
       delete_until(4)
@@ -562,7 +564,7 @@ RSpec.describe "Delete mode", type: :system do
       with_milestones(small: 2, large: 4)
       sign_in
       page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: [ { name: "prefers-reduced-motion", value: "reduce" } ])
-      enter_delete_mode
+      enter_process_mode
 
       delete_until(2)
       expect(cheer).to have_text("NICE!")
@@ -576,7 +578,7 @@ RSpec.describe "Delete mode", type: :system do
       expect(band.evaluate_script("getComputedStyle(this).backgroundImage")).to include("linear-gradient")
       expect(band.evaluate_script("getComputedStyle(this).animationName")).to eq("none")
       expect(cheer.evaluate_script("getComputedStyle(this).animationName")).to eq("none")
-      expect(page).to have_no_css("[data-delete-mode-target='burst'].is-bursting", visible: :all)
+      expect(page).to have_no_css("[data-process-mode-target='burst'].is-bursting", visible: :all)
     ensure
       page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: [])
     end
@@ -585,7 +587,7 @@ RSpec.describe "Delete mode", type: :system do
       settings = Dopamine.settings.deep_merge(delete_mode: { combo_small_every: 1, combo_large_every: 0 }, swipe: { submit_timeout_seconds: 1 })
       allow(Dopamine).to receive(:settings).and_return(settings)
       sign_in
-      enter_delete_mode
+      enter_process_mode
       page.execute_script(<<~JS)
         const original = window.fetch
         window.fetch = (url, options) => (options?.method || "GET").toUpperCase() === "POST"
@@ -607,7 +609,7 @@ RSpec.describe "Delete mode", type: :system do
       settings.delete(:delete_mode)
       allow(Dopamine).to receive(:settings).and_return(settings)
       sign_in
-      enter_delete_mode
+      enter_process_mode
 
       delete_until(10)
       expect(band).to have_text("10 COMBO", normalize_ws: true)

@@ -53,10 +53,10 @@
 .swipe-rail.swipe-settling {
   transition: width 200ms ease-out, opacity 200ms ease-out;
 }
-.delete-mode-only {
+.process-mode-only {
   display: none;
 }
-[data-delete-mode] .delete-mode-only {
+[data-process-mode] .process-mode-only {
   display: block;
 }
 .combo-pop {
@@ -111,8 +111,8 @@
   .combo-band.is-nice, .combo-band.is-great, .combo-band.is-great.is-nice, .combo-cheer.is-nice, .combo-cheer.is-great { animation: none; }
   .combo-burst span { display: none; }
 }
-/* 削除モードでは行のタップを「読む」にしない。ボタンを連打する指が少しずれても、読みと判定に化けない */
-[data-delete-mode] [data-swipe-target="read"] {
+/* 処理モードでは行のタップを「読む」にしない。ボタンを連打する指が少しずれても、読みと判定に化けない */
+[data-process-mode] [data-swipe-target="read"] {
   pointer-events: none;
 }
 

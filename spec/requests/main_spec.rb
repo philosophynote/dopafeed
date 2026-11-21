@@ -55,7 +55,7 @@ RSpec.describe "Main", type: :request do
       expect(box).to have_no_css("*", visible: :all)
     end
 
-    it "興味なしにした記事は行にも未読数にも出ない。行には削除モードの間だけ見せる削除ボタンを置き、スワイプの form は置かない" do
+    it "興味なしにした記事は行にも未読数にも出ない。行には処理モードの間だけ見せる削除ボタンを置き、スワイプの form は置かない" do
       article = create(:article, title: "残る記事")
       create(:article, :dismissed, title: "興味なしの記事")
 
@@ -64,7 +64,7 @@ RSpec.describe "Main", type: :request do
       expect(page).to have_css("article h2", text: "残る記事")
       expect(page).to have_no_text("興味なしの記事")
       expect(page.find("nav[aria-label='タブバー']")).to have_css("[data-unread-badge]", text: "1")
-      form = page.find("article form.delete-mode-only[action='#{article_dismissal_path(article)}']")
+      form = page.find("article form.process-mode-only[action='#{article_dismissal_path(article)}']")
       expect(form["data-action"]).to eq("submit->swipe#remove")
       expect(form).to have_button("削除")
       expect(page.find("article")).to have_no_css("[data-swipe-target='form'], [data-swipe-target='rail']", visible: :all)

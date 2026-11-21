@@ -25,14 +25,14 @@ export default class extends Controller {
   }
 
   toggle(event) {
-    const deleting = event.target.value === "delete"
-    if (deleting === this.deleting) return
+    const processing = event.target.value === "process"
+    if (processing === this.processing) return
 
-    this.deleting = deleting
-    this.element.toggleAttribute("data-delete-mode", deleting)
-    this.syncReadable(deleting)
+    this.processing = processing
+    this.element.toggleAttribute("data-process-mode", processing)
+    this.syncReadable(processing)
     this.syncSwitch()
-    if (deleting) {
+    if (processing) {
       this.swipeOutlets.forEach((row) => row.collapse())
       this.startedAt = performance.now()
       this.counted = new Set()
@@ -46,7 +46,7 @@ export default class extends Controller {
 
   // 応答を待たずに押した時点で数える。応答で数えると、続けて押してすぐ「読む」に戻したとき、まだ列に並んでいる分がリザルトから抜ける
   removed({ detail: { form } }) {
-    if (!this.deleting) return
+    if (!this.processing) return
 
     this.late.delete(this.key(form))
     this.counted.add(this.key(form))
@@ -64,7 +64,7 @@ export default class extends Controller {
   // 「元に戻す」は列で飛ばされることがあるので応答で引く。数えた回の削除だけを引き、前の回のトーストで今の回のコンボは減らさない
   submitted(event) {
     const form = event.target
-    if (!this.deleting || !event.detail.success || !(form instanceof HTMLFormElement)) return
+    if (!this.processing || !event.detail.success || !(form instanceof HTMLFormElement)) return
     if (!new URL(form.action).pathname.endsWith("/dismissal")) return
 
     if (form.querySelector("input[name='_method']")?.value === "delete") {
@@ -119,7 +119,7 @@ export default class extends Controller {
   }
 
   uncount(form) {
-    if (!this.deleting || !this.counted.delete(this.key(form))) return false
+    if (!this.processing || !this.counted.delete(this.key(form))) return false
 
     this.setCombo(this.combo - 1)
     return true
@@ -175,12 +175,12 @@ export default class extends Controller {
   reset() {
     const read = this.element.querySelector("input[name=mode][value=read]")
     if (read) read.checked = true
-    this.deleting = false
+    this.processing = false
     this.counted = new Set()
     this.late = new Set()
     this.setCombo(0)
     this.clearMilestones()
-    this.element.removeAttribute("data-delete-mode")
+    this.element.removeAttribute("data-process-mode")
     if (this.hasResultTarget && this.resultTarget.open) this.resultTarget.close()
     if (!this.hasListTarget) return
 
@@ -188,18 +188,18 @@ export default class extends Controller {
     this.syncSwitch()
   }
 
-  // 削除モードの間は 0 本になっても残す。消すと「読む」に戻せない
+  // 処理モードの間は 0 本になっても残す。消すと「読む」に戻せない
   syncSwitch() {
     if (!this.hasSwitchTarget) return
 
     const empty = !this.listTarget.querySelector(":scope > li:not([hidden])")
-    this.switchTarget.hidden = empty && !this.deleting
+    this.switchTarget.hidden = empty && !this.processing
   }
 
   // pointer-events を止めるだけでは、Tab と VoiceOver に押しても何も起きない「読む」が行の数だけ残る。
   // ステータスの行もコンボの下に隠れたまま押せる。後から差し込まれた行（取り消しで戻った行）は swipe が繋がったときに合わせる
-  syncReadable(deleting) {
-    if (this.hasStatusTarget) this.statusTarget.inert = deleting
-    this.listTarget.querySelectorAll("[data-swipe-target~='read']").forEach((button) => { button.inert = deleting })
+  syncReadable(processing) {
+    if (this.hasStatusTarget) this.statusTarget.inert = processing
+    this.listTarget.querySelectorAll("[data-swipe-target~='read']").forEach((button) => { button.inert = processing })
   }
 }

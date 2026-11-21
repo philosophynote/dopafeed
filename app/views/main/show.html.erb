@@ -1,13 +1,13 @@
-<div data-controller="delete-mode" data-delete-mode-small-every-value="<%= Dopamine.settings.dig(:delete_mode, :combo_small_every).to_i %>" data-delete-mode-large-every-value="<%= Dopamine.settings.dig(:delete_mode, :combo_large_every).to_i %>" data-delete-mode-swipe-outlet="[data-controller~='swipe']" data-action="turbo:before-cache@document->delete-mode#reset pageshow@window->delete-mode#reset swipe:removed->delete-mode#removed swipe:remove-failed->delete-mode#removeFailed turbo:submit-end@document->delete-mode#submitted">
+<div data-controller="process-mode" data-process-mode-small-every-value="<%= Dopamine.settings.dig(:delete_mode, :combo_small_every).to_i %>" data-process-mode-large-every-value="<%= Dopamine.settings.dig(:delete_mode, :combo_large_every).to_i %>" data-process-mode-swipe-outlet="[data-controller~='swipe']" data-action="turbo:before-cache@document->process-mode#reset pageshow@window->process-mode#reset swipe:removed->process-mode#removed swipe:remove-failed->process-mode#removeFailed turbo:submit-end@document->process-mode#submitted">
 <%# 切り替えを別の行に置くと、一画面に入る記事の行が 1 本減る %>
 <header class="flex items-center justify-between gap-2">
   <h1 class="text-2xl font-black tracking-tight">
     <span class="text-orange-500">Dopa</span>Feed
   </h1>
   <% unless @articles.empty? %>
-    <fieldset class="delete-mode-switch ml-auto flex rounded-xl bg-gray-200/70 p-0.5 text-sm font-bold text-gray-600 [&[hidden]]:hidden" data-delete-mode-target="switch" data-action="change->delete-mode#toggle">
+    <fieldset class="process-mode-switch ml-auto flex rounded-xl bg-gray-200/70 p-0.5 text-sm font-bold text-gray-600 [&[hidden]]:hidden" data-process-mode-target="switch" data-action="change->process-mode#toggle">
       <legend class="sr-only">モード</legend>
-      <% [ %w[read 読む], %w[delete 削除] ].each do |value, label| %>
+      <% [ %w[read 読む], %w[process 処理] ].each do |value, label| %>
         <label class="flex h-11 w-14 cursor-pointer items-center justify-center rounded-[10px] has-checked:bg-white has-checked:text-gray-900 has-checked:shadow-sm has-focus-visible:outline-2 has-focus-visible:outline-orange-500">
           <input type="radio" name="mode" value="<%= value %>" class="sr-only" autocomplete="off" <%= "checked" if value == "read" %>><%= label %>
         </label>
@@ -26,17 +26,17 @@
   </div>
 </header>
 
-<%# 削除モードの間はステータスの行にコンボを重ねる。別の行を足すと、一画面に入る記事の行が減る %>
+<%# 処理モードの間はステータスの行にコンボを重ねる。別の行を足すと、一画面に入る記事の行が減る %>
 <div class="relative">
-  <div data-delete-mode-target="status"><%= render "status_card" %></div>
+  <div data-process-mode-target="status"><%= render "status_card" %></div>
   <% unless @articles.empty? %>
-    <p class="delete-mode-only absolute inset-0" data-delete-mode-target="combo" aria-live="polite" aria-atomic="true">
-      <span class="combo-band relative flex h-full items-center justify-center gap-2 rounded-2xl bg-gray-900 text-white shadow-sm" data-delete-mode-target="band">
-        <span class="text-2xl font-black tabular-nums" data-delete-mode-target="count">0</span>
+    <p class="process-mode-only absolute inset-0" data-process-mode-target="combo" aria-live="polite" aria-atomic="true">
+      <span class="combo-band relative flex h-full items-center justify-center gap-2 rounded-2xl bg-gray-900 text-white shadow-sm" data-process-mode-target="band">
+        <span class="text-2xl font-black tabular-nums" data-process-mode-target="count">0</span>
         <span class="combo-label text-sm font-bold tracking-widest text-orange-300">COMBO</span>
         <%# 文字が出るたびに数字が横へずれないよう、帯の右端に浮かせる %>
-        <span class="combo-cheer absolute right-4 top-1/2 -translate-y-1/2 font-black italic" data-delete-mode-target="cheer"></span>
-        <span class="combo-burst pointer-events-none absolute inset-0" data-delete-mode-target="burst" aria-hidden="true"><% 10.times { |i| %><span style="--i: <%= i %>"></span><% } %></span>
+        <span class="combo-cheer absolute right-4 top-1/2 -translate-y-1/2 font-black italic" data-process-mode-target="cheer"></span>
+        <span class="combo-burst pointer-events-none absolute inset-0" data-process-mode-target="burst" aria-hidden="true"><% 10.times { |i| %><span style="--i: <%= i %>"></span><% } %></span>
       </span>
     </p>
   <% end %>
@@ -46,7 +46,7 @@
   <% if @articles.empty? %>
     <%= render "empty" %>
   <% else %>
-    <ul class="swipe-list divide-y divide-gray-100 overflow-hidden rounded-2xl bg-white shadow-sm" data-delete-mode-target="list"
+    <ul class="swipe-list divide-y divide-gray-100 overflow-hidden rounded-2xl bg-white shadow-sm" data-process-mode-target="list"
         data-controller="accordion" data-accordion-swipe-outlet="[data-controller~='swipe']" data-action="swipe:expanded->accordion#collapseOthers">
       <% @articles.each do |article| %>
         <%= render "article_card", article: article %>
@@ -57,23 +57,23 @@
 </section>
 
 <% unless @articles.empty? %>
-  <dialog class="delete-result m-auto w-[min(20rem,calc(100%-2rem))] rounded-3xl bg-white p-0 text-center text-gray-900 shadow-xl backdrop:bg-black/50"
-          data-delete-mode-target="result" data-action="click->delete-mode#closeOnBackdrop" aria-labelledby="delete-result-title">
+  <dialog class="process-result m-auto w-[min(20rem,calc(100%-2rem))] rounded-3xl bg-white p-0 text-center text-gray-900 shadow-xl backdrop:bg-black/50"
+          data-process-mode-target="result" data-action="click->process-mode#closeOnBackdrop" aria-labelledby="process-result-title">
     <div class="p-6">
-      <h2 id="delete-result-title" class="text-sm font-bold tracking-widest text-orange-600">リザルト</h2>
+      <h2 id="process-result-title" class="text-sm font-bold tracking-widest text-orange-600">リザルト</h2>
       <p class="mt-2 flex items-baseline justify-center gap-1">
-        <span class="text-6xl font-black tabular-nums" data-delete-mode-target="resultCount">0</span>
+        <span class="text-6xl font-black tabular-nums" data-process-mode-target="resultCount">0</span>
         <span class="text-xl font-bold">件</span>
       </p>
-      <p class="text-sm text-gray-500">削除した</p>
+      <p class="text-sm text-gray-500">処理した</p>
       <dl class="mt-5 grid grid-cols-2 gap-2 text-left">
         <div class="rounded-2xl bg-gray-100 px-3 py-2">
           <dt class="text-xs text-gray-500">タイム</dt>
-          <dd class="text-lg font-bold tabular-nums" data-delete-mode-target="resultTime"></dd>
+          <dd class="text-lg font-bold tabular-nums" data-process-mode-target="resultTime"></dd>
         </div>
         <div class="rounded-2xl bg-gray-100 px-3 py-2">
           <dt class="text-xs text-gray-500">1 件あたり</dt>
-          <dd class="text-lg font-bold tabular-nums" data-delete-mode-target="resultPace"></dd>
+          <dd class="text-lg font-bold tabular-nums" data-process-mode-target="resultPace"></dd>
         </div>
       </dl>
       <form method="dialog" class="mt-5">

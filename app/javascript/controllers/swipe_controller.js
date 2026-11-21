@@ -22,7 +22,7 @@ export default class extends Controller {
 
   start(event) {
     this.swiped = false
-    if (this.deleting() || this.flying || this.opening || !event.isPrimary || event.button !== 0 || event.clientX < EDGE_PX) return
+    if (this.processing() || this.flying || this.opening || !event.isPrimary || event.button !== 0 || event.clientX < EDGE_PX) return
     const control = event.target.closest("a, button, input, select, textarea")
     if (control && control !== this.readTarget) return
 
@@ -112,12 +112,12 @@ export default class extends Controller {
     return [this.hasRailTarget && this.railTarget, this.hasSaveRailTarget && this.saveRailTarget].filter(Boolean)
   }
 
-  deleting() {
-    return this.element.closest("[data-delete-mode]") !== null
+  processing() {
+    return this.element.closest("[data-process-mode]") !== null
   }
 
   readTargetConnected(button) {
-    button.inert = this.deleting()
+    button.inert = this.processing()
   }
 
   render(dx) {
@@ -257,7 +257,7 @@ export default class extends Controller {
     const swiped = this.swiped && event.detail > 0
     this.swiped = false
     event.preventDefault()
-    if (swiped || this.deleting() || this.flying || this.opening || this.awaiting) return
+    if (swiped || this.processing() || this.flying || this.opening || this.awaiting) return
 
     play("tap")
     if (this.readTarget.tagName === "A") {
@@ -280,7 +280,7 @@ export default class extends Controller {
   detailTargetConnected() {
     if (!this.loaded()) return
 
-    const open = !this.deleting() && ((this.awaiting && this.tap === latestTap) || this.readTarget.getAttribute("aria-expanded") === "true")
+    const open = !this.processing() && ((this.awaiting && this.tap === latestTap) || this.readTarget.getAttribute("aria-expanded") === "true")
     this.awaiting = false
     this.expand(open)
   }
