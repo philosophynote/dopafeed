@@ -105,7 +105,7 @@ RSpec.describe "Dismissals", type: :request do
         card = page.find("turbo-stream[action='replace'][target='#{dom_id(article)}']")
         expect(card).to have_css("article h2", text: "戻す記事")
         expect(card).to have_button("「戻す記事」を読む")
-        expect(card).to have_css("form.process-mode-only[action='#{article_dismissal_path(article)}']")
+        expect(card).to have_css("form[data-swipe-target='form'][action='#{article_dismissal_path(article)}']", visible: :all)
         expect(card).to have_no_button("元に戻す")
         expect(page.find("turbo-stream[action='update'][target='toast']", visible: :all).text(:all)).to be_blank
         expect(page).to have_no_css("turbo-stream[target='unread-count']")
@@ -122,6 +122,16 @@ RSpec.describe "Dismissals", type: :request do
         expect(page).to have_css("turbo-stream[action='remove'][target='#{dom_id(read)}']")
         expect(page).to have_no_css("turbo-stream[action='replace'][target='#{dom_id(read)}']")
         expect(page).to have_no_css("turbo-stream[target='unread-count']")
+      end
+
+      it "保存も入っている記事は、行を戻さず隠した跡を消す（未読ではない）" do
+        saved = create(:article, :dismissed, :bookmarked, title: "保存もした記事")
+
+        delete article_dismissal_path(saved), headers: turbo
+
+        expect(saved.reload).not_to be_dismissed
+        expect(page).to have_css("turbo-stream[action='remove'][target='#{dom_id(saved)}']")
+        expect(page).to have_no_css("turbo-stream[action='replace'][target='#{dom_id(saved)}']")
       end
 
       it "JS が無ければ Main へ戻る" do

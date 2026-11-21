@@ -51,14 +51,25 @@ module SystemSwipe
 
   def enter_process_mode
     choose "処理", allow_label_click: true
-    expect(page).to have_button("削除")
+    expect(page).to have_css("[data-process-mode]")
   end
 
-  # native は chromedriver が合成する click（指で押したときと同じ submit の配り方）
-  def delete_row(title, native: false)
-    button = find("li", text: title).find_button("削除")
-    native ? native_click(button) : button.click
+  # 閾値の先まで引いて離す。処理モードでは左が削除、右が保存
+  def flick_row(title, direction)
+    width = card_width(title)
+    reach = width * Dopamine.settings.dig(:swipe, :dismiss_threshold_ratio) * 1.3
+    from = direction == :left ? width * 0.8 : width * 0.2
+    drag_card(title, from: [ from, 40 ], to: [ direction == :left ? from - reach : from + reach, 40 ])
   end
+
+  def delete_row(title) = flick_row(title, :left)
+  def save_row(title) = flick_row(title, :right)
+
+  # 払った行の送信は流れ終えてから列に並ぶので、トーストが目当ての行のものに替わるのを待ってから戻す
+  def undo(action)
+    find("#toast form[action='#{action}']").click_button("元に戻す")
+  end
+
   # 戻りの transition が終わる前に測ると、途中の移動量を読んでしまう。
   def settled_shift(title)
     Timeout.timeout(Capybara.default_max_wait_time) { sleep 0.05 until card_shift(title).zero? }

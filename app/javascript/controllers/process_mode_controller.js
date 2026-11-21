@@ -6,7 +6,7 @@ const COUNT_UP_MS = 600
 // 戻ってきたときは読むつもりのことが多いので、モードを写し・bfcache・ブラウザのフォーム復元に持ち越さない。
 // コンボはサーバーに残さない。読了の「n 連続」やストリークに混ぜると、消すだけで読書の報酬が増える
 export default class extends Controller {
-  static targets = ["list", "switch", "status", "combo", "count", "band", "cheer", "burst", "result", "resultCount", "resultTime", "resultPace"]
+  static targets = ["list", "switch", "status", "combo", "count", "band", "cheer", "burst", "result", "resultCount", "resultTime", "resultPace", "resultBreakdown"]
   static outlets = ["swipe"]
   static values = { smallEvery: Number, largeEvery: Number }
 
@@ -44,8 +44,7 @@ export default class extends Controller {
     }
   }
 
-  // 応答を待たずに押した時点で数える。応答で数えると、続けて押してすぐ「読む」に戻したとき、まだ列に並んでいる分がリザルトから抜ける
-  removed({ detail: { form } }) {
+  processed({ detail: { form } }) {
     if (!this.processing) return
 
     this.late.delete(this.key(form))
@@ -56,16 +55,16 @@ export default class extends Controller {
     this.celebrate()
   }
 
-  // 待ちの上限を越えた送信は止めずに列だけ進めるので、失敗に見えた削除の成功が後から届くことがある。そのときは数え直す
-  removeFailed({ detail: { form } }) {
+  // 待ちの上限を越えた送信は止めずに列だけ進めるので、失敗に見えた送信の成功が後から届くことがある。そのときは数え直す
+  processFailed({ detail: { form } }) {
     if (this.uncount(form)) this.late.add(this.key(form))
   }
 
-  // 「元に戻す」は列で飛ばされることがあるので応答で引く。数えた回の削除だけを引き、前の回のトーストで今の回のコンボは減らさない
+  // 「元に戻す」は列で飛ばされることがあるので応答で引く。数えた回の削除と保存だけを引き、前の回のトーストで今の回のコンボは減らさない
   submitted(event) {
     const form = event.target
     if (!this.processing || !event.detail.success || !(form instanceof HTMLFormElement)) return
-    if (!new URL(form.action).pathname.endsWith("/dismissal")) return
+    if (!this.kind(form)) return
 
     if (form.querySelector("input[name='_method']")?.value === "delete") {
       this.uncount(form)
@@ -75,8 +74,8 @@ export default class extends Controller {
     }
   }
 
-  // 元に戻して届き直すたびに出すと、戻して押すだけで報酬が出る。大と小が重なる数では大だけ（演出は一度に一番大きい 1 つ。ADR 0022）。
-  // 後から届いた成功で数え直したときは呼ばない。押していない瞬間に節目の音だけが鳴る
+  // 元に戻して届き直すたびに出すと、戻して払うだけで報酬が出る。大と小が重なる数では大だけ（演出は一度に一番大きい 1 つ。ADR 0022）。
+  // 後から届いた成功で数え直したときは呼ばない。払っていない瞬間に節目の音だけが鳴る
   celebrate() {
     if (this.combo <= this.best) return
     this.best = this.combo
@@ -129,6 +128,10 @@ export default class extends Controller {
     return new URL(form.action).pathname
   }
 
+  kind(form) {
+    return this.key(form).match(/\/(dismissal|bookmark)$/)?.[1]
+  }
+
   // 節目の文字は aria-live の中にあるので、消えた後も残すと次の数でも読み上げられる。動きを減らす設定では見えたまま残る
   setCombo(combo) {
     this.combo = combo
@@ -144,6 +147,8 @@ export default class extends Controller {
     const minutes = Math.floor(seconds / 60)
     this.resultTimeTarget.textContent = minutes > 0 ? `${minutes} 分 ${seconds % 60} 秒` : `${seconds} 秒`
     this.resultPaceTarget.textContent = `${(elapsedMs / 1000 / count).toFixed(1)} 秒`
+    const kinds = [...this.counted].map((key) => key.split("/").pop())
+    this.resultBreakdownTarget.textContent = `削除 ${kinds.filter((kind) => kind === "dismissal").length} ・ 保存 ${kinds.filter((kind) => kind === "bookmark").length}`
     this.resultTarget.showModal()
     play("fanfare")
     this.countUpTo(count)

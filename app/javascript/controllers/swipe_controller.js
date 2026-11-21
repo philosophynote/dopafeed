@@ -13,16 +13,17 @@ let latestTap = 0
 
 export default class extends Controller {
   static targets = ["card", "rail", "saveRail", "form", "saveForm", "read", "detail"]
-  static values = { dismissRatio: Number, flickVelocity: Number, flickWindowMs: Number, flickMinPx: Number, submitTimeoutSeconds: Number }
+  static values = { dismissRatio: Number, flickVelocity: Number, flickWindowMs: Number, flickMinPx: Number, submitTimeoutSeconds: Number, dismissNeedsProcessMode: Boolean }
 
   disconnect() {
     this.settleCleanup?.()
     this.submitCleanup?.()
+    this.laggingCleanup?.()
   }
 
   start(event) {
     this.swiped = false
-    if (this.processing() || this.flying || this.opening || !event.isPrimary || event.button !== 0 || event.clientX < EDGE_PX) return
+    if (this.flying || this.lagging || this.opening || !event.isPrimary || event.button !== 0 || event.clientX < EDGE_PX) return
     const control = event.target.closest("a, button, input, select, textarea")
     if (control && control !== this.readTarget) return
 
@@ -58,7 +59,7 @@ export default class extends Controller {
       this.element.classList.add("swipe-active")
       this.capture()
     }
-    this.dx = Math.max(this.hasFormTarget ? -Infinity : 0, Math.min(this.hasSaveFormTarget ? Infinity : 0, dx))
+    this.dx = Math.max(this.canDismiss() ? -Infinity : 0, Math.min(this.hasSaveFormTarget ? Infinity : 0, dx))
     this.render(this.dx)
   }
 
@@ -70,7 +71,10 @@ export default class extends Controller {
 
     // pointercancel はスクロール等でも起こるため、速さによる払い判定は pointerup に限る。
     const flicked = event.type === "pointerup" && this.flicked(event.timeStamp)
-    if (this.dx !== 0 && (Math.abs(this.dx) >= this.threshold() || flicked)) {
+    // 引いている間に「読む」へ戻されたら、左へ引いた分は削除にしない
+    if (this.dx < 0 && !this.canDismiss()) {
+      this.settle(0)
+    } else if (this.dx !== 0 && (Math.abs(this.dx) >= this.threshold() || flicked)) {
       this.flyOut(Math.sign(this.dx))
     } else {
       this.settle(0)
@@ -116,6 +120,11 @@ export default class extends Controller {
     return this.element.closest("[data-process-mode]") !== null
   }
 
+  // 読むつもりの指で消さないよう、Main の行は処理モードの間だけ左へ引ける
+  canDismiss() {
+    return this.hasFormTarget && (!this.dismissNeedsProcessModeValue || this.processing())
+  }
+
   readTargetConnected(button) {
     button.inert = this.processing()
   }
@@ -132,7 +141,8 @@ export default class extends Controller {
       rail.classList.toggle("swipe-armed", shown && progress >= 1)
     })
     // 鳴らすのは 1 回の引きで最初に閾値を越えた瞬間だけ（戻して越え直す間や、離して流れ出す間に鳴り直さない）
-    if (this.tracking && progress >= 1 && !this.swipeSounded) {
+    // 処理モードでは離したときのメロディが拍を刻むので、越えた瞬間の音を重ねない
+    if (this.tracking && progress >= 1 && !this.swipeSounded && !this.processing()) {
       this.swipeSounded = true
       play("swipe")
     }
@@ -164,45 +174,42 @@ export default class extends Controller {
   }
 
   // 先に送ると Turbo の差し替えで、流れ出す途中のカードが消えてしまう。
+  // 処理モードの数は応答を待たずに離した時点で数えさせる。応答で数えると、続けて払ってすぐ「読む」に戻したとき列に並んだ分が抜ける
   flyOut(direction) {
     this.flying = true
-    this.settle(direction * this.cardTarget.offsetWidth * FLY_OUT_RATIO, () => this.submit(direction))
+    const form = direction > 0 ? this.saveFormTarget : this.formTarget
+    const counted = this.processing()
+    if (counted) this.dispatch("processed", { detail: { form } })
+    this.settle(direction * this.cardTarget.offsetWidth * FLY_OUT_RATIO, () => this.submit(form, counted))
   }
 
-  submit(direction) {
-    const form = direction > 0 ? this.saveFormTarget : this.formTarget
-    const done = (success) => {
+  submit(form, counted) {
+    const done = (success, { timedOut = false } = {}) => {
       if (success) return
 
       noteSwipeFailed()
+      if (counted) this.dispatch("process-failed", { detail: { form } })
+      if (timedOut) this.holdUntilEnded(form)
       this.restore()
     }
     this.enqueue(form, null, done, { send: () => { this.stamp(form, noteSwipeSent()); form.requestSubmit() } })
   }
 
-  // 並べずに連打すると、Turbo が前の行の送信を止めて応答を捨て、消したはずの行が画面に残る。
-  // 送り直しの submit（releasing）は止めずに Turbo へ渡す
-  remove(event) {
-    if (this.releasing) return
+  // 待ちの上限を越えた送信は止めずに列だけ進めるので、成功が後から届くことがある。届くまでに逆へ払い直せると、
+  // 遅れて届いた先の成功と合わせて削除と保存の両方が入るので、その送信が終わる（成功・失敗・Turbo の中断）まで引かせない
+  holdUntilEnded(form) {
+    this.lagging = true
+    const ended = (event) => {
+      if (event.target !== form) return
 
-    event.preventDefault()
-    if (this.removing) return
-
-    this.removing = true
-    const form = event.target
-    this.dispatch("removed", { detail: { form } })
-    this.enqueue(form, null, (success) => {
-      if (success) return
-
-      noteSwipeFailed()
-      this.removing = false
-      this.dispatch("remove-failed", { detail: { form } })
-    }, { send: () => {
-      this.stamp(form, noteSwipeSent())
-      this.releasing = true
-      form.requestSubmit()
-      this.releasing = false
-    } })
+      this.laggingCleanup()
+      this.lagging = false
+    }
+    document.addEventListener("turbo:submit-end", ended)
+    this.laggingCleanup = () => {
+      document.removeEventListener("turbo:submit-end", ended)
+      this.laggingCleanup = null
+    }
   }
 
   // 送った回数を送信に付ける。応答のトーストがそれを持ち、後から来た送信に置き換わる側かを見分ける（submission_queue）
@@ -241,7 +248,7 @@ export default class extends Controller {
       const timer = setTimeout(() => {
         finish()
         if (stopOnTimeout) submission?.stop()
-        done(false)
+        done(false, { timedOut: true })
       }, this.submitTimeoutSecondsValue * 1000)
       document.addEventListener("turbo:submit-start", started)
       document.addEventListener("turbo:submit-end", ended)
