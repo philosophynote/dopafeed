@@ -9,7 +9,8 @@
     <meta name="theme-color" content="#f3f4f6">
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
-    <%= tag.meta name: "sfx-record" if Rails.configuration.x.sfx_record %>
+    <%# config.x は設定していない鍵に空の OrderedOptions（真）を返すので、真偽ではなく true と比べる %>
+    <%= tag.meta name: "sfx-record" if Rails.configuration.x.sfx_record == true %>
 
     <%= yield :head %>
 

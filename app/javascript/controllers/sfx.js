@@ -1,8 +1,7 @@
 // 効果音はその場で合成する。音源ファイルを置かないので、ライセンスも読み込み待ちも無い（ADR 0022）。
 // iOS は利用者の操作の中でしか音を出させない。指の pointerdown はその操作に数えられない（数えるのは pointerup・touchend・click・keydown）ため、
 // それらを capture で聞いて AudioContext を作り、起こす。最初の操作より前の音は捨てる。
-// navigator.audioSession の種類は指定しない。"ambient" を明示すると iOS 27 で消音を切っても鳴らなかった。"playback" は消音を越えて鳴り、聴いている音楽も止める。
-// 指定しなければ iOS は Web Audio だけのページを消音に従わせる（ADR 0025）。
+// navigator.audioSession の種類は指定しない。既定でも iOS は Web Audio だけのページを消音に従わせ、聴いている音楽も止めない。"playback" は消音を越えて鳴り、音楽も止める（ADR 0025）。
 const STORAGE_KEY = "sfx"
 const LOG_KEY = "sfx-log"
 const LEVEL_LOG_KEY = "sfx-log-levels"
