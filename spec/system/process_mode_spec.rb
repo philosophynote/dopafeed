@@ -2,7 +2,7 @@ RSpec.describe "Process mode", type: :system do
   let(:now) { Time.current }
   let(:ratio) { Dopamine.settings.dig(:swipe, :dismiss_threshold_ratio) }
 
-  it "「処理」に切り替えると行ごとに削除ボタンが出て、押すと行が消えてトーストが出て未読数が減る。「読む」に戻すとボタンが消える" do
+  it "「処理」に切り替えても削除ボタンは出ず、行を左へ払うと消えてトーストが出て未読数が減る。「読む」に戻すと左へは引けない" do
     create(:article, title: "上の記事", published_at: now - 1.hour)
     create(:article, title: "消す記事", published_at: now - 2.hours)
     create(:article, title: "下の記事", published_at: now - 3.hours)
@@ -16,15 +16,17 @@ RSpec.describe "Process mode", type: :system do
     expect(page).to have_no_button("削除")
 
     enter_process_mode
-    expect(page).to have_button("削除", count: 3)
+    expect(page).to have_no_button("削除")
     expect(page).to have_css("button[data-swipe-target='read'][inert]", visible: :all, count: 3)
-    button = find("li", text: "消す記事").find_button("削除")
-    rect = button.evaluate_script("this.getBoundingClientRect().toJSON()")
-    expect([ rect["width"], rect["height"] ].min).to be >= 44
+    width = card_width("消す記事")
+    drag_card("消す記事", from: [ width * 0.8, 40 ], to: [ width * 0.8 - width * ratio * 1.3, 40 ], release: false)
+    expect(card_shift("消す記事")).to be < 0
+    expect(rail_opacity("消す記事")).to eq(1)
+    expect(swipe_rail("消す記事")[:class]).to include("swipe-armed")
+    expect(swipe_rail("消す記事").text(:all)).to include("削除")
     expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "横スクロールが出ている"
-    screenshot!("on")
-
-    delete_row("消す記事")
+    screenshot!("delete-armed")
+    drag_card("消す記事", from: [ width * 0.8, 40 ], to: [ width * 0.8 - width * ratio * 0.2, 40 ], down: false)
 
     toast = find("#toast [data-controller='toast']", text: "1 件を削除しました")
     expect(page).to have_no_css("article", text: "消す記事")
@@ -50,23 +52,52 @@ RSpec.describe "Process mode", type: :system do
     find("#toast").click_on("元に戻す")
     expect(page).to have_css("article", count: 3)
     expect(all("article h2").map(&:text)).to eq(%w[上の記事 消す記事 下の記事])
-    expect(page).to have_button("削除", count: 3)
     expect(page).to have_css("button[data-swipe-target='read'][inert]", visible: :all, count: 3)
     expect(Article.find_by!(title: "消す記事")).not_to be_dismissed
 
     choose "読む", allow_label_click: true
-    expect(page).to have_no_button("削除")
     expect(page).to have_no_css("button[data-swipe-target='read'][inert]", visible: :all)
     expect(page).to have_button("「消す記事」を読む")
+    drag_card("消す記事", from: [ width * 0.8, 40 ], to: [ width * 0.8 - width * ratio * 1.3, 40 ])
+    expect(settled_shift("消す記事")).to eq(0)
+    expect(Article.find_by!(title: "消す記事")).not_to be_dismissed
   end
 
-  it "続けて押すと押した分だけ消える（送信は 1 本ずつ）。指で押しても送られる" do
+  it "処理モードで右へ払うと保存してトーストが出る（読むモードの右と同じ向き）。左右とも閾値の手前で離すと戻り、何も送らない" do
+    create(:article, title: "残す記事", published_at: now - 1.hour)
+    create(:article, title: "触る記事", published_at: now - 2.hours)
+    sign_in
+    enter_process_mode
+    page.execute_script("window.__starts = 0; document.addEventListener('turbo:submit-start', () => window.__starts++)")
+
+    width = card_width("触る記事")
+    drag_card("触る記事", from: [ width / 2, 40 ], to: [ width / 2 + width * ratio * 0.5, 40 ], slow: true)
+    expect(settled_shift("触る記事")).to eq(0)
+    drag_card("触る記事", from: [ width / 2, 40 ], to: [ width / 2 - width * ratio * 0.5, 40 ], slow: true)
+    expect(settled_shift("触る記事")).to eq(0)
+    expect(page.evaluate_script("window.__starts")).to eq(0)
+    expect(find("[data-process-mode-target='combo']")).to have_text("0 COMBO", normalize_ws: true)
+
+    drag_card("残す記事", from: [ width * 0.2, 40 ], to: [ width * 0.2 + width * ratio * 1.3, 40 ], release: false)
+    expect(rail_opacity("残す記事", "saveRail")).to eq(1)
+    expect(swipe_rail("残す記事", "saveRail").text(:all)).to include("保存")
+    screenshot!("save-armed")
+    drag_card("残す記事", from: [ width * 0.2, 40 ], to: [ width * 0.2 + width * ratio * 0.2, 40 ], down: false)
+
+    expect(page).to have_css("#toast [data-controller='toast']", text: "1 件を保存しました")
+    expect(page).to have_no_css("article", text: "残す記事")
+    expect(Article.find_by!(title: "残す記事")).to be_bookmarked
+    expect(Article.find_by!(title: "残す記事")).not_to be_dismissed
+    expect(find("[data-process-mode-target='combo']")).to have_text("1 COMBO", normalize_ws: true)
+  end
+
+  it "続けて払うと払った分だけ消える（送信は 1 本ずつ）" do
     titles = %w[一本目 二本目 三本目 四本目]
     titles.each_with_index { |title, i| create(:article, title: title, published_at: now - (i + 1).hours) }
     sign_in
     enter_process_mode
 
-    delete_row("一本目", native: true)
+    delete_row("一本目")
     delete_row("二本目")
     delete_row("三本目")
 
@@ -78,7 +109,7 @@ RSpec.describe "Process mode", type: :system do
     expect(Article.where.not(dismissed_at: nil).pluck(:title)).to match_array(%w[一本目 二本目 三本目])
   end
 
-  it "処理モードでは行を押しても広がらず、左右に引いても動かない。切り替えると広げていた欄は畳む" do
+  it "処理モードでは行を押しても広がらず読みにならない。切り替えると広げていた欄は畳む" do
     create(:article, title: "広げた記事", summary: "・要約", published_at: now - 1.hour)
     create(:article, title: "触る記事", published_at: now - 2.hours)
     sign_in
@@ -93,22 +124,15 @@ RSpec.describe "Process mode", type: :system do
     sleep 0.5
     expect(page.evaluate_script("window.__starts")).to eq(0)
     expect(page).to have_no_link("記事に遷移")
-    width = card_width("触る記事")
-    drag_card("触る記事", from: [ width / 2, 40 ], to: [ width / 2 + width * ratio * 1.3, 40 ], release: false)
-    expect(card_shift("触る記事")).to eq(0)
-    drag_card("触る記事", from: [ width / 2, 40 ], to: [ width / 2 - width * ratio * 1.3, 40 ], down: false)
-
-    expect(page).to have_css("article", count: 2)
     expect(Article.find_by!(title: "触る記事").reading).to be_nil
-    expect(Article.find_by!(title: "触る記事")).not_to be_bookmarked
   end
 
-  it "同じ削除ボタンを続けて押しても送信は 1 本" do
-    create(:article, title: "二度押す記事", published_at: now - 1.hour)
+  it "流れ出した行をもう一度引いても送信は 1 本" do
+    create(:article, title: "二度引く記事", published_at: now - 1.hour)
     create(:article, title: "残る記事", published_at: now - 2.hours)
     sign_in
     enter_process_mode
-    # 応答の描画を遅らせ、押した行がまだ画面にある間にもう一度押す
+    # 応答の描画を遅らせ、流れ出した行がまだ画面にある間にもう一度引く
     page.execute_script(<<~JS)
       window.__starts = 0
       document.addEventListener("turbo:submit-start", () => window.__starts++)
@@ -118,9 +142,8 @@ RSpec.describe "Process mode", type: :system do
       })
     JS
 
-    button = find("li", text: "二度押す記事").find_button("削除")
-    native_click(button)
-    native_click(button)
+    delete_row("二度引く記事")
+    delete_row("二度引く記事")
 
     expect(page).to have_css("#toast [data-controller='toast'][data-toast-swipe-value='1']")
     expect(page).to have_css("article", count: 1)
@@ -158,12 +181,12 @@ RSpec.describe "Process mode", type: :system do
     expect(page).to have_css("h1", text: "設定")
     page.go_back
     expect(page).to have_checked_field("読む", visible: :all)
-    expect(page).to have_no_button("削除")
+    expect(page).to have_no_css("[data-process-mode]")
 
     enter_process_mode
     page.refresh
     expect(page).to have_checked_field("読む", visible: :all)
-    expect(page).to have_no_button("削除")
+    expect(page).to have_no_css("[data-process-mode]")
   end
 
   it "処理モードで最後の 1 本を消しても切り替えは残り、「読む」に戻すと空状態とともに切り替えが消える。元に戻せばまた出る" do
@@ -253,7 +276,7 @@ RSpec.describe "Process mode", type: :system do
       expect(sfx_log).not_to include("combo")
       screenshot!("combo")
 
-      find("#toast").click_on("元に戻す")
+      undo(article_dismissal_path(Article.find_by!(title: "二本目")))
       expect(page).to have_css("article", text: "二本目")
       expect(combo).to have_text("1 COMBO", normalize_ws: true)
       expect(Article.where.not(dismissed_at: nil).count).to eq(1)
@@ -267,6 +290,31 @@ RSpec.describe "Process mode", type: :system do
       choose "読む", allow_label_click: true
       find("dialog[open]").click_on "閉じる"
       expect(page).to have_no_css("[inert] #status-card", visible: :all)
+    end
+
+    it "保存も 1 件 1 コンボに数え、リザルトに削除と保存の内訳が出る。保存を元に戻すと保存から 1 引く。処理モードでは引いたときの音を鳴らさずメロディだけ" do
+      sign_in
+      enter_process_mode
+      save_row("一本目")
+      expect(combo).to have_text("1 COMBO", normalize_ws: true)
+      delete_row("二本目")
+      expect(combo).to have_text("2 COMBO", normalize_ws: true)
+      save_row("三本目")
+      expect(combo).to have_text("3 COMBO", normalize_ws: true)
+      expect(melody_notes).to eq([ 1, 2, 3 ])
+      expect(sfx_log).not_to include("swipe")
+
+      undo(article_bookmark_path(Article.find_by!(title: "三本目")))
+      expect(page).to have_css("article", text: "三本目")
+      expect(combo).to have_text("2 COMBO", normalize_ws: true)
+
+      choose "読む", allow_label_click: true
+      result = find("dialog[open]", text: "リザルト")
+      expect(result).to have_text("2 件 処理した", normalize_ws: true)
+      expect(result).to have_text("削除 1 ・ 保存 1", normalize_ws: true)
+      screenshot!("breakdown")
+      expect(Article.where.not(bookmarked_at: nil).pluck(:title)).to eq(%w[一本目])
+      expect(Article.where.not(dismissed_at: nil).pluck(:title)).to eq(%w[二本目])
     end
 
     it "「読む」に戻すと、かかった時間と件数と 1 件あたりの秒数のリザルトが重なって出て、ファンファーレが鳴る。閉じると次の回は 0 から" do
@@ -285,6 +333,7 @@ RSpec.describe "Process mode", type: :system do
       expect(result).to have_text("3 件", normalize_ws: true)
       expect(result).to have_text("1 分 23 秒", normalize_ws: true)
       expect(result).to have_text("27.7 秒", normalize_ws: true)
+      expect(result).to have_text("削除 3 ・ 保存 0", normalize_ws: true)
       expect(sfx_log.last).to eq("fanfare")
       expect(result.find_button("閉じる").evaluate_script("this.getBoundingClientRect().height")).to be >= 44
       screenshot!("result")
@@ -309,8 +358,9 @@ RSpec.describe "Process mode", type: :system do
       enter_process_mode
       release_posts
 
+      # 流れ出した後の行は画面の外にあっても見える要素に数えられるので、記録が揃うのを待つ
+      page.document.synchronize { raise Capybara::ExpectationNotMet, "3 本の削除が届かない" unless Article.where.not(dismissed_at: nil).count == 3 }
       expect(page).to have_css("article", count: 1)
-      expect(Article.where.not(dismissed_at: nil).count).to eq(3)
       find("#toast").click_on("元に戻す")
       expect(page).to have_css("article", count: 2)
       expect(combo).to have_text("0 COMBO", normalize_ws: true)
@@ -332,11 +382,40 @@ RSpec.describe "Process mode", type: :system do
       delete_row("一本目")
       page.document.synchronize { raise Capybara::ExpectationNotMet, "送信が終わらない" unless page.evaluate_script("window.__ended") == 1 }
       expect(page).to have_css("article", count: 4)
+      expect(page).to have_no_css("li.swipe-active")
       expect(combo).to have_text("0 COMBO", normalize_ws: true)
 
       delete_row("一本目")
       expect(page).to have_css("article", count: 3)
       expect(combo).to have_text("1 COMBO", normalize_ws: true)
+    end
+
+    it "待ちの上限を越えて戻った行を逆へ払い直したら、後から届いた先の成功は数え直さない（同じ記事を 2 件に数えない）" do
+      allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.deep_merge(swipe: { submit_timeout_seconds: 1 }))
+      sign_in
+      enter_process_mode
+      page.execute_script(<<~JS)
+        const original = window.fetch
+        window.fetch = (url, options) => (options?.method || "GET").toUpperCase() === "POST"
+          ? new Promise((resolve) => setTimeout(() => resolve(original(url, options)), 2500))
+          : original(url, options)
+      JS
+
+      save_row("一本目")
+      expect(combo).to have_text("0 COMBO", normalize_ws: true, wait: 2)
+      expect(page).to have_no_css("li.swipe-active")
+      # 左へ払い直した瞬間だけを起こす。実際に送ると Turbo が先の保存を止め、遅れた成功が届く場面を作れない
+      page.execute_script(<<~JS)
+        const row = document.querySelector("li#article_#{Article.find_by!(title: "一本目").id}")
+        row.dispatchEvent(new CustomEvent("swipe:processed", { bubbles: true, detail: { form: row.querySelector("form[action$='/dismissal']") } }))
+      JS
+      expect(combo).to have_text("1 COMBO", normalize_ws: true)
+      page.document.synchronize(5) { raise Capybara::ExpectationNotMet, "保存の成功が届かない" unless Article.find_by!(title: "一本目").bookmarked? }
+      expect(page).to have_no_css("article", text: "一本目")
+
+      expect(combo).to have_text("1 COMBO", normalize_ws: true)
+      choose "読む", allow_label_click: true
+      expect(find("dialog[open]")).to have_text("削除 1 ・ 保存 0", normalize_ws: true)
     end
 
     it "待ちの上限を越えて失敗に見えた削除も、後から成功が届けばコンボに数え直す" do
@@ -518,7 +597,7 @@ RSpec.describe "Process mode", type: :system do
 
       delete_until(2)
       expect(cheer).to have_text("NICE!")
-      find("#toast").click_on("元に戻す")
+      undo(article_dismissal_path(Article.find_by!(title: "記事02")))
       expect(band).to have_text("1 COMBO", normalize_ws: true)
       delete_until(1)
       expect(band).to have_text("2 COMBO", normalize_ws: true)
@@ -544,7 +623,7 @@ RSpec.describe "Process mode", type: :system do
       expect(sfx_log.count("combo_nice")).to eq(2)
     end
 
-    it "演出の最中でも次の削除ボタンを押せて、一覧の位置は動かない" do
+    it "演出の最中でも次の行を払えて、一覧の位置は動かない" do
       with_milestones(small: 2, large: 4)
       sign_in
       enter_process_mode

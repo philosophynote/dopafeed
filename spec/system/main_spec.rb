@@ -337,11 +337,11 @@ RSpec.describe "Main", type: :system do
       expect(reading.reload.returned_at).to be_nil
     end
 
-    it "手押しの「読み終えた」も行の送信の列に並び、送信中の興味なしの応答を捨てさせない" do
+    it "手押しの「読み終えた」も行の送信の列に並び、送信中の保存の応答を捨てさせない" do
       create(:article, title: "読む記事", summary: "・要約", published_at: 1.hour.ago)
-      create(:article, title: "消す記事", published_at: 2.hours.ago)
-      # 興味なしの応答を遅らせ、その間に「読み終えた」を押す
-      allow_any_instance_of(DismissalsController).to receive(:create).and_wrap_original do |original, *args|
+      create(:article, title: "保存する記事", published_at: 2.hours.ago)
+      # 保存の応答を遅らせ、その間に「読み終えた」を押す
+      allow_any_instance_of(BookmarksController).to receive(:create).and_wrap_original do |original, *args|
         sleep 1
         original.call(*args)
       end
@@ -350,22 +350,20 @@ RSpec.describe "Main", type: :system do
 
       expand("読む記事")
       open_link("読む記事")
-      page.execute_script(<<~JS)
-        const row = document.querySelector("li#article_#{Article.find_by!(title: "消す記事").id}")
-        row.querySelector("form[action$='/dismissal']").requestSubmit()
-      JS
+      save_row("保存する記事")
+      expect(page).to have_css("form[aria-busy]", visible: :all) # 流れ終えた行の保存が送信中
       click_on "読み終えた"
 
       expect(page).to have_css("section[aria-label='判定']", text: "カードにならなかった")
-      expect(page).to have_text("1 件を削除しました")
-      expect(page).to have_no_css("article", text: "消す記事")
-      expect(Article.find_by!(title: "消す記事")).to be_dismissed
+      expect(page).to have_text("1 件を保存しました")
+      expect(page).to have_no_css("article", text: "保存する記事")
+      expect(Article.find_by!(title: "保存する記事")).to be_bookmarked
     end
 
-    it "戻りの合図で列に預けた後の手押しは、先に待つ興味なしを追い越さない" do
+    it "戻りの合図で列に預けた後の手押しは、先に待つ保存を追い越さない" do
       create(:article, title: "読む記事", summary: "・要約", published_at: 1.hour.ago)
-      create(:article, title: "消す記事", published_at: 2.hours.ago)
-      allow_any_instance_of(DismissalsController).to receive(:create).and_wrap_original do |original, *args|
+      create(:article, title: "保存する記事", published_at: 2.hours.ago)
+      allow_any_instance_of(BookmarksController).to receive(:create).and_wrap_original do |original, *args|
         sleep 1
         original.call(*args)
       end
@@ -374,16 +372,14 @@ RSpec.describe "Main", type: :system do
 
       expand("読む記事")
       open_link("読む記事")
-      page.execute_script(<<~JS)
-        const row = document.querySelector("li#article_#{Article.find_by!(title: "消す記事").id}")
-        row.querySelector("form[action$='/dismissal']").requestSubmit()
-      JS
-      leave_and_return # 自動送信は興味なしの後ろで待つ
+      save_row("保存する記事")
+      expect(page).to have_css("form[aria-busy]", visible: :all) # 流れ終えた行の保存が送信中
+      leave_and_return # 自動送信は保存の後ろで待つ
       click_on "読み終えた"
 
       expect(page).to have_css("section[aria-label='判定']", text: "カードにならなかった")
-      expect(page).to have_text("1 件を削除しました")
-      expect(page).to have_no_css("article", text: "消す記事")
+      expect(page).to have_text("1 件を保存しました")
+      expect(page).to have_no_css("article", text: "保存する記事")
     end
 
     it "畳んだ行は戻りの合図で判定しない（開いたまま合図が来なかった行が、別の行の戻りで判定されない）" do

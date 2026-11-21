@@ -1,16 +1,12 @@
 <% swipe = Dopamine.settings[:swipe] %>
 <li id="<%= dom_id(article) %>" class="relative" data-controller="swipe" data-action="sheet:finish->swipe#finish"
-    data-swipe-dismiss-ratio-value="<%= swipe[:dismiss_threshold_ratio] %>" data-swipe-flick-velocity-value="<%= swipe[:flick_velocity] %>" data-swipe-flick-window-ms-value="<%= swipe[:flick_window_ms] %>" data-swipe-flick-min-px-value="<%= swipe[:flick_min_px] %>" data-swipe-submit-timeout-seconds-value="<%= swipe[:submit_timeout_seconds] %>">
+    data-swipe-dismiss-ratio-value="<%= swipe[:dismiss_threshold_ratio] %>" data-swipe-flick-velocity-value="<%= swipe[:flick_velocity] %>" data-swipe-flick-window-ms-value="<%= swipe[:flick_window_ms] %>" data-swipe-flick-min-px-value="<%= swipe[:flick_min_px] %>" data-swipe-submit-timeout-seconds-value="<%= swipe[:submit_timeout_seconds] %>" data-swipe-dismiss-needs-process-mode-value="true">
   <%# 背景を li 基準にすると、詳細欄を広げた高さまで伸びてしまう %>
   <div class="relative">
     <%= render "articles/swipe_rail", target: "saveRail", modifier: "swipe-save-rail", icon: :bookmark, label: "保存" %>
+    <%= render "articles/swipe_rail", target: "rail", modifier: "", icon: :trash, label: "削除" %>
     <article class="swipe-card relative flex items-start gap-3 bg-white px-4 py-2.5" data-swipe-target="card"
              data-action="pointerdown->swipe#start pointermove->swipe#move pointerup->swipe#end pointercancel->swipe#end">
-      <%= button_to article_dismissal_path(article), form: { class: "process-mode-only relative z-10 shrink-0", data: { action: "submit->swipe#remove" } },
-                    class: "flex h-11 w-11 items-center justify-center rounded-full bg-red-500 text-white shadow-sm active:bg-red-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500" do %>
-        <%= render "shared/icon_trash" %>
-        <span class="sr-only">削除</span>
-      <% end %>
       <%= render "articles/row_body", article: article %>
       <%= button_to article_reading_path(article), params: { expand: 1 }, form: { class: "contents" },
                     "aria-expanded": "false", "aria-controls": dom_id(article, :detail),
@@ -19,6 +15,7 @@
         <span class="sr-only">「<%= article.title %>」を読む</span>
       <% end %>
       <%= button_to "保存", article_bookmark_path(article), form: { hidden: true, data: { swipe_target: "saveForm" } } %>
+      <%= button_to "削除", article_dismissal_path(article), form: { hidden: true, data: { swipe_target: "form" } } %>
     </article>
   </div>
   <div id="<%= dom_id(article, :detail) %>" data-swipe-target="detail" hidden></div>

@@ -1,4 +1,4 @@
-<div data-controller="process-mode" data-process-mode-small-every-value="<%= Dopamine.settings.dig(:delete_mode, :combo_small_every).to_i %>" data-process-mode-large-every-value="<%= Dopamine.settings.dig(:delete_mode, :combo_large_every).to_i %>" data-process-mode-swipe-outlet="[data-controller~='swipe']" data-action="turbo:before-cache@document->process-mode#reset pageshow@window->process-mode#reset swipe:removed->process-mode#removed swipe:remove-failed->process-mode#removeFailed turbo:submit-end@document->process-mode#submitted">
+<div data-controller="process-mode" data-process-mode-small-every-value="<%= Dopamine.settings.dig(:delete_mode, :combo_small_every).to_i %>" data-process-mode-large-every-value="<%= Dopamine.settings.dig(:delete_mode, :combo_large_every).to_i %>" data-process-mode-swipe-outlet="[data-controller~='swipe']" data-action="turbo:before-cache@document->process-mode#reset pageshow@window->process-mode#reset swipe:processed->process-mode#processed swipe:process-failed->process-mode#processFailed turbo:submit-end@document->process-mode#submitted">
 <%# 切り替えを別の行に置くと、一画面に入る記事の行が 1 本減る %>
 <header class="flex items-center justify-between gap-2">
   <h1 class="text-2xl font-black tracking-tight">
@@ -66,6 +66,7 @@
         <span class="text-xl font-bold">件</span>
       </p>
       <p class="text-sm text-gray-500">処理した</p>
+      <p class="mt-1 text-sm font-bold tabular-nums text-gray-700" data-process-mode-target="resultBreakdown"></p>
       <dl class="mt-5 grid grid-cols-2 gap-2 text-left">
         <div class="rounded-2xl bg-gray-100 px-3 py-2">
           <dt class="text-xs text-gray-500">タイム</dt>

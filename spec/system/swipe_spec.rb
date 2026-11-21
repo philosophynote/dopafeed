@@ -2,14 +2,14 @@ RSpec.describe "Swipe", type: :system do
   let(:now) { Time.current }
   let(:dismiss_ratio) { Dopamine.settings.dig(:swipe, :dismiss_threshold_ratio) }
 
-  it "Main の行は左へ引いても動かず、削除の背景も出ない（削除は処理モードのボタン）" do
+  it "読むモードの行は左へ引いても動かず、削除の背景も出ない（削除は処理モードの左スワイプ）" do
     create(:article, title: "引く記事", published_at: now - 1.hour)
     sign_in
     width = card_width("引く記事")
 
     drag_card("引く記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 1.3, 40 ], release: false)
     expect(card_shift("引く記事")).to eq(0)
-    expect(find("article", text: "引く記事").find(:xpath, "..")).to have_no_css("[data-swipe-target='rail']", visible: :all)
+    expect(rail_opacity("引く記事")).to eq(0)
     drag_card("引く記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 1.5, 40 ], down: false)
 
     expect(settled_shift("引く記事")).to eq(0)
@@ -353,7 +353,7 @@ RSpec.describe "Swipe", type: :system do
     expect(Article.find_by(title: "次の記事")).to be_dismissed
   end
 
-  it "送れなかったら行が残り、もう一度押せる" do
+  it "送れなかったら行が戻り、もう一度払える" do
     create(:article, title: "圏外の記事", published_at: now - 1.hour)
     sign_in
     enter_process_mode
@@ -367,6 +367,7 @@ RSpec.describe "Swipe", type: :system do
     delete_row("圏外の記事")
     page.document.synchronize { raise Capybara::ElementNotFound, "送信が終わらない" unless page.evaluate_script("window.__ends") >= 1 }
     expect(page).to have_css("article", text: "圏外の記事")
+    expect(page).to have_no_css("li.swipe-active")
     expect(Article.find_by(title: "圏外の記事")).not_to be_dismissed
 
     page.execute_script("window.fetch = window.__fetch")
