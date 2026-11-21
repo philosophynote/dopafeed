@@ -72,12 +72,11 @@ export default class extends Controller {
     } else if (this.late.delete(this.key(form))) {
       this.counted.add(this.key(form))
       this.setCombo(this.combo + 1)
-      this.celebrate()
     }
   }
 
-  // 回の中で届いた一番上の数を超えたときだけ節目を見る。元に戻して届き直すたびに出すと、戻して押すだけで報酬が出る。
-  // 大と小が重なる数では大だけを出す（演出は一度に一番大きい 1 つ。ADR 0022）
+  // 元に戻して届き直すたびに出すと、戻して押すだけで報酬が出る。大と小が重なる数では大だけ（演出は一度に一番大きい 1 つ。ADR 0022）。
+  // 後から届いた成功で数え直したときは呼ばない。押していない瞬間に節目の音だけが鳴る
   celebrate() {
     if (this.combo <= this.best) return
     this.best = this.combo
@@ -94,7 +93,6 @@ export default class extends Controller {
     }
   }
 
-  // 鍵が無いと 0 が届く。0 で割ると毎回節目になるので出さない
   reached(every) {
     return every > 0 && this.combo % every === 0
   }
@@ -103,7 +101,6 @@ export default class extends Controller {
     if (!this.hasCheerTarget) return
 
     this.cheerTarget.textContent = text
-    this.cheerTarget.classList.remove("is-nice", "is-great")
     this.restartAnimation(this.cheerTarget, `is-${tier}`)
   }
 
@@ -113,8 +110,6 @@ export default class extends Controller {
 
     this.bandTarget.classList.remove("is-nice", "is-great")
     this.burstTarget.classList.remove("is-bursting")
-    this.cheerTarget.textContent = ""
-    this.cheerTarget.classList.remove("is-nice", "is-great")
   }
 
   restartAnimation(element, className) {
@@ -134,9 +129,14 @@ export default class extends Controller {
     return new URL(form.action).pathname
   }
 
+  // 節目の文字は aria-live の中にあるので、消えた後も残すと次の数でも読み上げられる。動きを減らす設定では見えたまま残る
   setCombo(combo) {
     this.combo = combo
     if (this.hasCountTarget) this.countTarget.textContent = combo
+    if (this.hasCheerTarget) {
+      this.cheerTarget.textContent = ""
+      this.cheerTarget.classList.remove("is-nice", "is-great")
+    }
   }
 
   showResult(count, elapsedMs) {

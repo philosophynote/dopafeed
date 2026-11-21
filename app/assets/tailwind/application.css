@@ -69,8 +69,8 @@
 @media (prefers-reduced-motion: reduce) {
   .combo-pop { animation: none; }
 }
-/* 節目の演出は帯の中に収める。Main に全画面を重ねると一覧が隠れ、連打の指が止まる */
-/* 帯の右の空きは 390px 幅で 100px ほど。文字を大きくすると「n COMBO」に重なるので、大は大きさでなく色と弾み方で分ける */
+/* 節目の演出は帯とその周りだけにする。Main に全画面を重ねると一覧が隠れ、連打の指が止まる */
+/* 帯の右の空きは 390px 幅で 100px ほど。文字を大きくしたり弾みで膨らませたりすると「n COMBO」に重なるので、大は色と火花で分ける */
 .combo-cheer {
   font-size: 1.125rem;
   color: var(--color-orange-300);
@@ -86,8 +86,7 @@
 }
 @keyframes combo-cheer {
   0% { opacity: 0; transform: scale(0.4) rotate(-8deg); }
-  25% { opacity: 1; transform: scale(1.25) rotate(0); }
-  45% { transform: scale(1); }
+  25% { opacity: 1; transform: scale(1) rotate(0); }
   80% { opacity: 1; }
   100% { opacity: 0; }
 }
@@ -97,7 +96,7 @@
 @keyframes combo-glow {
   40% { box-shadow: 0 0 0 4px var(--color-orange-400), 0 0 1.5rem var(--color-orange-400); }
 }
-/* 大の後はモードを抜けるまで虹のまま。読了の FEVER の虹と同じ流れ方にそろえる */
+/* 読了の FEVER の虹と同じ流れ方にそろえる */
 .combo-band.is-great {
   background: linear-gradient(90deg, #ff2e6b, #ff9f1c, #ffd166, #34d399, #3b82f6, #8b5cf6, #ff2e6b);
   background-size: 200% 100%;

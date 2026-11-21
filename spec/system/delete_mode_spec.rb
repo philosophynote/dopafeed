@@ -419,6 +419,11 @@ RSpec.describe "Delete mode", type: :system do
       page.evaluate_script('JSON.parse(sessionStorage.getItem("sfx-log") || "[]")')
     end
 
+    def melody_notes
+      levels = page.evaluate_script('JSON.parse(sessionStorage.getItem("sfx-log-levels") || "[]")')
+      sfx_log.zip(levels).filter_map { |cue, level| level if cue == "melody" }
+    end
+
     def band
       find("[data-delete-mode-target='band']")
     end
@@ -460,9 +465,14 @@ RSpec.describe "Delete mode", type: :system do
       expect(cheer).to have_text("NICE!")
       expect(band[:class]).to include("is-nice")
       expect(sfx_log.last(2)).to eq(%w[melody combo_nice])
+      expect(melody_notes.last).to eq(small)
       screenshot!("nice")
 
-      delete_until(large - small)
+      delete_until(1)
+      expect(band).to have_text("#{small + 1} COMBO", normalize_ws: true)
+      expect(cheer.text(:all)).to eq("")
+
+      delete_until(large - small - 1)
       expect(band).to have_text("#{large} COMBO", normalize_ws: true)
       expect(cheer).to have_text("GREAT!!")
       expect(band[:class]).to include("is-great")
@@ -475,6 +485,7 @@ RSpec.describe "Delete mode", type: :system do
       delete_until(1)
       expect(band).to have_text("#{large + 1} COMBO", normalize_ws: true)
       expect(band[:class]).to include("is-great")
+      expect(cheer.text(:all)).to eq("")
       expect(sfx_log.last).to eq("melody")
     end
 
@@ -543,6 +554,7 @@ RSpec.describe "Delete mode", type: :system do
 
       expect(band).to have_text("5 COMBO", normalize_ws: true)
       expect(find("section[aria-label='記事']").evaluate_script("this.getBoundingClientRect().top")).to eq(list_top)
+      expect(page).to have_css("#toast form[action='#{article_dismissal_path(Article.find_by!(title: "記事05"))}']")
       expect(Article.where.not(dismissed_at: nil).count).to eq(5)
     end
 
@@ -552,14 +564,42 @@ RSpec.describe "Delete mode", type: :system do
       page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: [ { name: "prefers-reduced-motion", value: "reduce" } ])
       enter_delete_mode
 
-      delete_until(4)
+      delete_until(2)
+      expect(cheer).to have_text("NICE!")
+      expect(sfx_log).to include("combo_nice")
+      expect(band.evaluate_script("getComputedStyle(this).animationName")).to eq("none")
+      expect(cheer.evaluate_script("getComputedStyle(this).animationName")).to eq("none")
+
+      delete_until(2)
       expect(cheer).to have_text("GREAT!!")
       expect(sfx_log).to include("combo_great")
+      expect(band.evaluate_script("getComputedStyle(this).backgroundImage")).to include("linear-gradient")
       expect(band.evaluate_script("getComputedStyle(this).animationName")).to eq("none")
       expect(cheer.evaluate_script("getComputedStyle(this).animationName")).to eq("none")
       expect(page).to have_no_css("[data-delete-mode-target='burst'].is-bursting", visible: :all)
     ensure
       page.driver.browser.execute_cdp("Emulation.setEmulatedMedia", features: [])
+    end
+
+    it "待ちの上限を越えて後から届いた成功で数え直したときは、押していないので節目の演出を出さない" do
+      settings = Dopamine.settings.deep_merge(delete_mode: { combo_small_every: 1, combo_large_every: 0 }, swipe: { submit_timeout_seconds: 1 })
+      allow(Dopamine).to receive(:settings).and_return(settings)
+      sign_in
+      enter_delete_mode
+      page.execute_script(<<~JS)
+        const original = window.fetch
+        window.fetch = (url, options) => (options?.method || "GET").toUpperCase() === "POST"
+          ? new Promise((resolve) => setTimeout(() => resolve(original(url, options)), 2500))
+          : original(url, options)
+      JS
+
+      delete_until(1)
+      expect(cheer).to have_text("NICE!")
+      expect(band).to have_text("0 COMBO", normalize_ws: true, wait: 2)
+      expect(page).to have_css("article", count: 11, wait: 5)
+      expect(band).to have_text("1 COMBO", normalize_ws: true)
+      expect(cheer.text(:all)).to eq("")
+      expect(sfx_log.count("combo_nice")).to eq(1)
     end
 
     it "yml に節目の鍵が無ければ、節目の演出は出ない" do
