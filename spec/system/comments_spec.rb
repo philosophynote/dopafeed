@@ -61,6 +61,30 @@ RSpec.describe "Comments", type: :system do
     expect(page).to have_no_css("##{box_id} turbo-cable-stream-source", visible: :all)
   end
 
+  it "上限の知らせを取りこぼしても、取り直すと上限を出し、購読も外す（畳んだ後に購読が溜まらない）" do
+    allow(Comments::Commenter).to receive(:new).and_return(instance_double(Comments::Commenter).tap do |commenter|
+      allow(commenter).to receive(:call).and_raise(Claude::Budget::Exhausted, "limit")
+    end)
+    allow(Comments::CommentArticleJob).to receive(:broadcast)
+    article = create(:article, :awaiting_summary, summary: "・要約", title: "上限を落とす記事")
+    sign_in
+
+    expand("上限を落とす記事")
+    click_button "コメントを見る"
+    box_id = ActionView::RecordIdentifier.dom_id(article, :comments_box)
+    find("##{box_id} turbo-cable-stream-source[connected]", visible: :all)
+
+    allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true))
+    Comments::CommentArticleJob.perform_now(article)
+    page.execute_script(<<~JS, box_id)
+      const source = document.querySelector(`#${arguments[0]} turbo-cable-stream-source`)
+      if (source) { source.removeAttribute("connected"); source.setAttribute("connected", "") }
+    JS
+
+    expect(page).to have_css("section[aria-label='コメント']", text: "今日はもう口を出せません")
+    expect(page).to have_no_css("##{box_id} turbo-cable-stream-source", visible: :all)
+  end
+
   it "失敗が届くと「口を出せませんでした」、「もう一度」で頼み直して「考え中」に戻る" do
     allow(Comments::Commenter).to receive(:new).and_return(instance_double(Comments::Commenter).tap do |commenter|
       allow(commenter).to receive(:call).and_raise(Comments::Commenter::MalformedResponse, "応答の形式が不正")

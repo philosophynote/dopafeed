@@ -31,7 +31,7 @@ module Comments
       self.class.record_failure(article, e.message)
     rescue Claude::Budget::Exhausted
       # 捨てるのは親の discard_on。頼んだ印を残すと、読み直しても待ち状態のまま残る
-      article.update!(comments_requested_at: nil)
+      article.update_columns(comments_requested_at: nil)
       self.class.broadcast(article, exhausted: true)
       raise
     rescue StandardError => e

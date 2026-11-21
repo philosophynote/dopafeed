@@ -12,10 +12,11 @@ module CommentsHelper
   def comments_state(article, exhausted: false)
     return :ready if article.persona_comments.any?
     return :exhausted if exhausted
-    return :failed if article.comments_failed_at.present?
-    return :pending if article.comments_requested_at.present?
-    # Job の中で切れた知らせを取りこぼしても、取り直したときに上限を出す
+    # 走っている Job が最後の 1 回を使っても、出来上がりを待つ間は上限にしない
+    return :pending if article.comments_requested_at.present? && article.comments_failed_at.blank?
+    # 知らせを取りこぼしても取り直しで上限を出す。押せない日に前の失敗の「もう一度」は出さない
     return :exhausted if comments_budget_exhausted?
+    return :failed if article.comments_failed_at.present?
 
     :closed
   end

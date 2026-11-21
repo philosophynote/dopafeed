@@ -87,6 +87,25 @@ RSpec.describe "Comments", type: :request do
       expect(page).to have_no_button("コメントを見る")
     end
 
+    it "前の失敗が残っていても、今日の上限に達していれば「もう一度」ではなく上限を出す" do
+      article.update!(comments_failed_at: 1.hour.ago, comments_error: "応答の形式が不正")
+      allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true))
+
+      get article_comments_path(article)
+
+      expect(page).to have_text("今日はもう口を出せません")
+      expect(page).to have_no_button("もう一度")
+    end
+
+    it "頼んだ Job が走っている間は、その Job が最後の 1 回を使って上限に達しても「考え中」のまま" do
+      article.update!(comments_requested_at: Time.current)
+      allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true))
+
+      get article_comments_path(article)
+
+      expect(page).to have_text("考え中")
+    end
+
     it "JS が無いときは積んだ後にコメントの画面へ戻す" do
       post article_comments_path(article)
 

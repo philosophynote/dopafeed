@@ -31,7 +31,7 @@
   <% end %>
   <% if state == :pending %>
     <div data-controller="pending-refresh" data-pending-refresh-url-value="<%= article_comments_path(article) %>"
-         data-pending-refresh-frame-value="<%= dom_id(article, :comments) %>">
+         data-pending-refresh-frame-value="<%= dom_id(article, :comments) %>" data-pending-refresh-settled-value="ready failed exhausted">
       <%= turbo_stream_from article, :comments %>
     </div>
   <% end %>
