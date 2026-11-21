@@ -1,0 +1,38 @@
+<%# 購読を外側の div に含めないと、出来上がった後も購読が溜まる %>
+<% state = comments_state(article, exhausted: local_assigns.fetch(:exhausted, false)) %>
+<div id="<%= dom_id(article, :comments_box) %>">
+  <%= turbo_frame_tag dom_id(article, :comments) do %>
+    <section class="mt-4 rounded-xl bg-gray-50 p-3" aria-label="コメント" data-state="<%= state %>">
+      <% case state %>
+      <% when :ready %>
+        <% shown = shown_persona_comments(article, except: local_assigns.fetch(:except, [])) %>
+        <ul class="flex flex-col gap-2">
+          <%= render partial: "comments/card", collection: shown, as: :comment %>
+        </ul>
+        <%= link_to "別の #{shown.size} 人を見る", article_comments_path(article, except: shown.map(&:persona_id).join(",")),
+                    class: "mt-3 flex h-11 w-full items-center justify-center rounded-full border border-gray-300 bg-white text-sm font-bold text-gray-700 active:bg-gray-100" %>
+      <% when :pending %>
+        <p class="py-4 text-center text-sm text-gray-400 motion-safe:animate-pulse" role="status">誰が口を出すか、考え中…</p>
+      <% when :failed %>
+        <p class="pt-2 text-center text-sm text-gray-500">口を出せませんでした</p>
+        <%= button_to "もう一度", article_comments_path(article), form_class: "mt-3",
+                      class: "flex h-11 w-full items-center justify-center rounded-full bg-gray-800 text-sm font-bold text-white active:bg-gray-700" %>
+      <% when :exhausted %>
+        <p class="py-4 text-center text-sm text-gray-500">今日はもう口を出せません</p>
+      <% else %>
+        <p class="pt-2 text-center text-2xl font-black tracking-widest text-gray-400" aria-hidden="true">? ? ?</p>
+        <p class="mt-1 text-center text-sm font-bold text-gray-800">この記事に、誰が口を出すか</p>
+        <p class="mt-1 text-center text-xs text-gray-500"><%= Persona.all.size %> 人の中から <%= Dopamine.settings.dig(:comments, :personas_shown) %> 人がランダムに現れます</p>
+        <%= button_to "コメントを見る", article_comments_path(article), form_class: "mt-3",
+                      class: "flex h-11 w-full items-center justify-center rounded-full bg-gray-800 text-sm font-bold text-white active:bg-gray-700" %>
+      <% end %>
+      <p class="mt-3 text-[11px] leading-snug text-gray-400">人物は AI による架空のキャラクターです。本人の発言ではありません</p>
+    </section>
+  <% end %>
+  <% if state == :pending %>
+    <div data-controller="pending-refresh" data-pending-refresh-url-value="<%= article_comments_path(article) %>"
+         data-pending-refresh-frame-value="<%= dom_id(article, :comments) %>" data-pending-refresh-settled-value="ready failed exhausted">
+      <%= turbo_stream_from article, :comments %>
+    </div>
+  <% end %>
+</div>

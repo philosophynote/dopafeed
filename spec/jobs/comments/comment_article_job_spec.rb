@@ -73,6 +73,15 @@ RSpec.describe Comments::CommentArticleJob, type: :job do
     expect(article.comments_failed_at).to be_present
   end
 
+  it "想定外の例外（鍵の欠け・DB の混雑など）も失敗として記録してから上げ直し、頼んだまま待ち続けさせない" do
+    article.update!(comments_requested_at: Time.current)
+    allow(commenter).to receive(:call).and_raise(KeyError, "key not found: \"XAI_API_KEY\"")
+
+    expect { described_class.perform_now(article) }.to raise_error(KeyError)
+    expect(article.reload).to have_attributes(comments_error: "予期しない失敗 (KeyError)")
+    expect(article.comments_failed_at).to be_present
+  end
+
   it "予算切れは捨て、記事には何も残さない" do
     allow(commenter).to receive(:call).and_raise(Claude::Budget::Exhausted, "Claude daily call limit reached (200/200)")
 
@@ -93,5 +102,38 @@ RSpec.describe Comments::CommentArticleJob, type: :job do
 
     expect { perform_enqueued_jobs { described_class.perform_later(article) } }.not_to raise_error
     expect(enqueued_jobs).to be_empty
+  end
+
+  describe "知らせ" do
+    let(:stream) { "#{article.to_gid_param}:comments" }
+
+    before { allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.merge(comments: { personas_shown: 3, model: "grok-4.3", max_tokens: 4000, timeout_seconds: 60 })) }
+
+    it "保存したら、その記事のコメント欄を購読している画面へ 3 人のカードを送る" do
+      allow(commenter).to receive(:call).and_return(bodies)
+
+      expect { described_class.perform_now(article) }
+        .to have_broadcasted_to(stream).with(a_string_including("turbo-stream", "replace", "comments_box_article_#{article.id}", "のひとこと"))
+    end
+
+    it "失敗を記録したら、失敗の表示を送る" do
+      allow(commenter).to receive(:call).and_raise(Comments::Commenter::EmptyContent, "本文が空")
+
+      expect { described_class.perform_now(article) }.to have_broadcasted_to(stream).with(a_string_including("口を出せませんでした"))
+    end
+
+    it "予算切れで捨てるときは、頼んだ印を消して上限の表示を送る" do
+      article.update!(comments_requested_at: Time.current)
+      allow(commenter).to receive(:call).and_raise(Claude::Budget::Exhausted, "limit")
+
+      expect { described_class.perform_now(article) }.to have_broadcasted_to(stream).with(a_string_including("今日はもう口を出せません"))
+      expect(article.reload.comments_requested_at).to be_nil
+    end
+
+    it "保存済みで呼ばずに終わるときも、待っている画面のためにカードを送る（押し直しで待ち続けない）" do
+      Persona.all.each { |persona| article.persona_comments.create!(persona_id: persona.id, body: "#{persona.id} のひとこと") }
+
+      expect { described_class.perform_now(article) }.to have_broadcasted_to(stream).with(a_string_including("のひとこと"))
+    end
   end
 end

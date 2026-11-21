@@ -1,0 +1,12 @@
+<% persona = comment.persona %>
+<li class="flex gap-3 rounded-lg bg-white p-3" data-persona-id="<%= persona.id %>">
+  <span class="flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
+        style="background-color: <%= persona.color %>" aria-hidden="true"><%= persona.name.first %></span>
+  <div class="min-w-0">
+    <p class="flex flex-wrap items-center gap-1 text-sm font-bold text-gray-900">
+      <%= persona.name %><span class="rounded bg-gray-200 px-1 text-[10px] font-bold text-gray-600">AI</span>
+    </p>
+    <p class="text-xs text-gray-500"><%= persona.title %></p>
+    <p class="mt-1 break-words text-sm leading-relaxed text-gray-800"><%= comment.body %></p>
+  </div>
+</li>

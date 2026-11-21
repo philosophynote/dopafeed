@@ -1,15 +1,17 @@
 import { Controller } from "@hotwired/stimulus"
 
-// 接続前や切断中の broadcast は届かないため、再接続時に待っている欄（作成中の要約、判定中の帯）を取り直す。
+// 接続前や切断中の broadcast は届かないため、再接続時に待っている欄を取り直す。
 // frame の取り直しだけでは購読が残って溜まるため、届いた後は購読も外す。
 // stream source に Stimulus を付けると data-* が購読パラメータに混ざる。
 export default class extends Controller {
-  static values = { url: String, frame: String }
+  // 上限でも翌日の差し替えを待つ欄があるため、購読を外す状態は欄ごとに決める
+  static values = { url: String, frame: String, settled: { type: String, default: "ready failed" } }
 
   connect() {
     this.frameLoaded = (event) => {
       if (event.target.id !== this.frameValue) return
-      if (event.target.querySelector("[data-state='ready'], [data-state='failed']")) this.element.remove()
+      const settled = this.settledValue.split(/\s+/).map((state) => `[data-state='${state}']`).join(", ")
+      if (event.target.querySelector(settled)) this.element.remove()
     }
     document.addEventListener("turbo:frame-load", this.frameLoaded)
     this.observer = new MutationObserver(() => this.refreshIfConnected())
