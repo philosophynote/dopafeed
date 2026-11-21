@@ -1,6 +1,6 @@
 RSpec.describe Persona do
-  it "config/personas.yml の 8 人を並び順のまま読む" do
-    expect(described_class.all.map(&:name)).to eq(%w[織田信長 ヨシフ・スターリン 毛沢東 松岡修造 オットー・フォン・ビスマルク チンギス・ハン ドナルド・J・トランプ マーガレット・サッチャー])
+  it "config/personas.yml の 5 人を並び順のまま読む" do
+    expect(described_class.all.map(&:name)).to eq(%w[織田信長 松岡修造 オットー・フォン・ビスマルク チンギス・ハン マーガレット・サッチャー])
   end
 
   it "id は英小文字とハイフンで重ならず、色は #RRGGBB、名前・肩書き・人物像・口調の指示はどれも空でない" do

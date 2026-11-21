@@ -37,7 +37,7 @@ shared:
   comments:
     personas_shown: 3
     model: grok-4.3
-    max_tokens: 4000
+    max_tokens: 8000
     timeout_seconds: 60
   push:
     digest_at: "07:30"

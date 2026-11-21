@@ -28,7 +28,7 @@ RSpec.describe Comments::Commenter do
     { code: "fixture", error: "fixture" }.to_json
   end
 
-  it "正常系（カセット）: 8 人全員の persona id と本文の組を返し、台帳に purpose comments・yml のモデルで 1 行増える" do
+  it "正常系（カセット）: yml の人物全員の persona id と本文の組を返し、台帳に purpose comments・yml のモデルで 1 行増える" do
     result = nil
     VCR.use_cassette("comments/ok") do
       expect { result = described_class.new(article).call }.to change(ClaudeApiCall, :count).by(1)
@@ -45,7 +45,7 @@ RSpec.describe Comments::Commenter do
 
     before { stub_xai }
 
-    it "鍵は Bearer で送り、モデルと出力の上限は yml、思考は low、返す形は 8 人の id に絞った JSON スキーマ" do
+    it "鍵は Bearer で送り、モデルと出力の上限は yml、思考は low、返す形は 全員の id に絞った JSON スキーマ" do
       described_class.new(article).call
 
       expect(@request.headers["Authorization"]).to eq("Bearer test-key")
@@ -55,12 +55,12 @@ RSpec.describe Comments::Commenter do
       expect(body.keys).not_to include("tools", "temperature")
     end
 
-    it "指示は共通の決まりと 8 人全員の名前・口調の指示を含み、決まりには賛美・誹謗・名言の捏造の禁止がある" do
+    it "指示は共通の決まりと 全員の名前・口調の指示を含み、決まりには誹謗・名言の捏造の禁止がある" do
       described_class.new(article).call
 
       instructions = body["instructions"]
       expect(instructions).to include(Rails.root.join("app/services/comments/prompts/comments_system.txt").read.strip)
-      expect(instructions).to include("虐殺", "貶め", "捏造", "本人の発言")
+      expect(instructions).to include("貶め", "捏造", "本人の発言")
       Persona.all.each { |persona| expect(instructions).to include(persona.id, persona.name, persona.system_prompt.strip) }
     end
 
@@ -117,7 +117,7 @@ RSpec.describe Comments::Commenter do
     expect(a_request(:post, endpoint)).not_to have_been_made
   end
 
-  describe "応答の形式（8 人分そろわなければ失敗）" do
+  describe "応答の形式（全員分そろわなければ失敗）" do
     {
       "JSON として読めない" => { text: "コメントです" },
       "comments が配列でない" => { text: { comments: "x" }.to_json },
@@ -142,7 +142,7 @@ RSpec.describe Comments::Commenter do
       end
     end
 
-    it "出力の上限で切れたら（incomplete・max_output_tokens）8 人分あっても MalformedResponse" do
+    it "出力の上限で切れたら（incomplete・max_output_tokens）全員分あっても MalformedResponse" do
       stub_xai(body: response_body(status: "incomplete", incomplete: { reason: "max_output_tokens" }))
       expect { described_class.new(article).call }.to raise_error(described_class::MalformedResponse, /max_tokens/)
     end

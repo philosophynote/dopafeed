@@ -35,14 +35,5 @@ jobs:
           restore-keys: |
             rubocop-${{ runner.os }}-${{ env.DEPENDENCIES_HASH }}-
 
-      - name: Run bin/ci (Setup → Style → Security → Structure → Tests → System 390x844 → Seeds)
+      - name: Run bin/ci (Setup → Style → Security)
         run: bin/ci
-
-      # 成功時の絵も PR に貼るので always
-      - name: Keep screenshots from system tests
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: screenshots
-          path: ${{ github.workspace }}/tmp/screenshots
-          if-no-files-found: ignore

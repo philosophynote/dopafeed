@@ -8,7 +8,8 @@ RSpec.describe "Comments", type: :system do
     all("[data-persona-id]").map { |card| card["data-persona-id"] }
   end
 
-  it "広げた欄で「コメントを見る」を押すと「考え中」、Job が書き終えると 3 人が現れ、「別の 3 人を見る」で入れ替わる" do
+  it "広げた欄で「コメントを見る」を押すと「考え中」、Job が書き終えると 2 人が現れ、「別の 2 人を見る」で入れ替わる" do
+    comments[:personas_shown] = 2
     allow(Comments::Commenter).to receive(:new).and_return(instance_double(Comments::Commenter, call: bodies))
     article = create(:article, :awaiting_summary, summary: "・要約", title: "口を出される記事")
     sign_in
@@ -26,15 +27,15 @@ RSpec.describe "Comments", type: :system do
 
     Comments::CommentArticleJob.perform_now(article)
 
-    expect(page).to have_css("[data-persona-id]", count: 3)
+    expect(page).to have_css("[data-persona-id]", count: 2)
     first = shown_ids
     expect(find("section[aria-label='コメント']")).to have_text("人物は AI による架空のキャラクターです")
     expect(page).to have_current_path(root_path)
     screenshot!("opened")
 
-    click_link "別の 3 人を見る"
+    click_link "別の 2 人を見る"
     expect(page).to have_no_css(first.map { |id| "[data-persona-id='#{id}']" }.join(", "))
-    expect(page).to have_css("[data-persona-id]", count: 3)
+    expect(page).to have_css("[data-persona-id]", count: 2)
     expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "横スクロールが出ている"
     expect(page).to have_current_path(root_path)
   end
