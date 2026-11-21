@@ -5,7 +5,7 @@ SNS の中毒性を技術記事読みに向けた自分用 RSS リーダー。Ra
 Swift 版（参考・後で削除予定）: ../dopafeed-swift
 
 ## 決定事項
-- Ruby 4.0.7 / Rails 8.1.4 / Kamal 2.12（2026-10-11 時点の最新）
+- Ruby 4.0.10 / Rails 8.1.4 / Kamal 2.12（Rails と Kamal は 2026-10-11 時点の最新。Ruby は 2026-11-21 に脆弱性対応で上げた）
 - SQLite + Solid Queue + Solid Cache（Rails 8 標準構成）
 - デプロイ: AWS Lightsail に Kamal + Docker。$7 Micro（1 GB）。$5 Nano（512 MB）で試して上げた（ADR 0003）
 - Claude API: 3 行要約（Haiku）、朝の 3 本選定・ネタのクエスト生成（Sonnet）、週次コメント
