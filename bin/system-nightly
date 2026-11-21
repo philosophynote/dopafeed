@@ -5,7 +5,8 @@ cd "$(dirname "$0")/.."
 summary="${GITHUB_STEP_SUMMARY:-/dev/null}"
 status_file=tmp/rspec_examples.txt
 marker=$(mktemp)
-trap 'rm -f "$marker"' EXIT
+log=$(mktemp)
+trap 'rm -f "$marker" "$log"' EXIT
 
 failed_system_examples() {
   awk -F'|' '{ gsub(/ /, "", $1); gsub(/ /, "", $2) } $2 == "failed" && $1 ~ /^\.\/spec\/system\// { print $1 }' "$status_file"
@@ -17,7 +18,7 @@ report() {
   [ -n "${2:-}" ] && printf -- '  %s\n' $2
 }
 
-if bin/screens "$@"; then
+if bin/screens "$@" 2>&1 | tee "$log"; then
   report "System spec: 緑"
   exit 0
 fi
@@ -26,6 +27,12 @@ fi
 # 前回の記録に残る失敗だけを再実行して緑と見誤らないよう、記録が今回書かれたかを確かめる
 if [ ! "$status_file" -nt "$marker" ]; then
   report "System spec: 赤（例を走らせる前に止まった）"
+  exit 1
+fi
+
+# after(:context) などの例の外のエラーは記録に failed として残らず、--only-failures では回り直さない
+if grep -q "occurred outside of examples" "$log"; then
+  report "System spec: 赤（例の外でエラー）"
   exit 1
 fi
 
