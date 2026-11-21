@@ -1,6 +1,6 @@
 RSpec.describe Comments::Commenter do
   let(:article) { create(:article, :awaiting_summary, title: "Rails 8 で SQLite を本番に", url: "https://fixtures.example.com/articles/sqlite") }
-  let(:comments) { { personas_shown: 3, model: "grok-4.7", max_tokens: 4000, timeout_seconds: 60 } }
+  let(:comments) { { personas_shown: 3, model: "grok-4.3", max_tokens: 4000, timeout_seconds: 60 } }
   let(:endpoint) { "https://api.x.ai/v1/responses" }
   let(:ids) { Persona.all.map(&:id) }
   let(:bodies) { ids.index_with { |id| "#{id} のひとこと" } }
@@ -36,7 +36,7 @@ RSpec.describe Comments::Commenter do
 
     expect(result.keys).to match_array(ids)
     expect(result.values).to all(be_present)
-    expect(ClaudeApiCall.last).to have_attributes(purpose: "comments", model: "grok-4.7")
+    expect(ClaudeApiCall.last).to have_attributes(purpose: "comments", model: "grok-4.3")
   end
 
   describe "リクエスト" do
@@ -49,7 +49,7 @@ RSpec.describe Comments::Commenter do
       described_class.new(article).call
 
       expect(@request.headers["Authorization"]).to eq("Bearer test-key")
-      expect(body).to include("model" => "grok-4.7", "max_output_tokens" => 4000, "reasoning" => { "effort" => "low" })
+      expect(body).to include("model" => "grok-4.3", "max_output_tokens" => 4000, "reasoning" => { "effort" => "low" })
       schema = body.dig("text", "format", "schema")
       expect(schema.dig("properties", "comments", "items", "properties", "persona_id", "enum")).to eq(ids)
       expect(body.keys).not_to include("tools", "temperature")

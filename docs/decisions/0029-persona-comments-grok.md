@@ -1,10 +1,10 @@
-# ADR 0029: 架空の人物のコメントは xAI の Grok 4.7 で 1 記事 1 回だけ作り、DB に残す
+# ADR 0029: 架空の人物のコメントは xAI の Grok 4.3 で 1 記事 1 回だけ作り、DB に残す
 日付: 2026-11-20 状態: 採用（#128）。ADR 0002 の使い分けに「コメントだけは Grok」を足す。ADR 0028 の道具（RubyLLM）、日次上限、VCR は変えない
 
-nao の決定（2026-11-20 #128 の計画に「承認」。モデルは nao の指定「grok の 4.7 を RubyLLM 経由で、鍵は nao が入れる」。人物 8 人も nao の指定）。
+nao の決定（2026-11-20 #128 の計画に「承認」。モデルは nao の指定「grok の 4.3 を RubyLLM 経由で、鍵は nao が入れる」。人物 8 人も nao の指定）。
 
 ## 決めたこと
-- **呼び先は xAI の `grok-4.7`、道具は RubyLLM（プロバイダ `:xai`、Responses API）。** モデル名は yml `comments.model`。鍵は `XAI_API_KEY`。`Comments::Client.build` が呼ぶたびに `RubyLLM.context` を作り、待ち時間（yml `comments.timeout_seconds`）と gem の再試行なしを入れる。要約の `Claude::Client` と同じ型
+- **呼び先は xAI の `grok-4.3`、道具は RubyLLM（プロバイダ `:xai`、Responses API）。** モデル名は yml `comments.model`。鍵は `XAI_API_KEY`。`Comments::Client.build` が呼ぶたびに `RubyLLM.context` を作り、待ち時間（yml `comments.timeout_seconds`）と gem の再試行なしを入れる。要約の `Claude::Client` と同じ型
 - **置き場は `app/services/comments/` と `app/jobs/comments/`。** Claude ではないので `app/services/claude/` には入れない。spec/structure は xAI の鍵とプロバイダ指定をこの外で書くと落とし、コントローラ・モデルからの直接の呼び出しも落とす
 - **1 記事 1 回で 8 人全員分を作る。** 「別の 3 人」を API なしで出すため。返す形は JSON スキーマ（人物の id は personas.yml の 8 人に絞る）で縛り、受けた側でも 8 人ちょうど・重複なし・本文が空でないことを確かめ、欠けたら保存せず失敗として残す
 - **保存は `persona_comments`（記事・人物の組で一意、記事を消すと一緒に消える）。** 失敗は `articles.comments_failed_at` / `comments_error`。Job は保存済みなら呼ばず、書くときも行ロックの中で読み直す
