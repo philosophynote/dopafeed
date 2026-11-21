@@ -138,6 +138,12 @@ const CUES = {
     tone(frequency, { length: 0.22, type: "triangle", volume: 0.14 })
     if ((index + 1) % (MELODY.length / 2) === 0) tone(frequency * 1.5, { at: 0.02, length: 0.35, type: "triangle", volume: 0.08 })
   },
+  // 節目の音は melody の 1 音と同時に鳴る。どちらも C の調の中なので重なっても濁らない
+  combo_nice: () => [ NOTE.C6, NOTE.G6 ].forEach((f) => tone(f, { at: 0.04, length: 0.3, type: "triangle", volume: 0.08 })),
+  combo_great: () => {
+    noise({ length: 0.35, volume: 0.07, filter: "highpass", from: 1500, to: 6000 })
+    ;[ NOTE.C6, NOTE.E6, NOTE.G6, NOTE.C6 * 2, NOTE.E6 * 2 ].forEach((f, i) => tone(f, { at: 0.04 + i * 0.05, length: 0.4, type: "triangle", volume: 0.09 }))
+  },
   highlight: () => [ NOTE.C6, NOTE.E6, NOTE.G6, NOTE.C6 * 2 ].forEach((f, i) => tone(f, { at: i * 0.07, length: 0.3, type: "triangle", volume: 0.1 })),
   puff: () => noise({ length: 0.3, volume: 0.06, filter: "lowpass", from: 900, to: 200 }),
   fanfare: () => {
