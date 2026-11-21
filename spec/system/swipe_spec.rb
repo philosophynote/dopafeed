@@ -2,7 +2,7 @@ RSpec.describe "Swipe", type: :system do
   let(:now) { Time.current }
   let(:dismiss_ratio) { Dopamine.settings.dig(:swipe, :dismiss_threshold_ratio) }
 
-  it "Main の行は左へ引いても動かず、削除の背景も出ない（削除は削除モードのボタン）" do
+  it "Main の行は左へ引いても動かず、削除の背景も出ない（削除は処理モードのボタン）" do
     create(:article, title: "引く記事", published_at: now - 1.hour)
     sign_in
     width = card_width("引く記事")
@@ -21,7 +21,7 @@ RSpec.describe "Swipe", type: :system do
     create_list(:article, 12)
     create(:article, title: "最後の記事", published_at: Time.zone.local(2026, 9, 1))
     sign_in
-    enter_delete_mode
+    enter_process_mode
 
     delete_row(Article.order(published_at: :desc).first.title)
     toast = find("#toast [data-controller='toast']")
@@ -40,7 +40,7 @@ RSpec.describe "Swipe", type: :system do
       calls == 2 ? original.receiver.head(:service_unavailable) : original.call(*args)
     end
     sign_in
-    enter_delete_mode
+    enter_process_mode
 
     delete_row("一枚目")
     first = Article.find_by!(title: "一枚目")
@@ -63,7 +63,7 @@ RSpec.describe "Swipe", type: :system do
       calls == 1 ? original.receiver.head(:service_unavailable) : original.call(*args)
     end
     sign_in
-    enter_delete_mode
+    enter_process_mode
 
     delete_row("戻す記事")
     find("#toast").click_on("元に戻す")
@@ -81,7 +81,7 @@ RSpec.describe "Swipe", type: :system do
     create(:article, title: "上の記事", published_at: now - 1.hour)
     create(:article, title: "戻す記事", published_at: now - 2.hours)
     sign_in
-    enter_delete_mode
+    enter_process_mode
 
     delete_row("戻す記事")
     toast = find("#toast [data-controller='toast']", text: "1 件を削除しました")
@@ -97,7 +97,7 @@ RSpec.describe "Swipe", type: :system do
     allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.deep_merge(toast: { visible_seconds: 1 }))
     create(:article, title: "消す記事", published_at: now - 1.hour)
     sign_in
-    enter_delete_mode
+    enter_process_mode
 
     delete_row("消す記事")
     expect(page).to have_css("#toast [data-controller='toast']", text: "1 件を削除しました")
@@ -245,7 +245,7 @@ RSpec.describe "Swipe", type: :system do
     create(:article, title: "一枚目", published_at: now - 1.hour)
     create(:article, title: "二枚目", published_at: now - 2.hours)
     sign_in
-    enter_delete_mode
+    enter_process_mode
 
     delete_row("一枚目")
     delete_row("二枚目")
@@ -268,7 +268,7 @@ RSpec.describe "Swipe", type: :system do
       original.call(*args)
     end
     sign_in
-    enter_delete_mode
+    enter_process_mode
 
     delete_row("一枚目")
     first = Article.find_by!(title: "一枚目")
@@ -303,7 +303,7 @@ RSpec.describe "Swipe", type: :system do
       original.call(*args)
     end
     sign_in
-    enter_delete_mode
+    enter_process_mode
     # 応答を描くのを遅らせ、一枚目のトーストが出る前に二枚目の送信を始めさせる
     page.execute_script(<<~JS)
       document.addEventListener("turbo:before-stream-render", (event) => {
@@ -329,7 +329,7 @@ RSpec.describe "Swipe", type: :system do
     create(:article, title: "消した記事", published_at: now - 1.hour)
     create(:article, title: "次の記事", published_at: now - 2.hours)
     sign_in
-    enter_delete_mode
+    enter_process_mode
 
     delete_row("消した記事")
     toast = find("#toast [data-controller='toast']", text: "1 件を削除しました")
@@ -346,7 +346,7 @@ RSpec.describe "Swipe", type: :system do
     expect(page).to have_css("article", text: "次の記事")
 
     page.execute_script("window.fetch = window.__fetch")
-    enter_delete_mode
+    enter_process_mode
     delete_row("次の記事")
     # 列が取り消しの待ちの上限（30 秒）まで止まっていれば、ここで待ちきれない
     expect(page).to have_text("1 件を削除しました", wait: 5)
@@ -356,7 +356,7 @@ RSpec.describe "Swipe", type: :system do
   it "送れなかったら行が残り、もう一度押せる" do
     create(:article, title: "圏外の記事", published_at: now - 1.hour)
     sign_in
-    enter_delete_mode
+    enter_process_mode
 
     page.execute_script(<<~JS)
       window.__fetch = window.fetch
@@ -379,7 +379,7 @@ RSpec.describe "Swipe", type: :system do
     create(:article, title: "待たせる記事", published_at: now - 1.hour)
     create(:article, title: "次の記事", published_at: now - 2.hours)
     sign_in
-    enter_delete_mode
+    enter_process_mode
 
     # POST だけ応答も中断も返さない fetch にして、送信中のまま Turbo で設定へ移る（画面の移動は GET なので通す）
     page.execute_script(<<~JS)
@@ -395,7 +395,7 @@ RSpec.describe "Swipe", type: :system do
     expect(page).to have_css("article", text: "次の記事")
 
     page.execute_script("window.fetch = window.__fetch")
-    enter_delete_mode
+    enter_process_mode
     delete_row("次の記事")
     expect(page).to have_text("1 件を削除しました")
     expect(Article.find_by(title: "次の記事")).to be_dismissed

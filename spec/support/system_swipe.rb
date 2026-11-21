@@ -49,8 +49,8 @@ module SystemSwipe
     find("article", text: title).evaluate_script("parseFloat(getComputedStyle(this.parentElement.querySelector('[data-swipe-target=#{target}]')).opacity)")
   end
 
-  def enter_delete_mode
-    choose "削除", allow_label_click: true
+  def enter_process_mode
+    choose "処理", allow_label_click: true
     expect(page).to have_button("削除")
   end
 
