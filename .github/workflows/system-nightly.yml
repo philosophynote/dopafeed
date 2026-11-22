@@ -1,0 +1,45 @@
+name: System nightly
+# 失敗の知らせは GitHub の既定の通知メールで、cron を最後に書き換えた人に届く。宛先を変えるときは cron の行を書き換えて push する
+on:
+  schedule:
+    - cron: "0 17 * * *" # UTC 17:00 = JST 2:00
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: system-nightly
+  cancel-in-progress: false
+
+jobs:
+  system:
+    runs-on: ubuntu-latest
+    # 平時は 5〜10 分。Chrome が固まると 1 操作ごとに read timeout まで待ち続けるので打ち切る
+    timeout-minutes: 30
+    steps:
+      - name: Install packages
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libvips
+
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      - name: Setup
+        run: bin/setup --skip-server
+
+      - name: System spec (390x844)
+        run: bin/system-nightly
+
+      - name: Keep screenshots from system tests
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: screenshots
+          path: ${{ github.workspace }}/tmp/screenshots
+          if-no-files-found: ignore
+          retention-days: 7
