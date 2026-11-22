@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -uo pipefail
+cd "$(dirname "$0")/.."
+
+summary="${GITHUB_STEP_SUMMARY:-/dev/null}"
+status_file=tmp/rspec_examples.txt
+marker=$(mktemp)
+log=$(mktemp)
+trap 'rm -f "$marker" "$log"' EXIT
+
+failed_system_examples() {
+  awk -F'|' '{ gsub(/ /, "", $1); gsub(/ /, "", $2) } $2 == "failed" && $1 ~ /^\.\/spec\/system\// { print $1 }' "$status_file"
+}
+
+report() {
+  { echo "## $1"; [ -n "${2:-}" ] && printf -- '- `%s`\n' $2; } >> "$summary"
+  echo "$1"
+  [ -n "${2:-}" ] && printf -- '  %s\n' $2
+}
+
+if bin/screens "$@" 2>&1 | tee "$log"; then
+  report "System spec: 緑"
+  exit 0
+fi
+
+# 例を走らせる前に止まった（Tailwind のビルドや spec の読み込みで落ちた）ときは、
+# 前回の記録に残る失敗だけを再実行して緑と見誤らないよう、記録が今回書かれたかを確かめる
+if [ ! "$status_file" -nt "$marker" ]; then
+  report "System spec: 赤（例を走らせる前に止まった）"
+  exit 1
+fi
+
+# after(:context) などの例の外のエラーは記録に failed として残らず、--only-failures では回り直さない
+if grep -q "occurred outside of examples" "$log"; then
+  report "System spec: 赤（例の外でエラー）"
+  exit 1
+fi
+
+first_failures=$(failed_system_examples)
+if [ -z "$first_failures" ]; then
+  report "System spec: 赤（失敗した例が記録に無い）"
+  exit 1
+fi
+
+echo
+echo "== 落ちた例だけ 1 回再実行する =="
+if bin/rspec spec/system --only-failures; then
+  report "System spec: 緑（再実行で通った flaky あり）" "$first_failures"
+  exit 0
+fi
+
+report "System spec: 赤（再実行でも落ちた）" "$(failed_system_examples)"
+exit 1
