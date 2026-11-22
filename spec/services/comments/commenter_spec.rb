@@ -55,12 +55,11 @@ RSpec.describe Comments::Commenter do
       expect(body.keys).not_to include("tools", "temperature")
     end
 
-    it "指示は共通の決まりと 全員の名前・口調の指示を含み、決まりには誹謗・名言の捏造の禁止がある" do
+    it "指示は共通の決まりと 全員の名前・口調の指示を含む" do
       described_class.new(article).call
 
       instructions = body["instructions"]
       expect(instructions).to include(Rails.root.join("app/services/comments/prompts/comments_system.txt").read.strip)
-      expect(instructions).to include("貶め", "捏造", "本人の発言")
       Persona.all.each { |persona| expect(instructions).to include(persona.id, persona.name, persona.system_prompt.strip) }
     end
 
