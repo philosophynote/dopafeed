@@ -9,7 +9,7 @@
     </div>
   </div>
   <%= button_to persona_enablement_path(persona), method: :patch, params: { enabled: !persona.enabled },
-                form_class: "shrink-0", class: "group flex h-11 w-14 items-center justify-center",
+                form_class: "shrink-0", class: "group flex h-11 w-14 items-center justify-center", id: dom_id(persona, :switch),
                 role: "switch", "aria-checked": persona.enabled.to_s, "aria-label": "#{persona.name}をコメントに出す" do %>
     <span class="relative h-7 w-12 rounded-full bg-gray-300 transition-colors group-aria-checked:bg-orange-500" aria-hidden="true">
       <span class="absolute left-0.5 top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform group-aria-checked:translate-x-5"></span>

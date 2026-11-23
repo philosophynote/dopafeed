@@ -47,9 +47,15 @@ RSpec.describe "Personas", type: :request do
 
       get personas_path
       expect(switch_of("外した人")["aria-checked"]).to eq("false")
+      expect(page.find("[data-persona]", text: "外した人")).to have_css(".opacity-50")
+      expect(page.find("[data-persona]", text: "出る人")).to have_no_css(".opacity-50")
       expect(page).to have_text("有効 2 人。コメントでは 2 人全員が出ます")
 
-      Persona.where.not(id: off.id).update_all(enabled: false)
+      off.update!(enabled: true)
+      get personas_path
+      expect(page).to have_text("有効 3 人。コメントでは 3 人全員が出ます")
+
+      Persona.update_all(enabled: false)
       get personas_path
       expect(page).to have_text("有効な人物がいないので、記事にコメントの欄は出ません")
     end
@@ -63,7 +69,7 @@ RSpec.describe "Personas", type: :request do
       expect(persona.reload).to have_attributes(enabled: false, name: "織田信長")
       expect(response.media_type).to eq("text/vnd.turbo-stream.html")
       expect(response.body).to include(%(target="#{ActionView::RecordIdentifier.dom_id(persona)}"), %(target="personas_summary"))
-      expect(response.body).to include(%(aria-checked="false"), "有効 1 人")
+      expect(response.body).to include(%(aria-checked="false"), "opacity-50", "有効 1 人")
 
       patch persona_enablement_path(persona), params: { enabled: true }, as: :turbo_stream
       expect(persona.reload.enabled).to be(true)

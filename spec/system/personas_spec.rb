@@ -24,10 +24,11 @@ RSpec.describe "Personas", type: :system do
     screenshot!("list")
 
     page.execute_script("window.notReloaded = true")
-    switch_of("織田信長").click
+    switch_of("織田信長").send_keys(:space)
     expect(page).to have_css("[role=switch][aria-label='織田信長をコメントに出す'][aria-checked=false]")
     expect(page).to have_text("有効 7 人。コメントでは 7 人の中から 3 人が出ます")
     expect(page.evaluate_script("window.notReloaded")).to be(true)
+    expect(page.evaluate_script("document.activeElement.getAttribute('aria-label')")).to eq("織田信長をコメントに出す")
     screenshot!("disabled")
 
     visit personas_path
