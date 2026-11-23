@@ -55,4 +55,9 @@ RSpec.describe Persona do
     expect(described_class.create!(attributes_for(:persona).except(:position)).position).to eq(6)
     expect(create(:persona, position: 0).position).to eq(0)
   end
+
+  it "色を渡さずに作ると灰色 #6B7280 になる" do
+    expect(described_class.new.color).to eq("#6B7280")
+    expect(create(:persona, color: "#112233").color).to eq("#112233")
+  end
 end

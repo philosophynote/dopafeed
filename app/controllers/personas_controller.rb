@@ -1,6 +1,4 @@
 class PersonasController < ApplicationController
-  NEW_COLOR = "#6B7280".freeze
-
   before_action :set_persona, only: %i[edit update]
 
   def index
@@ -8,7 +6,7 @@ class PersonasController < ApplicationController
   end
 
   def new
-    @persona = Persona.new(color: NEW_COLOR)
+    @persona = Persona.new
   end
 
   def create
