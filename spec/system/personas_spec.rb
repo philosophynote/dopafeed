@@ -70,11 +70,14 @@ RSpec.describe "Personas", type: :system do
     expect(viewport_width).to eq(390)
     expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true)
     expect(page.evaluate_script("Array.from(document.querySelectorAll('a, button, input:not([type=hidden]), textarea')).every(e => { const r = e.getBoundingClientRect(); return r.width >= 44 && r.height >= 44 })")).to be(true)
+    # iOS は 16px 未満の入力欄に触れると拡大する
+    expect(page.evaluate_script("Array.from(document.querySelectorAll('input:not([type=hidden]), textarea')).every(e => parseFloat(getComputedStyle(e).fontSize) >= 16)")).to be(true)
     screenshot!("edit")
 
     fill_in "ひとこと紹介", with: " "
     click_on "保存"
     expect(page).to have_css("[role=alert]", text: "ひとこと紹介を入力してください")
+    expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true)
     screenshot!("error")
 
     fill_in "ひとこと紹介", with: "とにかく熱い"

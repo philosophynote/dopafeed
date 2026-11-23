@@ -29,7 +29,7 @@
   </div>
   <div class="space-y-1">
     <%= form.label :system_prompt, "口調の指示（system_prompt）", class: "block text-sm font-semibold" %>
-    <%= form.text_area :system_prompt, required: true, rows: 14, class: "#{field_class} py-2 text-sm leading-relaxed", aria: { invalid: @persona.errors.include?(:system_prompt) } %>
+    <%= form.text_area :system_prompt, required: true, rows: 14, class: "#{field_class} py-2 leading-relaxed", aria: { invalid: @persona.errors.include?(:system_prompt) } %>
     <%= persona_error(@persona, :system_prompt) %>
   </div>
   <div class="flex gap-2">

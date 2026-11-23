@@ -33,13 +33,15 @@ RSpec.describe "Persona の書き換え", type: :request do
       expect(page).to have_button("保存")
       expect(page).to have_link("やめる", href: personas_path)
       expect(page).to have_text("保存済みのコメントは作り直しません。書き換えは、これからコメントを作る記事から効きます")
+      expect(page.all("input[type=text], textarea").map { |field| field[:required] }).to all(be_present)
     end
 
     it "保存すると 5 つを書き換えて一覧へ戻す。前後の空白は落とし、slug と有効 / 無効は変えない" do
+      slug = persona.slug
       patch persona_path(persona), params: { persona: attrs.merge(name: "  第六天魔王 ", slug: "maou", enabled: false) }
 
       expect(response).to redirect_to(personas_path)
-      expect(persona.reload).to have_attributes(attrs.merge(slug: persona.slug, enabled: true))
+      expect(persona.reload).to have_attributes(attrs.merge(slug: slug, enabled: true))
     end
 
     it "空の項目や色の形式の誤りは 422 で欄の下に赤字を出し、何も変えない" do
@@ -51,6 +53,15 @@ RSpec.describe "Persona の書き換え", type: :request do
       expect(page).to have_css("[role=alert]", text: "色は #RRGGBB で指定してください")
       expect(page).to have_no_css("[role=alert]", text: "肩書き")
       expect(persona.reload.name).to eq("織田信長")
+    end
+
+    it "保存済みのコメントは書き換えても変わらない" do
+      comment = create(:article).persona_comments.create!(persona_id: persona.slug, body: "前の口調のひとこと")
+
+      patch persona_path(persona), params: { persona: attrs }
+
+      expect(comment.reload).to have_attributes(persona_id: persona.slug, body: "前の口調のひとこと")
+      expect(comment.persona.name).to eq("第六天魔王")
     end
 
     it "書き換えた口調の指示は、次に作るコメントの指示に入る" do
