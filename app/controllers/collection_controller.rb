@@ -7,6 +7,7 @@ class CollectionController < ApplicationController
     @cards_by_day = cards.group_by { |card| ReadingDay.of(card.completed_at) }
     @counts = cards.map(&:tier).tally
     @streak_days = ReadingStreak.days
+    @weekly = WeeklyReport.new
     @unread_count = unread_count
   end
 end

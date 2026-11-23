@@ -1,0 +1,66 @@
+# 週のレポート（GET /weekly）。docs/screens/weekly.md の受け入れ条件のうち、描画で確かめられるもの
+RSpec.describe "Weekly", type: :request do
+  let(:reset_hour) { Dopamine.settings.dig(:daily_goal, :reset_hour) }
+  let(:gold) { Dopamine.top_rarity[:name] }
+  # 2026-11-18（水）の正午。今週は 11/16（月）〜 11/22（日）
+  let(:noon) { Time.zone.local(2026, 11, 18, reset_hour) + 8.hours }
+
+  def page
+    Capybara.string(response.body)
+  end
+
+  def complete(completed_at, tier: Dopamine.base_rarity[:name], dwell: 4.minutes, **attrs)
+    article = create(:article, **attrs)
+    create(:reading, article: article, tier: tier, opened_at: completed_at - dwell, returned_at: completed_at, completed_at: completed_at)
+  end
+
+  it "未ログインならログイン画面へ" do
+    get weekly_path
+    expect(response).to redirect_to(new_session_path)
+  end
+
+  context "ログイン済み" do
+    before { sign_in_as(create(:user)) }
+
+    it "今週 32 本・先週 23 本なら「32 本」「先週比 +39%（23 本）」と週の範囲、読書時間、カードの内訳、要約の本数、フィード別を出す" do
+      zenn = create(:feed, title: "Zenn")
+      32.times { |i| complete(noon - i.minutes, dwell: 5.minutes, feed: zenn, tier: i.zero? ? gold : Dopamine.base_rarity[:name]) }
+      23.times { complete(noon - 7.days) }
+
+      travel_to(noon) { get weekly_path }
+
+      expect(response).to have_http_status(:ok)
+      expect(page).to have_css("h1", text: "今週のレポート")
+      expect(page).to have_text("11/16 – 11/22")
+      expect(page.find("[aria-label='今週の本数']")).to have_text("32 本 読了 先週比 +39%（23 本）", normalize_ws: true)
+      expect(page).to have_text("読書時間 2時間40分", normalize_ws: true)
+      expect(page.find("[aria-label='カード']")).to have_text("カード 32 枚 ノーマル 31 ・ レア 0 ・ S レア 0 ・ SS レア 1", normalize_ws: true)
+      expect(page).to have_text("ひとこと要約 32 本", normalize_ws: true)
+      expect(page.find("[aria-label='フィード別']")).to have_text("Zenn 32", normalize_ws: true)
+      expect(page.all("[aria-label='曜日別'] li").map { |li| li["aria-label"] }).to eq(%w[月曜 火曜 水曜 木曜 金曜 土曜 日曜].each_with_index.map { |day, i| "#{day} #{i == 2 ? 32 : 0} 本" })
+    end
+
+    it "今週の読了 0・先週 0 なら 0 本で、先週比は出さず「先週 0 本」。棒は空、フィード別は無い" do
+      travel_to(noon) { get weekly_path }
+
+      expect(page.find("[aria-label='今週の本数']")).to have_text("0 本 読了 先週 0 本", normalize_ws: true)
+      expect(page).to have_no_text("先週比")
+      expect(page).to have_css("[aria-label='曜日別'] li", count: 7)
+      expect(page).to have_no_css("[aria-label='フィード別']")
+      expect(page).to have_text("読書時間 0分", normalize_ws: true)
+    end
+
+    it "図鑑の見出しの下に今週の本数と先週比の 1 行があり、Weekly へつながる。Weekly でもタブは図鑑が現在地" do
+      complete(noon - 1.hour)
+      2.times { complete(noon - 7.days) }
+
+      travel_to(noon) { get collection_path }
+      link = page.find("a[href='#{weekly_path}']")
+      expect(link).to have_text("今週 1 本 ・ 先週比 -50%", normalize_ws: true)
+
+      travel_to(noon) { get weekly_path }
+      expect(page.find("nav").find_link("図鑑")["aria-current"]).to eq("page")
+      expect(page).to have_link("図鑑へ戻る", href: collection_path)
+    end
+  end
+end

@@ -9,6 +9,9 @@
   <p><%= (Dopamine.rarity_names.map { |name| "#{rarity_label(name)} #{@counts.fetch(name, 0)}" } + [ ("判定中 #{@counts[nil]}" if @counts[nil]) ]).compact.join(" ・ ") %></p>
   <p class="ml-auto shrink-0"><span aria-hidden="true">🔥</span><span class="sr-only">読んだ日が </span><%= @streak_days %> 日連続</p>
 </div>
+<%= link_to weekly_path, class: "mt-2 flex min-h-11 items-center justify-between rounded-xl bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm active:bg-gray-50" do %>
+  <span>今週 <%= @weekly.count %> 本 ・ <%= week_change(@weekly) %></span><span class="text-gray-400" aria-hidden="true">›</span>
+<% end %>
 
 <% if @cards_by_day.empty? %>
   <section class="mt-4 rounded-2xl bg-white px-4 py-10 text-center shadow-sm" aria-label="空の図鑑">
