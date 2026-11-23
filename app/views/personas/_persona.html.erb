@@ -6,6 +6,7 @@
       <h2 class="break-words text-sm font-bold text-gray-900"><%= persona.name %></h2>
       <p class="text-xs text-gray-500"><%= persona.title %></p>
       <p class="mt-1 break-words text-xs leading-snug text-gray-700"><%= persona.description %></p>
+      <%= link_to "書き換える", edit_persona_path(persona), class: "inline-flex min-h-11 min-w-11 items-center text-sm font-semibold text-orange-600" %>
     </div>
   </div>
   <%# 一覧のフォームのままだと、次の行を押した送信が前の送信を止め、DB だけ変わって表示が食い違う。行ごとの frame で送信を分ける %>

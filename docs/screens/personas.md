@@ -1,7 +1,7 @@
 # Personas（#172。コメントの人物の管理）
 
 ## 目的
-コメント（docs/screens/comments.md）に出る架空の人物を、デプロイなしで出す・外す。人物の正は personas の表（ADR 0033）。
+コメント（docs/screens/comments.md）に出る架空の人物を、デプロイなしで出す・外す・書き換える。人物の正は personas の表（ADR 0033）。
 
 ## 要素
 1. ヘッダ: 「戻る」（→ 設定）、「コメントの人物」
@@ -9,13 +9,15 @@
    - 有効が personas_shown より多い: 「有効 8 人。コメントでは 8 人の中から 3 人が出ます」
    - 有効が 1 人以上で personas_shown 以下: 「有効 2 人。コメントでは 2 人全員が出ます」
    - 有効が 0 人: 「有効な人物がいないので、記事にコメントの欄は出ません」
-3. 人物の行 × N（`position` 順）: 色の丸に名前の頭文字、名前、肩書き、ひとこと紹介、有効 / 無効のスイッチ（`role="switch"`、`aria-checked`、名前入りの読み上げ名）。無効の行は薄く出す
+3. 人物の行 × N（`position` 順）: 色の丸に名前の頭文字、名前、肩書き、ひとこと紹介、リンク「書き換える」、有効 / 無効のスイッチ（`role="switch"`、`aria-checked`、名前入りの読み上げ名）。無効の行は薄く出す
 4. 注記「外した人物のコメントは消えません。戻すと過去の記事でもまた出ます」（固定）
+5. 書き換え（`GET /personas/:id/edit`、full page）: 「戻る」（→ Personas）、「人物を書き換える」、注記「保存済みのコメントは作り直しません。書き換えは、これからコメントを作る記事から効きます」（固定）、入力欄「名前」「肩書き」「色」（#RRGGBB）「ひとこと紹介」「口調の指示（system_prompt）」（複数行）、「保存」「やめる」
 
 ## 遷移
 - 設定の「コメントの人物」→ Personas（full page、`GET /personas`）
 - スイッチ → `PATCH /personas/:id/enablement`（`enabled` だけ）→ Turbo Stream でその行と人数の案内を差し替える。JS が無ければ送信後に Personas へ戻る
 - 「戻る」→ 設定
+- 「書き換える」→ 書き換え →「保存」で `PATCH /personas/:id` → Personas に戻る。誤りがあれば 422 で同じ画面に赤字。「やめる」「戻る」で Personas に戻り、何も変えない
 
 ## 受け入れ条件（Given-When-Then）
 - Given 人物 8 人が有効 When 設定の「コメントの人物」 Then 8 行が並び順で出て、どのスイッチもオン、「有効 8 人。コメントでは 8 人の中から 3 人が出ます」
@@ -27,6 +29,11 @@
 - Given 未ログイン When `GET /personas` か `PATCH /personas/:id/enablement` Then ログイン画面へ。人物は変わらない
 - Given スイッチの `PATCH` に名前などが混ざる When 送る Then `enabled` 以外は変えない
 - Given 390×844 When 開く Then 横スクロールがなく、タップ領域は 44px 以上
+- Given 松岡修造の「書き換える」 When ひとこと紹介と口調の指示を変えて保存 Then Personas に戻り、行に新しい紹介が出る。次に作るコメントの指示は新しい口調の指示を使う
+- Given 書き換え When 開く Then どの欄にも今の値が入っている
+- Given 空白だけの欄や #RRGGBB でない色 When 保存 Then 422 でその欄の下に赤字（「名前を入力してください」「色は #RRGGBB で指定してください」など）、人物は変わらない。前後の空白は落とす。空欄はブラウザが送らせない
+- Given 書き換えの `PATCH` に slug や enabled が混ざる When 送る Then 書き換えの 5 項目以外は変えない
+- Given 保存済みのコメントがある記事 When 口調を書き換える Then 保存済みのコメントは変わらない（ADR 0033）
 
 ## 使う設定の鍵
 dopamine.yml: `comments.personas_shown`
@@ -36,5 +43,5 @@ personas の表: 全件（ADR 0033）
 なし
 
 ## 未決
-1. 人物の書き換え（名前・肩書き・色・ひとこと紹介・system_prompt）は #172 の次の段で足す
-2. 人物の追加・並べ替えは持ち越し
+1. 人物の追加・並べ替えは持ち越し
+2. system_prompt の長さの上限（数字なので yml に置く。要るなら PR で提案）
