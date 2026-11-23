@@ -201,6 +201,19 @@ RSpec.describe "Comments", type: :request do
       expect(article.reload.comments_requested_at).to be_present
     end
 
+    it "作った人を全員外すと、頼んだ印が残っていても「考え中」にせず「コメントを見る」を出す。押し直した後は「考え中」" do
+      article.update!(comments_requested_at: 1.minute.ago)
+      article.persona_comments.create!(persona_id: "oda-nobunaga", body: "作った人の分")
+      Persona.find_by!(slug: "oda-nobunaga").update!(enabled: false)
+
+      get article_comments_path(article)
+      expect(page).to have_button("コメントを見る")
+
+      post article_comments_path(article)
+      get article_comments_path(article)
+      expect(page).to have_text("考え中")
+    end
+
     it "有効な人物が一人もいなければ 404 で Job も積まない（鍵の欠けと同じく欄も出さない）" do
       Persona.update_all(enabled: false)
 

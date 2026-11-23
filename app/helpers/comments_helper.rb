@@ -21,7 +21,7 @@ module CommentsHelper
     return :ready if article.persona_comments.by_enabled_personas.exists?
     return :exhausted if exhausted
     # 走っている Job が最後の 1 回を使っても、出来上がりを待つ間は上限にしない
-    return :pending if article.comments_requested_at.present? && article.comments_failed_at.blank?
+    return :pending if comments_awaited?(article)
     # 知らせを取りこぼしても取り直しで上限を出す。押せない日に前の失敗の「もう一度」は出さない
     return :exhausted if comments_budget_exhausted?
     return :failed if article.comments_failed_at.present?
@@ -35,5 +35,15 @@ module CommentsHelper
     saved = article.persona_comments.by_enabled_personas.includes(:persona).to_a
     rest = saved.reject { |comment| comment.persona_id.in?(except) }
     (rest.size >= count ? rest : saved).sample(count)
+  end
+
+  private
+
+  # 頼んだ後に保存済みのコメントがあれば、その依頼は済んでいる。外した人の分しか無くても待ち状態に戻さない
+  def comments_awaited?(article)
+    return false if article.comments_requested_at.blank? || article.comments_failed_at.present?
+
+    answered_at = article.persona_comments.maximum(:created_at)
+    answered_at.nil? || answered_at < article.comments_requested_at
   end
 end
