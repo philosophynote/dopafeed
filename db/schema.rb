@@ -98,6 +98,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_080000) do
     t.datetime "updated_at", null: false
     t.datetime "failed_at"
     t.string "error"
+    t.datetime "shown_at"
     t.index ["article_id", "persona_id"], name: "index_persona_comments_on_article_id_and_persona_id", unique: true
     t.index ["article_id"], name: "index_persona_comments_on_article_id"
   end

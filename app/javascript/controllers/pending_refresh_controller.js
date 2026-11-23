@@ -28,7 +28,8 @@ export default class extends Controller {
     if (!this.element.querySelector("turbo-cable-stream-source[connected]")) return
 
     const frame = document.getElementById(this.frameValue)
-    if (!frame || !frame.querySelector(`[data-state='${this.pendingValue}']`)) return
+    const pending = this.pendingValue.split(/\s+/).map((state) => `[data-state='${state}']`).join(", ")
+    if (!frame || !frame.querySelector(pending)) return
 
     if (frame.getAttribute("src") === this.urlValue) {
       frame.reload()

@@ -16,6 +16,8 @@ RSpec.describe "Comments", type: :request do
     slugs.each { |slug| article.persona_comments.create!(persona_id: slug, body: "#{Persona.find_by!(slug:).name}のひとこと") }
   end
 
+  def stream = "#{article.to_gid_param}:comments"
+
   def shown_names
     page.all("[data-persona-id]").map { |card| card["data-persona-id"] }
   end
@@ -70,6 +72,44 @@ RSpec.describe "Comments", type: :request do
 
       expect(shown_names).to match_array(slugs)
       expect(page).to have_css("li[data-state='writing']", count: 3)
+    end
+
+    it "最初の「コメントを見る」を二度送っても（二つのタブなど）、2 回目は今の組を返し、行も Job も増やさない" do
+      post article_comments_path(article), as: :turbo_stream
+      first = shown_names
+
+      post article_comments_path(article), as: :turbo_stream
+
+      expect(article.persona_comments.count).to eq(3)
+      expect(enqueued_slugs.size).to eq(3)
+      expect(shown_names).to match_array(first)
+    end
+
+    it "前の組から押した「別の 3 人を見る」は、組がもう変わっていれば作らずに今の組を返す" do
+      post article_comments_path(article)
+      first = article.persona_comments.pluck(:persona_id)
+      post article_comments_path(article, except: first.join(",")), as: :turbo_stream
+      second = shown_names
+      clear_enqueued_jobs
+
+      post article_comments_path(article, except: first.join(",")), as: :turbo_stream
+
+      expect(enqueued_slugs).to be_empty
+      expect(article.persona_comments.count).to eq(6)
+      expect(shown_names).to match_array(second)
+    end
+
+    it "組の人を外した後でも、外す前に描いた画面の「別の 3 人を見る」は古い押下にせず次の組を作る" do
+      post article_comments_path(article)
+      first = article.persona_comments.order(:id).pluck(:persona_id)
+      article.persona_comments.update_all(body: "書けた")
+      Persona.where(slug: first.first(2)).update_all(enabled: false)
+      clear_enqueued_jobs
+
+      post article_comments_path(article, except: first.join(",")), as: :turbo_stream
+
+      expect(enqueued_slugs.size).to eq(3)
+      expect(shown_names.size).to eq(3)
     end
 
     it "有効な全員が作成済みなら積まずに 3 人を返す（記事 × 人物で 1 回）" do
@@ -131,11 +171,23 @@ RSpec.describe "Comments", type: :request do
       expect(card).to have_button("もう一度")
       expect(page.find("[data-persona-id='oda-nobunaga']")).to have_text("織田信長のひとこと")
 
-      post retry_article_comments_path(article, persona_comment_id: failed.id), as: :turbo_stream
+      expect { post retry_article_comments_path(article, persona_comment_id: failed.id), as: :turbo_stream }
+        .to have_broadcasted_to(stream).with(a_string_including("replace", ActionView::RecordIdentifier.dom_id(failed), "書いています"))
 
       expect(failed.reload).to have_attributes(state: :writing, error: nil)
       expect(enqueued_slugs).to eq([ "mao-zedong" ])
-      expect(response.body).to include("replace", ActionView::RecordIdentifier.dom_id(failed), "書いています")
+    end
+
+    it "「もう一度」はカードを応答で返さず、Job より先に購読へ送る（応答が遅れて届いても、Job が送った新しいカードを上書きしない）" do
+      failed = article.persona_comments.create!(persona_id: "mao-zedong", failed_at: Time.current, error: "応答の形式が不正")
+      order = []
+      allow(Turbo::StreamsChannel).to receive(:broadcast_replace_to).and_wrap_original { |original, *args, **opts| order << :card; original.call(*args, **opts) }
+      allow(Comments::CommentPersonaJob).to receive(:perform_later).and_wrap_original { |original, *args| order << :job; original.call(*args) }
+
+      post retry_article_comments_path(article, persona_comment_id: failed.id), as: :turbo_stream
+
+      expect(response).to have_http_status(:no_content)
+      expect(order).to eq(%i[card job])
     end
 
     it "失敗していない行の「もう一度」は積まない（書いている途中・書き上がりを二重に払わない）" do
@@ -162,7 +214,7 @@ RSpec.describe "Comments", type: :request do
       expect(failed.reload.state).to eq(:failed)
     end
 
-    it "「別の 3 人」で一部だけ作った後に欄を取り直しても同じ組を出し、直前の組の人に入れ替えない" do
+    it "「別の 3 人」で一部だけ作った後に読み直しても（取り直しも普通の再読込も）押したときの組を出し、直前の組の人に入れ替えない" do
       first = %w[oda-nobunaga joseph-stalin mao-zedong]
       second = %w[shuzo-matsuoka otto-von-bismarck genghis-khan]
       save(article, first + second)
@@ -171,9 +223,10 @@ RSpec.describe "Comments", type: :request do
       shown = shown_names
       expect(shown).to include("donald-trump", "margaret-thatcher")
       refresh = page.find("[data-controller='pending-refresh']")["data-pending-refresh-url-value"]
+      expect(refresh).to eq(article_comments_path(article))
 
       10.times do
-        get refresh
+        get article_comments_path(article)
         expect(shown_names).to eq(shown)
       end
     end
@@ -203,10 +256,10 @@ RSpec.describe "Comments", type: :request do
       failed = article.persona_comments.create!(persona_id: "mao-zedong", failed_at: Time.current, error: "応答の形式が不正")
       allow(Comments::CommentPersonaJob).to receive(:perform_later).and_return(false)
 
-      post retry_article_comments_path(article, persona_comment_id: failed.id), as: :turbo_stream
+      expect { post retry_article_comments_path(article, persona_comment_id: failed.id), as: :turbo_stream }
+        .to have_broadcasted_to(stream).with(a_string_including("もう一度"))
 
       expect(failed.reload).to have_attributes(state: :failed, error: "Job を積めなかった")
-      expect(response.body).to include("もう一度")
     end
 
     it "別の記事のコメントは頼み直せない（404）" do
@@ -234,6 +287,32 @@ RSpec.describe "Comments", type: :request do
       expect(enqueued_slugs).to eq([ "mao-zedong" ])
     end
 
+    it "上限の日の「別の 3 人を見る」は、作り済みの別の人がいれば作らずに組み替える" do
+      save(article, %w[oda-nobunaga joseph-stalin mao-zedong shuzo-matsuoka otto-von-bismarck genghis-khan])
+      article.persona_comments.where(persona_id: %w[oda-nobunaga joseph-stalin mao-zedong]).update_all(shown_at: Time.current)
+      allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true, remaining: 0))
+
+      post article_comments_path(article, except: "oda-nobunaga,joseph-stalin,mao-zedong"), as: :turbo_stream
+
+      expect(article.persona_comments.count).to eq(6)
+      expect(shown_names).to match_array(%w[shuzo-matsuoka otto-von-bismarck genghis-khan])
+      expect(page).to have_button("別の 3 人を見る")
+    end
+
+    it "上限の日の「別の 3 人を見る」で組み替える人もいなければ、同じ組のままボタンを「今日はもう口を出せません」に替える" do
+      post article_comments_path(article)
+      first = article.persona_comments.pluck(:persona_id)
+      article.persona_comments.update_all(body: "書けた")
+      allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true, remaining: 0))
+
+      post article_comments_path(article, except: first.join(",")), as: :turbo_stream
+
+      expect(article.persona_comments.count).to eq(3)
+      expect(shown_names).to match_array(first)
+      expect(page).to have_text("今日はもう口を出せません")
+      expect(page).to have_no_button(/別の/)
+    end
+
     it "今日の上限に達していたら行も Job も作らずに「今日はもう口を出せません」" do
       allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true, remaining: 0))
 
@@ -251,6 +330,21 @@ RSpec.describe "Comments", type: :request do
 
       expect(article.persona_comments.map(&:state)).to all(eq(:failed))
       expect(article.persona_comments.pluck(:error).uniq).to eq([ "Job を積めなかった" ])
+      expect(response.body).to include("口を出せませんでした", "もう一度")
+    end
+
+    it "キューへの登録が例外で失敗した人だけ失敗にして「もう一度」を出し、他の人は積む" do
+      calls = 0
+      allow(Comments::CommentPersonaJob).to receive(:perform_later).and_wrap_original do |original, *args|
+        calls += 1
+        calls == 1 ? raise(SolidQueue::Job::EnqueueError, "ActiveRecord::StatementTimeout: database is locked") : original.call(*args)
+      end
+
+      post article_comments_path(article), as: :turbo_stream
+
+      expect(article.persona_comments.map(&:state).tally).to eq(failed: 1, writing: 2)
+      expect(article.persona_comments.find(&:failed?).error).to eq("Job を積めなかった")
+      expect(enqueued_slugs.size).to eq(2)
       expect(response.body).to include("口を出せませんでした", "もう一度")
     end
 
@@ -303,7 +397,7 @@ RSpec.describe "Comments", type: :request do
       before = shown_names
 
       10.times do
-        get article_comments_path(article, except: before.join(","))
+        post article_comments_path(article, except: before.join(",")), as: :turbo_stream
         expect(shown_names & before).to be_empty
         expect(shown_names.size).to eq(2)
         before = shown_names

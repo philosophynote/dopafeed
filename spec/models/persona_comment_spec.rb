@@ -40,4 +40,40 @@ RSpec.describe PersonaComment do
 
     expect(comment.reload.persona.name).to eq("織田信長")
   end
+
+  describe ".lineup（欄に並べる組）" do
+    before { %w[joseph-stalin mao-zedong].each { |slug| create(:persona, slug:) } }
+
+    it "最後に一緒に並べた行（shown_at が最も新しい行）を作った順に返し、外した人は除く" do
+      allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.deep_merge(comments: { personas_shown: 2 }))
+      old = article.persona_comments.create!(persona_id: "oda-nobunaga", body: "x", shown_at: 1.hour.ago)
+      now = Time.current
+      first = article.persona_comments.create!(persona_id: "joseph-stalin", shown_at: now)
+      second = article.persona_comments.create!(persona_id: "mao-zedong", body: "y", shown_at: now)
+
+      expect(described_class.lineup(article)).to eq([ first, second ])
+      Persona.find_by!(slug: "joseph-stalin").update!(enabled: false)
+      expect(described_class.lineup(article)).to eq([ second, old ])
+      expect(old.reload.shown_at).to be < now
+    end
+
+    it "組の人を外して足りなくなったら、組の外の有効な行から作った順に補う（再読込でも同じ組）" do
+      create(:persona, slug: "genghis-khan")
+      allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.deep_merge(comments: { personas_shown: 2 }))
+      extra = %w[mao-zedong genghis-khan].map { |slug| article.persona_comments.create!(persona_id: slug, body: "x") }
+      now = Time.current
+      kept = article.persona_comments.create!(persona_id: "oda-nobunaga", shown_at: now)
+      article.persona_comments.create!(persona_id: "joseph-stalin", shown_at: now)
+      Persona.find_by!(slug: "joseph-stalin").update!(enabled: false)
+
+      expect(described_class.lineup(article)).to eq([ kept, extra.first ])
+    end
+
+    it "並べた記録が無ければ（記録を始める前の行）、yml の人数を選んで返す" do
+      allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.deep_merge(comments: { personas_shown: 2 }))
+      %w[oda-nobunaga joseph-stalin mao-zedong].each { |slug| article.persona_comments.create!(persona_id: slug, body: "x") }
+
+      expect(described_class.lineup(article).size).to eq(2)
+    end
+  end
 end

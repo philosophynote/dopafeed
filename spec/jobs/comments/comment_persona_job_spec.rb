@@ -27,9 +27,59 @@ RSpec.describe Comments::CommentPersonaJob, type: :job do
     persona.update!(enabled: false)
     allow(commenter).to receive(:call).and_return("織田信長のひとこと")
 
-    described_class.perform_now(comment)
-
+    expect { described_class.perform_now(comment) }
+      .to have_broadcasted_to(stream).with(a_string_including("remove", ActionView::RecordIdentifier.dom_id(comment)))
     expect(comment.reload.body).to eq("織田信長のひとこと")
+  end
+
+  it "外した人のカードは、本文を送らずに消す知らせだけを送る" do
+    comment
+    persona.update!(enabled: false)
+    allow(commenter).to receive(:call).and_return("織田信長のひとこと")
+
+    expect { described_class.perform_now(comment) }
+      .not_to have_broadcasted_to(stream).with(a_string_including("織田信長のひとこと"))
+  end
+
+  context "欄に並んだ組（押したときに選んだ人）" do
+    let(:other) { article.persona_comments.create!(persona_id: "joseph-stalin") }
+    let(:box) { ActionView::RecordIdentifier.dom_id(article, :comments_box) }
+
+    before do
+      PersonaComment.where(id: [ comment.id, other.id ]).update_all(shown_at: Time.current)
+      allow(commenter).to receive(:call).and_return("織田信長のひとこと")
+    end
+
+    it "まだ書いている人がいれば、そのカードだけを送り、欄（購読を含む）は送らない" do
+      ActionCable.server.pubsub.clear
+      expect { described_class.perform_now(comment) }
+        .to have_broadcasted_to(stream).with(a_string_including(%(target="#{ActionView::RecordIdentifier.dom_id(comment)}")))
+      expect(ActionCable.server.pubsub.broadcasts(stream).map { |message| ActiveSupport::JSON.decode(message) }).to all(satisfy { |html| !html.include?(box) })
+    end
+
+    it "欄を送り直すときは、判定に使った組を描いている欄だけを差し替える（直後に押された新しい組の欄を古い組で上書きしない）" do
+      other.update!(body: "スターリンのひとこと")
+      lineup = [ comment.id, other.id ].join("-")
+
+      expect { described_class.perform_now(comment) }
+        .to have_broadcasted_to(stream).with(a_string_including(%(targets="##{box}[data-lineup=&#39;#{lineup}&#39;]")))
+    end
+
+    it "最後の 1 人が書けたら、欄ごと送り直して状態を書き上がりにし、購読を外す" do
+      other.update!(body: "スターリンのひとこと")
+
+      expect { described_class.perform_now(comment) }
+        .to have_broadcasted_to(stream).with(satisfy { |html|
+          html.include?(box) && html.include?("織田信長のひとこと") && html.include?(%(data-state="ready")) && !html.include?("turbo-cable-stream-source")
+        })
+    end
+
+    it "失敗した人が残っていれば、頼み直しの知らせを受けるため購読は外さない" do
+      other.update!(failed_at: Time.current, error: "応答の形式が不正")
+
+      expect { described_class.perform_now(comment) }
+        .not_to have_broadcasted_to(stream).with(a_string_including(box))
+    end
   end
 
   it "書き上がっていれば呼ばずにカードだけ送る（記事 × 人物で 1 回。二度払いしない）" do

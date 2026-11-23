@@ -7,5 +7,5 @@
 <article class="mt-3 rounded-xl bg-white p-4">
   <p class="text-xs text-gray-500"><%= @article.feed.title %></p>
   <h1 class="mt-1 text-base font-bold leading-snug text-gray-900"><%= @article.title %></h1>
-  <%= render "comments/box", article: @article, except: @except, ids: @ids %>
+  <%= render "comments/box", article: @article %>
 </article>
