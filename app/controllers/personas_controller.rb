@@ -1,5 +1,4 @@
 class PersonasController < ApplicationController
-  # iPhone で # から打たずに済むよう、足すときの色の欄に入れておく
   NEW_COLOR = "#6B7280".freeze
 
   before_action :set_persona, only: %i[edit update]

@@ -35,12 +35,12 @@ RSpec.describe "Persona の追加", type: :request do
 
     it "保存すると有効なまま一覧の最後に足して一覧へ戻す。slug・有効 / 無効・並び順は送っても使わない" do
       seed_personas
-      post personas_path, params: { persona: attrs.merge(slug: "ryoma", enabled: false, position: 0) }
+      post personas_path, params: { persona: attrs.merge(slug: "ryoma", enabled: false, position: 3) }
 
       expect(response).to redirect_to(personas_path)
       persona = Persona.order(:id).last
       expect(persona).to have_attributes(attrs.merge(enabled: true))
-      expect(persona.slug).to match(/\Apersona-[a-z]+\z/)
+      expect(persona.slug).to match(/\Apersona-[a-z]{8}\z/)
       expect(Persona.enabled.last).to eq(persona)
 
       follow_redirect!
@@ -56,6 +56,7 @@ RSpec.describe "Persona の追加", type: :request do
       expect(page).to have_css("[role=alert]", text: "色は #RRGGBB で指定してください")
       expect(page).to have_no_css("[role=alert]", text: "肩書き")
       expect(page).to have_field("肩書き", with: "土佐の脱藩浪士")
+      expect(page).to have_field("色", with: "blue")
     end
   end
 end
