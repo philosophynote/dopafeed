@@ -9,15 +9,13 @@ class PersonaComment < ApplicationRecord
   scope :written, -> { where.not(body: nil) }
 
   # 押したときに選んだ組を、取り直しや再読込でも同じ顔ぶれで出す。組は同じ時刻の shown_at で束ねる。
-  # 組の人を外して欠けたら、乱数を使わず作った順に補う（再読込のたびに補う人が変わらないように）。
-  # 記録を始める前の行には時刻が無いので、そのときだけ選び直す
+  # 組の人を外して欠けたときや記録を始める前の行は、乱数を使わず作った順に補う。
+  # 読むたびに選び直すと、表示した組と押したときに照合する組が食い違う
   def self.lineup(article)
-    saved = article.persona_comments.by_enabled_personas.includes(:persona).to_a
+    saved = article.persona_comments.by_enabled_personas.includes(:persona).sort_by(&:id)
     shown_at = saved.filter_map(&:shown_at).max
-    return pick(saved, except: []) unless shown_at
-
-    group, others = saved.sort_by(&:id).partition { |comment| comment.shown_at == shown_at }
-    group + others.first([ Dopamine.settings.dig(:comments, :personas_shown) - group.size, 0 ].max)
+    group = shown_at ? saved.select { |comment| comment.shown_at == shown_at } : []
+    group + (saved - group).first([ Dopamine.settings.dig(:comments, :personas_shown) - group.size, 0 ].max)
   end
 
   # 押したときの組の人。外した人も含めるのは、外す前に描いた欄からの押下を古い押下と見分けないため
@@ -26,15 +24,18 @@ class PersonaComment < ApplicationRecord
     shown_at ? article.persona_comments.where(shown_at:).pluck(:persona_id) : []
   end
 
-  # 足りなければ直前の組の人も使うのは、人物を外した後に欠けた組を出さないため。
+  # 直前の組の人は、他の人で足りないときだけ使う（人物を外した後に欠けた組を出さないため）。
   # 書いている途中、失敗の順に新しく頼んだものを先に取り、作っている人が組から押し出されないようにする
   def self.pick(saved, except:)
-    count = Dopamine.settings.dig(:comments, :personas_shown)
-    rest = saved.reject { |comment| comment.persona_id.in?(except) }
-    pool = rest.size >= count ? rest : saved
-    unfinished, written = pool.partition { |comment| !comment.written? }
-    (unfinished.sort_by { |comment| [ comment.writing? ? 0 : 1, -comment.updated_at.to_f ] } + written.shuffle).first(count)
+    previous, rest = saved.partition { |comment| comment.persona_id.in?(except) }
+    (ordered(rest) + ordered(previous)).first(Dopamine.settings.dig(:comments, :personas_shown))
   end
+
+  def self.ordered(comments)
+    unfinished, written = comments.partition { |comment| !comment.written? }
+    unfinished.sort_by { |comment| [ comment.writing? ? 0 : 1, -comment.updated_at.to_f ] } + written.shuffle
+  end
+  private_class_method :ordered
 
   def state
     return :written if body?

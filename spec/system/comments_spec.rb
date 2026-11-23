@@ -82,6 +82,56 @@ RSpec.describe "Comments", type: :system do
     expect(page).to have_no_css("##{box_id} turbo-cable-stream-source", visible: :all)
   end
 
+  it "別のタブで新しい組を出した後でも、前の組の残りが書けたら、前の組の欄でカードが本文に変わり購読が外れる" do
+    article = create(:article, :awaiting_summary, summary: "・要約", title: "二つのタブの記事")
+    sign_in
+
+    expand("二つのタブの記事")
+    click_button "コメントを見る"
+    wait_for_subscription(article)
+    shown = article.persona_comments.to_a
+    others = Persona.enabled.where.not(slug: shown.map(&:persona_id)).first(3)
+    later = 1.minute.from_now
+    others.each { |persona| article.persona_comments.create!(persona_id: persona.slug, body: "別の組", shown_at: later) }
+
+    shown.each { |comment| write(comment) }
+
+    expect(page).to have_css("li[data-state='written']", count: 3)
+    expect(page).to have_css("section[aria-label='コメント'][data-state='ready']")
+    expect(page).to have_no_css("turbo-cable-stream-source", visible: :all)
+  end
+
+  it "つながり直したときの取り直しの応答が、その間に届いた本文より遅れて届いても、本文を「書いています」に戻さない" do
+    article = create(:article, :awaiting_summary, summary: "・要約", title: "遅い取り直しの記事")
+    sign_in
+
+    expand("遅い取り直しの記事")
+    click_button "コメントを見る"
+    wait_for_subscription(article)
+    first = article.persona_comments.order(:id).first
+    rendered = Queue.new
+    release = Queue.new
+    allow_any_instance_of(CommentsController).to receive(:show).and_wrap_original do |original, *args|
+      original.call(*args)
+      response = original.receiver.render_to_string(:show)
+      rendered << true
+      release.pop
+      original.receiver.render html: response.html_safe
+    end
+
+    page.execute_script(<<~JS, ActionView::RecordIdentifier.dom_id(article, :comments_box))
+      const source = document.querySelector(`#${arguments[0]} turbo-cable-stream-source`)
+      source.removeAttribute("connected"); source.setAttribute("connected", "")
+    JS
+    rendered.pop
+    write(first)
+    expect(page).to have_css("[data-persona-id='#{first.persona_id}'][data-state='written']")
+    release << true
+
+    expect(page).to have_no_css("turbo-frame[busy]", visible: :all)
+    expect(page).to have_css("[data-persona-id='#{first.persona_id}'][data-state='written']", text: "がこの記事にひとこと。")
+  end
+
   it "1 人だけ失敗すると、その人のカードに「口を出せませんでした」と「もう一度」。押すとその人だけ「書いています」に戻る" do
     article = create(:article, :awaiting_summary, summary: "・要約", title: "失敗する記事")
     sign_in

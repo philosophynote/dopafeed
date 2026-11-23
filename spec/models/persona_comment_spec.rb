@@ -73,7 +73,9 @@ RSpec.describe PersonaComment do
       allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.deep_merge(comments: { personas_shown: 2 }))
       %w[oda-nobunaga joseph-stalin mao-zedong].each { |slug| article.persona_comments.create!(persona_id: slug, body: "x") }
 
-      expect(described_class.lineup(article).size).to eq(2)
+      lineup = described_class.lineup(article)
+      expect(lineup.size).to eq(2)
+      3.times { expect(described_class.lineup(article)).to eq(lineup) }
     end
   end
 end

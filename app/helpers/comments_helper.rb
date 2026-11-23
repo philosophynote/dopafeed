@@ -21,11 +21,20 @@ module CommentsHelper
     Claude::Budget.new.remaining
   end
 
-  def comments_state(article, exhausted: false)
+  def comments_state(article)
     return :ready if article.persona_comments.by_enabled_personas.exists?
-    return :exhausted if exhausted || comments_budget_exhausted?
+    return :exhausted if comments_budget_exhausted?
 
     :closed
+  end
+
+  # 押しても上限で作れず、組み替える作り済みの人もいないなら、押させずに上限を出す。
+  # 押した応答だけで決めると、JS が無いときの戻り先や読み直しでまたボタンが出る
+  def comments_next_exhausted?(article, shown)
+    return false if comments_budget_remaining.positive?
+
+    unasked = Persona.enabled.where.not(slug: article.persona_comments.select(:persona_id)).exists?
+    unasked && (article.persona_comments.by_enabled_personas.pluck(:persona_id) - shown.map(&:persona_id)).empty?
   end
 
   def comments_box_state(shown)

@@ -57,28 +57,32 @@ RSpec.describe Comments::CommentPersonaJob, type: :job do
       expect(ActionCable.server.pubsub.broadcasts(stream).map { |message| ActiveSupport::JSON.decode(message) }).to all(satisfy { |html| !html.include?(box) })
     end
 
-    it "欄を送り直すときは、判定に使った組を描いている欄だけを差し替える（直後に押された新しい組の欄を古い組で上書きしない）" do
+    it "最後の 1 人が書けても欄は送らず、そのカードを送る（購読を外すのは欄の側で、別のタブに出ている組にも効く）" do
       other.update!(body: "スターリンのひとこと")
-      lineup = [ comment.id, other.id ].join("-")
+      ActionCable.server.pubsub.clear
 
       expect { described_class.perform_now(comment) }
-        .to have_broadcasted_to(stream).with(a_string_including(%(targets="##{box}[data-lineup=&#39;#{lineup}&#39;]")))
+        .to have_broadcasted_to(stream).with(a_string_including(%(target="#{ActionView::RecordIdentifier.dom_id(comment)}"), "織田信長のひとこと"))
+      expect(ActionCable.server.pubsub.broadcasts(stream).map { |message| ActiveSupport::JSON.decode(message) }).to all(satisfy { |html| !html.include?(box) })
     end
 
-    it "最後の 1 人が書けたら、欄ごと送り直して状態を書き上がりにし、購読を外す" do
-      other.update!(body: "スターリンのひとこと")
+    it "別のタブで新しい組を出して全員書けた後でも、前の組の人が書けたらそのカードを送る" do
+      later = 1.minute.from_now
+      newer = %w[mao-zedong shuzo-matsuoka otto-von-bismarck].map do |slug|
+        article.persona_comments.create!(persona_id: slug, body: "#{slug}のひとこと", shown_at: later)
+      end
 
       expect { described_class.perform_now(comment) }
-        .to have_broadcasted_to(stream).with(satisfy { |html|
-          html.include?(box) && html.include?("織田信長のひとこと") && html.include?(%(data-state="ready")) && !html.include?("turbo-cable-stream-source")
-        })
+        .to have_broadcasted_to(stream).with(a_string_including(%(target="#{ActionView::RecordIdentifier.dom_id(comment)}"), "織田信長のひとこと"))
+      expect(PersonaComment.lineup(article)).to eq(newer)
     end
 
-    it "失敗した人が残っていれば、頼み直しの知らせを受けるため購読は外さない" do
-      other.update!(failed_at: Time.current, error: "応答の形式が不正")
+    it "外した人の分は、残りの人が全員書けていても、カードを消す知らせを送る" do
+      other.update!(body: "スターリンのひとこと")
+      persona.update!(enabled: false)
 
       expect { described_class.perform_now(comment) }
-        .not_to have_broadcasted_to(stream).with(a_string_including(box))
+        .to have_broadcasted_to(stream).with(a_string_including("remove", ActionView::RecordIdentifier.dom_id(comment)))
     end
   end
 

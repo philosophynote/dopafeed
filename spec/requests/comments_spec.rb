@@ -190,6 +190,26 @@ RSpec.describe "Comments", type: :request do
       expect(order).to eq(%i[card job])
     end
 
+    it "「もう一度」でカードを配れなくても、Job は積む（書いている途中のまま Job の無い枠を残さない）" do
+      failed = article.persona_comments.create!(persona_id: "mao-zedong", failed_at: Time.current, error: "応答の形式が不正")
+      allow(Turbo::StreamsChannel).to receive(:broadcast_replace_to).and_raise(RuntimeError, "配れない")
+
+      post retry_article_comments_path(article, persona_comment_id: failed.id), as: :turbo_stream
+
+      expect(enqueued_slugs).to eq([ "mao-zedong" ])
+      expect(failed.reload.state).to eq(:writing)
+    end
+
+    it "外した人の「もう一度」は積まず、失敗のまま残す（出さない人のために上限を使わない）" do
+      failed = article.persona_comments.create!(persona_id: "mao-zedong", failed_at: Time.current, error: "応答の形式が不正")
+      Persona.find_by!(slug: "mao-zedong").update!(enabled: false)
+
+      post retry_article_comments_path(article, persona_comment_id: failed.id), as: :turbo_stream
+
+      expect(enqueued_slugs).to be_empty
+      expect(failed.reload.state).to eq(:failed)
+    end
+
     it "失敗していない行の「もう一度」は積まない（書いている途中・書き上がりを二重に払わない）" do
       writing = article.persona_comments.create!(persona_id: "oda-nobunaga")
       written = article.persona_comments.create!(persona_id: "joseph-stalin", body: "書けた")
@@ -311,6 +331,50 @@ RSpec.describe "Comments", type: :request do
       expect(shown_names).to match_array(first)
       expect(page).to have_text("今日はもう口を出せません")
       expect(page).to have_no_button(/別の/)
+    end
+
+    it "上限の日の「別の 3 人を見る」は、直前の組にいない人を先に選び、足りない分だけ直前の組から補う" do
+      save(article, %w[oda-nobunaga joseph-stalin mao-zedong shuzo-matsuoka])
+      allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true, remaining: 0))
+
+      5.times do
+        article.persona_comments.update_all(shown_at: nil)
+        article.persona_comments.where(persona_id: %w[oda-nobunaga joseph-stalin mao-zedong]).update_all(shown_at: 1.minute.ago)
+        post article_comments_path(article, except: "oda-nobunaga,joseph-stalin,mao-zedong"), as: :turbo_stream
+        expect(shown_names).to include("shuzo-matsuoka")
+      end
+    end
+
+    it "JS が無いときも、上限で組み替える人がいなければ戻った画面に「今日はもう口を出せません」を出し、ボタンを出さない" do
+      post article_comments_path(article)
+      first = article.persona_comments.pluck(:persona_id)
+      article.persona_comments.update_all(body: "書けた")
+      allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true, remaining: 0))
+
+      post article_comments_path(article, except: first.join(","))
+      follow_redirect!
+
+      expect(shown_names).to match_array(first)
+      expect(page).to have_text("今日はもう口を出せません")
+      expect(page).to have_no_button(/別の/)
+    end
+
+    it "記録した組の人を全員外すと、残る記録前の行から読み直しと押下で同じ組を出し、表示した組からの押下で次を作る" do
+      save(article)
+      recorded = %w[oda-nobunaga joseph-stalin mao-zedong]
+      article.persona_comments.where(persona_id: recorded).update_all(shown_at: Time.current)
+      Persona.where(slug: recorded).update_all(enabled: false)
+      article.persona_comments.where(persona_id: "margaret-thatcher").delete_all
+
+      get article_comments_path(article)
+      shown = shown_names
+      3.times do
+        get article_comments_path(article)
+        expect(shown_names).to eq(shown)
+      end
+
+      post article_comments_path(article, except: shown.join(",")), as: :turbo_stream
+      expect(enqueued_slugs).to eq([ "margaret-thatcher" ])
     end
 
     it "今日の上限に達していたら行も Job も作らずに「今日はもう口を出せません」" do
