@@ -2,7 +2,7 @@ RSpec.describe "Process mode", type: :system do
   let(:now) { Time.current }
   let(:ratio) { Dopamine.settings.dig(:swipe, :dismiss_threshold_ratio) }
 
-  it "「処理」に切り替えても削除ボタンは出ず、行を左へ払うと消えてトーストが出て未読数が減る。「読む」に戻すと左へは引けない" do
+  it "「処理」に切り替えても削除ボタンは出ず、行を左へ払うと消えてトーストが出て未読数が減る。「読む」に戻すと行の「読む」が押せる状態に戻る" do
     create(:article, title: "上の記事", published_at: now - 1.hour)
     create(:article, title: "消す記事", published_at: now - 2.hours)
     create(:article, title: "下の記事", published_at: now - 3.hours)
@@ -58,9 +58,6 @@ RSpec.describe "Process mode", type: :system do
     choose "読む", allow_label_click: true
     expect(page).to have_no_css("button[data-swipe-target='read'][inert]", visible: :all)
     expect(page).to have_button("「消す記事」を読む")
-    drag_card("消す記事", from: [ width * 0.8, 40 ], to: [ width * 0.8 - width * ratio * 1.3, 40 ])
-    expect(settled_shift("消す記事")).to eq(0)
-    expect(Article.find_by!(title: "消す記事")).not_to be_dismissed
   end
 
   it "処理モードで右へ払うと保存してトーストが出る（読むモードの右と同じ向き）。左右とも閾値の手前で離すと戻り、何も送らない" do
@@ -418,7 +415,7 @@ RSpec.describe "Process mode", type: :system do
       expect(find("dialog[open]")).to have_text("削除 0 ・ 保存 1", normalize_ws: true)
     end
 
-    it "左へ引いたまま「読む」に戻してから離しても、削除しない" do
+    it "左へ引いたまま「読む」に戻してから離すと、削除はするがコンボにもリザルトにも数えない" do
       sign_in
       enter_process_mode
       width = card_width("一本目")
@@ -426,13 +423,27 @@ RSpec.describe "Process mode", type: :system do
       expect(card_shift("一本目")).to be < 0
       page.execute_script("document.querySelector('input[name=mode][value=read]').click()")
       expect(page).to have_no_css("[data-process-mode]")
-      # 動かさずに離す（動かせば引いた幅は読むモードの決まりで 0 に戻る）
       drag_card("一本目", from: [ width * 0.8, 40 ], to: [ width * 0.8, 40 ], steps: 0, down: false)
 
-      expect(settled_shift("一本目")).to eq(0)
-      sleep 0.5
-      expect(Article.find_by!(title: "一本目")).not_to be_dismissed
-      expect(page).to have_no_css("#toast [data-controller='toast']")
+      expect(page).to have_css("#toast [data-controller='toast']", text: "1 件を削除しました")
+      expect(page).to have_no_css("article", text: "一本目")
+      expect(Article.find_by!(title: "一本目")).to be_dismissed
+      expect(sfx_log).not_to include("melody")
+    end
+
+    it "読むモードで閾値を越えて swipe が鳴った引きは、「処理」に切り替えてから離しても削除するだけで、コンボに数えず melody を重ねない" do
+      sign_in
+      width = card_width("一本目")
+      drag_card("一本目", from: [ width * 0.8, 40 ], to: [ width * 0.8 - width * ratio * 1.3, 40 ], release: false)
+      expect(sfx_log).to eq([ "swipe" ])
+      page.execute_script("document.querySelector('input[name=mode][value=process]').click()")
+      expect(page).to have_css("[data-process-mode]")
+      drag_card("一本目", from: [ width * 0.8, 40 ], to: [ width * 0.8, 40 ], steps: 0, down: false)
+
+      expect(page).to have_css("#toast [data-controller='toast']", text: "1 件を削除しました")
+      expect(Article.find_by!(title: "一本目")).to be_dismissed
+      expect(combo).to have_text("0 COMBO", normalize_ws: true)
+      expect(sfx_log).to eq([ "swipe" ])
     end
 
     it "待ちの上限を越えて失敗に見えた削除も、後から成功が届けばコンボに数え直す" do
