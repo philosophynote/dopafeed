@@ -10,7 +10,7 @@ RSpec.describe "Personas", type: :system do
     find("[role=switch][aria-label='#{name}をコメントに出す']")
   end
 
-  it "設定から開き、スイッチで再読込せずに外し、再読込しても残り、もう一度押すと戻る。390×844 で横スクロールと小さいタップ領域がない" do
+  it "設定から開き、スイッチで再読込せずに外し、再読込しても残り、続けて 2 行押しても両方外れ、もう一度押すと戻る。390×844 で横スクロールと小さいタップ領域がない" do
     sign_in
     visit learning_path
     click_on "コメントの人物"
@@ -33,6 +33,13 @@ RSpec.describe "Personas", type: :system do
 
     visit personas_path
     expect(switch_of("織田信長")["aria-checked"]).to eq("false")
+    page.execute_script(<<~JS)
+      for (const name of ["ヨシフ・スターリン", "毛沢東"]) document.querySelector(`[aria-label="${name}をコメントに出す"]`).click()
+    JS
+    expect(page).to have_css("[role=switch][aria-label='ヨシフ・スターリンをコメントに出す'][aria-checked=false]")
+    expect(page).to have_css("[role=switch][aria-label='毛沢東をコメントに出す'][aria-checked=false]")
+    expect(page).to have_text("有効 5 人")
+    expect(Persona.where(slug: %w[joseph-stalin mao-zedong]).pluck(:enabled)).to eq([ false, false ])
     switch_of("織田信長").click
     expect(page).to have_css("[role=switch][aria-label='織田信長をコメントに出す'][aria-checked=true]")
     expect(Persona.find_by!(slug: "oda-nobunaga").enabled).to be(true)
