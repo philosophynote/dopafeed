@@ -5,7 +5,7 @@ import { Controller } from "@hotwired/stimulus"
 // stream source に Stimulus を付けると data-* が購読パラメータに混ざる。
 export default class extends Controller {
   // 上限でも翌日の差し替えを待つ欄があるため、購読を外す状態は欄ごとに決める
-  static values = { url: String, frame: String, settled: { type: String, default: "ready failed" } }
+  static values = { url: String, frame: String, pending: { type: String, default: "pending" }, settled: { type: String, default: "ready failed" } }
 
   connect() {
     this.frameLoaded = (event) => {
@@ -28,7 +28,7 @@ export default class extends Controller {
     if (!this.element.querySelector("turbo-cable-stream-source[connected]")) return
 
     const frame = document.getElementById(this.frameValue)
-    if (!frame || !frame.querySelector("[data-state='pending']")) return
+    if (!frame || !frame.querySelector(`[data-state='${this.pendingValue}']`)) return
 
     if (frame.getAttribute("src") === this.urlValue) {
       frame.reload()

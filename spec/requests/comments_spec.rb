@@ -1,23 +1,28 @@
 RSpec.describe "Comments", type: :request do
   let(:comments) { { personas_shown: 3, model: "grok-4.3", max_tokens: 4000, timeout_seconds: 60 } }
   let(:article) { create(:article, :awaiting_summary, :opened) }
-  let(:names) { Persona.enabled.map(&:name) }
 
   before do
     seed_personas
     allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.merge(comments: comments))
   end
 
+  # turbo-stream の応答は中身が template に入り、そのままでは要素として探せない
   def page
-    Capybara.string(response.body)
+    Capybara.string(response.body.gsub(%r{</?template>}, ""))
   end
 
-  def save_all(article)
-    Persona.enabled.each { |persona| article.persona_comments.create!(persona_id: persona.slug, body: "#{persona.name}のひとこと") }
+  def save(article, slugs = Persona.enabled.map(&:slug))
+    slugs.each { |slug| article.persona_comments.create!(persona_id: slug, body: "#{Persona.find_by!(slug:).name}のひとこと") }
   end
 
   def shown_names
     page.all("[data-persona-id]").map { |card| card["data-persona-id"] }
+  end
+
+  def enqueued_slugs
+    enqueued_jobs.select { |job| job["job_class"] == "Comments::CommentPersonaJob" }
+                 .map { |job| GlobalID::Locator.locate(job["arguments"].first["_aj_globalid"]).persona_id }
   end
 
   it "未ログインならログイン画面へ" do
@@ -25,6 +30,9 @@ RSpec.describe "Comments", type: :request do
     expect(response).to redirect_to(new_session_path)
 
     post article_comments_path(article)
+    expect(response).to redirect_to(new_session_path)
+
+    post retry_article_comments_path(article)
     expect(response).to redirect_to(new_session_path)
   end
 
@@ -41,47 +49,140 @@ RSpec.describe "Comments", type: :request do
       expect(page).to have_text("人物は AI による架空のキャラクターです。本人の発言ではありません")
     end
 
-    it "押すと Job を 1 回だけ積み、頼んだ時刻を残して前の失敗を消し、「考え中」と購読を返す" do
-      article.update!(comments_failed_at: 1.hour.ago, comments_error: "応答の形式が不正")
+    it "押すと有効な人から 3 人を選んで書いている途中の行を作り、1 人 1 本ずつ Job を積み、3 人のカードと購読を返す" do
+      post article_comments_path(article), as: :turbo_stream
 
-      freeze_time do
-        post article_comments_path(article), as: :turbo_stream
-        expect(article.reload).to have_attributes(comments_requested_at: Time.current, comments_failed_at: nil, comments_error: nil)
-      end
-      expect(Comments::CommentArticleJob).to have_been_enqueued.with(article).once
+      rows = article.persona_comments.to_a
+      expect(rows.size).to eq(3)
+      expect(rows.map(&:state)).to all(eq(:writing))
+      expect(enqueued_slugs).to match_array(rows.map(&:persona_id))
       expect(response.media_type).to eq("text/vnd.turbo-stream.html")
-      expect(response.body).to include("考え中", "turbo-cable-stream-source")
+      expect(shown_names).to match_array(rows.map(&:persona_id))
+      expect(response.body.scan("書いています").size).to eq(3)
+      expect(response.body).to include("turbo-cable-stream-source")
     end
 
-    it "保存済みなら積まずに 3 人を返す（1 記事 1 回）" do
-      save_all(article)
+    it "読み直しても、書いている途中の人の枠を同じ顔ぶれで出す" do
+      post article_comments_path(article)
+      slugs = article.persona_comments.pluck(:persona_id)
+
+      get article_comments_path(article)
+
+      expect(shown_names).to match_array(slugs)
+      expect(page).to have_css("li[data-state='writing']", count: 3)
+    end
+
+    it "有効な全員が作成済みなら積まずに 3 人を返す（記事 × 人物で 1 回）" do
+      save(article)
 
       post article_comments_path(article), as: :turbo_stream
 
-      expect(Comments::CommentArticleJob).not_to have_been_enqueued
+      expect(enqueued_slugs).to be_empty
       expect(response.body.scan("data-persona-id=").size).to eq(3)
     end
 
-    it "今日の上限に達していたら積まずに「今日はもう口を出せません」" do
+    it "「別の 3 人を見る」は直前の組を除き、まだ作っていない人から作る。全員そろえば API を呼ばず組み替える" do
+      post article_comments_path(article)
+      first = article.persona_comments.pluck(:persona_id)
+      article.persona_comments.update_all(body: "書けた")
+      clear_enqueued_jobs
+
+      post article_comments_path(article, except: first.join(",")), as: :turbo_stream
+      second = enqueued_slugs
+      expect(second.size).to eq(3)
+      expect(second & first).to be_empty
+      expect(shown_names).to match_array(second)
+      article.persona_comments.update_all(body: "書けた")
+      clear_enqueued_jobs
+
+      post article_comments_path(article, except: second.join(",")), as: :turbo_stream
+      third = enqueued_slugs
+      expect(third).to match_array(Persona.enabled.map(&:slug) - first - second)
+      expect(shown_names.size).to eq(3)
+      expect(shown_names).to include(*third)
+      expect(shown_names & second).to be_empty
+      article.persona_comments.update_all(body: "書けた")
+      clear_enqueued_jobs
+
+      post article_comments_path(article, except: shown_names.join(",")), as: :turbo_stream
+      expect(enqueued_slugs).to be_empty
+      expect(shown_names.size).to eq(3)
+    end
+
+    it "後から有効にした人は、コメントのある記事でも次に押したときに作る" do
+      Persona.find_by!(slug: "margaret-thatcher").update!(enabled: false)
+      save(article, Persona.enabled.map(&:slug))
+      Persona.find_by!(slug: "margaret-thatcher").update!(enabled: true)
+
+      post article_comments_path(article), as: :turbo_stream
+
+      expect(enqueued_slugs).to eq([ "margaret-thatcher" ])
+      expect(shown_names.size).to eq(3)
+      expect(shown_names).to include("margaret-thatcher")
+    end
+
+    it "失敗した人は「口を出せませんでした」と「もう一度」。押すとその人だけ書いている途中に戻して積み直す" do
+      save(article, %w[oda-nobunaga joseph-stalin])
+      failed = article.persona_comments.create!(persona_id: "mao-zedong", failed_at: Time.current, error: "応答の形式が不正")
+
+      get article_comments_path(article)
+      card = page.find("[data-persona-id='mao-zedong']")
+      expect(card).to have_text("口を出せませんでした")
+      expect(card).to have_button("もう一度")
+      expect(page.find("[data-persona-id='oda-nobunaga']")).to have_text("織田信長のひとこと")
+
+      post retry_article_comments_path(article, persona_comment_id: failed.id), as: :turbo_stream
+
+      expect(failed.reload).to have_attributes(state: :writing, error: nil)
+      expect(enqueued_slugs).to eq([ "mao-zedong" ])
+      expect(response.body).to include("replace", ActionView::RecordIdentifier.dom_id(failed), "書いています")
+    end
+
+    it "失敗していない行の「もう一度」は積まない（書いている途中・書き上がりを二重に払わない）" do
+      writing = article.persona_comments.create!(persona_id: "oda-nobunaga")
+      written = article.persona_comments.create!(persona_id: "joseph-stalin", body: "書けた")
+
+      post retry_article_comments_path(article, persona_comment_id: writing.id), as: :turbo_stream
+      post retry_article_comments_path(article, persona_comment_id: written.id), as: :turbo_stream
+
+      expect(enqueued_slugs).to be_empty
+      expect(written.reload.body).to eq("書けた")
+    end
+
+    it "失敗した人のカードは、今日の上限に達していれば「もう一度」ではなく上限を出し、押されても積まない" do
+      failed = article.persona_comments.create!(persona_id: "mao-zedong", failed_at: Time.current, error: "今日の上限")
+      allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true))
+
+      get article_comments_path(article)
+      expect(page.find("[data-persona-id='mao-zedong']")).to have_text("今日はもう口を出せません")
+      expect(page).to have_no_button("もう一度")
+
+      post retry_article_comments_path(article, persona_comment_id: failed.id), as: :turbo_stream
+      expect(enqueued_slugs).to be_empty
+      expect(failed.reload.state).to eq(:failed)
+    end
+
+    it "今日の上限に達していたら行も Job も作らずに「今日はもう口を出せません」" do
       allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true))
 
       post article_comments_path(article), as: :turbo_stream
 
-      expect(Comments::CommentArticleJob).not_to have_been_enqueued
+      expect(enqueued_slugs).to be_empty
+      expect(article.persona_comments).to be_empty
       expect(response.body).to include("今日はもう口を出せません")
     end
 
-    it "Job を積めなかったら頼んだ印を残さず、失敗として「もう一度」を出す（待ち続けない）" do
-      allow(Comments::CommentArticleJob).to receive(:perform_later).and_return(false)
+    it "Job を積めなかった人は失敗にして「もう一度」を出す（書いている途中で待ち続けない）" do
+      allow(Comments::CommentPersonaJob).to receive(:perform_later).and_return(false)
 
       post article_comments_path(article), as: :turbo_stream
 
-      expect(article.reload).to have_attributes(comments_requested_at: nil, comments_error: "Job を積めなかった")
-      expect(article.comments_failed_at).to be_present
+      expect(article.persona_comments.map(&:state)).to all(eq(:failed))
+      expect(article.persona_comments.pluck(:error).uniq).to eq([ "Job を積めなかった" ])
       expect(response.body).to include("口を出せませんでした", "もう一度")
     end
 
-    it "Job の中で上限に達して知らせを取りこぼしても、取り直すと「今日はもう口を出せません」" do
+    it "未生成で今日の上限に達していれば、取り直しても「今日はもう口を出せません」でボタンを出さない" do
       allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true))
 
       get article_comments_path(article)
@@ -90,46 +191,24 @@ RSpec.describe "Comments", type: :request do
       expect(page).to have_no_button("コメントを見る")
     end
 
-    it "前の失敗が残っていても、今日の上限に達していれば「もう一度」ではなく上限を出す" do
-      article.update!(comments_failed_at: 1.hour.ago, comments_error: "応答の形式が不正")
+    it "書いている途中の人は、その Job が最後の 1 回を使って上限に達しても「書いています」のまま" do
+      article.persona_comments.create!(persona_id: "oda-nobunaga")
       allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true))
 
       get article_comments_path(article)
 
-      expect(page).to have_text("今日はもう口を出せません")
-      expect(page).to have_no_button("もう一度")
-    end
-
-    it "頼んだ Job が走っている間は、その Job が最後の 1 回を使って上限に達しても「考え中」のまま" do
-      article.update!(comments_requested_at: Time.current)
-      allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true))
-
-      get article_comments_path(article)
-
-      expect(page).to have_text("考え中")
+      expect(page.find("[data-persona-id='oda-nobunaga']")).to have_text("書いています")
     end
 
     it "JS が無いときは積んだ後にコメントの画面へ戻す" do
       post article_comments_path(article)
 
       expect(response).to redirect_to(article_comments_path(article))
-      expect(Comments::CommentArticleJob).to have_been_enqueued.once
+      expect(enqueued_slugs.size).to eq(3)
     end
 
-    it "頼んだ後でまだ無ければ「考え中」、失敗していれば「口を出せませんでした」と「もう一度」" do
-      article.update!(comments_requested_at: Time.current)
-      get article_comments_path(article)
-      expect(page).to have_text("考え中")
-      expect(page).to have_no_button("コメントを見る")
-
-      article.update!(comments_failed_at: Time.current, comments_error: "応答の形式が不正")
-      get article_comments_path(article)
-      expect(page).to have_text("口を出せませんでした")
-      expect(page).to have_button("もう一度")
-    end
-
-    it "保存済みなら全員から 3 人を名前・肩書き・AI・本文つきで出し、注記も出す" do
-      save_all(article)
+    it "書き上がった人は名前・肩書き・AI・本文つきで出し、注記も出す" do
+      save(article)
 
       get article_comments_path(article)
 
@@ -141,27 +220,27 @@ RSpec.describe "Comments", type: :request do
       expect(card).to have_text(persona.title)
       expect(card).to have_text("AI")
       expect(card).to have_text("#{persona.name}のひとこと")
-      expect(page).to have_link("別の 3 人を見る")
+      expect(page).to have_button("別の 3 人を見る")
       expect(page).to have_text("人物は AI による架空のキャラクターです")
     end
 
-    it "「別の 2 人を見る」は直前の 2 人を除いた残りから選ぶ（API は呼ばない）" do
+    it "全員そろった記事の「別の 2 人を見る」は直前の 2 人を除いた残りから選ぶ（API は呼ばない）" do
       comments[:personas_shown] = 2
-      save_all(article)
+      save(article)
       get article_comments_path(article)
       before = shown_names
 
       10.times do
-        get page.find_link("別の 2 人を見る")[:href]
+        get article_comments_path(article, except: before.join(","))
         expect(shown_names & before).to be_empty
         expect(shown_names.size).to eq(2)
         before = shown_names
       end
-      expect(Comments::CommentArticleJob).not_to have_been_enqueued
+      expect(enqueued_slugs).to be_empty
     end
 
     it "無効にした人のコメントは出さず、有効に戻せば保存済みのコメントがまた出る" do
-      save_all(article)
+      save(article)
       Persona.where.not(slug: %w[oda-nobunaga joseph-stalin mao-zedong]).update_all(enabled: false)
 
       get article_comments_path(article)
@@ -188,7 +267,7 @@ RSpec.describe "Comments", type: :request do
       expect(page).to have_text("2 人全員が現れます")
     end
 
-    it "外した人のコメントしか無ければ、未生成と同じく「コメントを見る」を出す（空の組を出さない）" do
+    it "外した人のコメントしか無ければ、未生成と同じく「コメントを見る」を出し、押すと今の有効な人から作る" do
       article.persona_comments.create!(persona_id: "oda-nobunaga", body: "外した人の分")
       Persona.find_by!(slug: "oda-nobunaga").update!(enabled: false)
 
@@ -197,21 +276,9 @@ RSpec.describe "Comments", type: :request do
       expect(page).to have_button("コメントを見る")
       expect(shown_names).to be_empty
 
-      expect { post article_comments_path(article) }.to have_enqueued_job(Comments::CommentArticleJob).with(article)
-      expect(article.reload.comments_requested_at).to be_present
-    end
-
-    it "作った人を全員外すと、頼んだ印が残っていても「考え中」にせず「コメントを見る」を出す。押し直した後は「考え中」" do
-      article.update!(comments_requested_at: 1.minute.ago)
-      article.persona_comments.create!(persona_id: "oda-nobunaga", body: "作った人の分")
-      Persona.find_by!(slug: "oda-nobunaga").update!(enabled: false)
-
-      get article_comments_path(article)
-      expect(page).to have_button("コメントを見る")
-
       post article_comments_path(article)
-      get article_comments_path(article)
-      expect(page).to have_text("考え中")
+      expect(enqueued_slugs.size).to eq(3)
+      expect(enqueued_slugs).not_to include("oda-nobunaga")
     end
 
     it "有効な人物が一人もいなければ 404 で Job も積まない（鍵の欠けと同じく欄も出さない）" do
@@ -219,12 +286,13 @@ RSpec.describe "Comments", type: :request do
 
       get article_comments_path(article)
       expect(response).to have_http_status(:not_found)
-      expect { post article_comments_path(article) }.not_to have_enqueued_job(Comments::CommentArticleJob)
+      post article_comments_path(article)
       expect(response).to have_http_status(:not_found)
+      expect(enqueued_slugs).to be_empty
     end
 
     it "AI の本文は HTML として解釈せず文字として出す" do
-      save_all(article)
+      save(article)
       article.persona_comments.update_all(body: "<script>alert(1)</script><b>太字</b>")
 
       get article_comments_path(article)
@@ -240,7 +308,7 @@ RSpec.describe "Comments", type: :request do
       expect(response).to have_http_status(:not_found)
       post article_comments_path(article), as: :turbo_stream
       expect(response).to have_http_status(:not_found)
-      expect(Comments::CommentArticleJob).not_to have_been_enqueued
+      expect(enqueued_slugs).to be_empty
     end
   end
 end

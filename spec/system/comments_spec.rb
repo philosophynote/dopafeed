@@ -1,19 +1,28 @@
 RSpec.describe "Comments", type: :system do
   let(:comments) { { personas_shown: 3, model: "grok-4.3", max_tokens: 4000, timeout_seconds: 60 } }
-  let(:bodies) { Persona.enabled.to_h { |persona| [ persona.slug, "#{persona.name}がこの記事にひとこと。" ] } }
 
   before do
     seed_personas
     allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.merge(comments: comments))
+    allow(Comments::Commenter).to receive(:new) do |_article, persona|
+      instance_double(Comments::Commenter, call: "#{persona.name}がこの記事にひとこと。")
+    end
   end
 
   def shown_ids
     all("[data-persona-id]").map { |card| card["data-persona-id"] }
   end
 
-  it "広げた欄で「コメントを見る」を押すと「考え中」、Job が書き終えると 2 人が現れ、「別の 2 人を見る」で入れ替わる" do
+  def wait_for_subscription(article)
+    find("##{ActionView::RecordIdentifier.dom_id(article, :comments_box)} turbo-cable-stream-source[connected]", visible: :all)
+  end
+
+  def write(comment)
+    Comments::CommentPersonaJob.perform_now(comment)
+  end
+
+  it "「コメントを見る」で 2 人の枠が「書いています」で出て、書けた人から本文に変わる。「別の 2 人を見る」はまだ作っていない人を作る" do
     comments[:personas_shown] = 2
-    allow(Comments::Commenter).to receive(:new).and_return(instance_double(Comments::Commenter, call: bodies))
     article = create(:article, :awaiting_summary, summary: "・要約", title: "口を出される記事")
     sign_in
 
@@ -24,91 +33,90 @@ RSpec.describe "Comments", type: :system do
     screenshot!("closed")
 
     box.click_button("コメントを見る")
-    expect(page).to have_css("section[aria-label='コメント']", text: "考え中")
-    find("##{ActionView::RecordIdentifier.dom_id(article, :comments_box)} turbo-cable-stream-source[connected]", visible: :all)
-    screenshot!("pending")
+    expect(page).to have_css("li[data-state='writing']", count: 2, text: "書いています")
+    wait_for_subscription(article)
+    screenshot!("writing")
 
-    Comments::CommentArticleJob.perform_now(article)
+    first, second = article.persona_comments.order(:id).to_a
+    write(first)
+    expect(page).to have_css("[data-persona-id='#{first.persona_id}']", text: "#{first.persona.name}がこの記事にひとこと。")
+    expect(page).to have_css("[data-persona-id='#{second.persona_id}'][data-state='writing']")
+    screenshot!("partly-written")
 
-    expect(page).to have_css("[data-persona-id]", count: 2)
-    first = shown_ids
-    expect(find("section[aria-label='コメント']")).to have_text("人物は AI による架空のキャラクターです")
+    write(second)
+    expect(page).to have_css("li[data-state='written']", count: 2)
     expect(page).to have_current_path(root_path)
     screenshot!("opened")
 
-    click_link "別の 2 人を見る"
-    expect(page).to have_no_css(first.map { |id| "[data-persona-id='#{id}']" }.join(", "))
-    expect(page).to have_css("[data-persona-id]", count: 2)
+    before = shown_ids
+    click_button "別の 2 人を見る"
+    expect(page).to have_no_css(before.map { |id| "[data-persona-id='#{id}']" }.join(", "))
+    expect(page).to have_css("li[data-state='writing']", count: 2)
+    expect(article.persona_comments.count).to eq(4)
     expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "横スクロールが出ている"
     expect(page).to have_current_path(root_path)
   end
 
-  it "出来上がりの知らせを取りこぼしても、購読がつながり直したときに欄を取り直して 3 人を出す" do
-    allow(Comments::Commenter).to receive(:new).and_return(instance_double(Comments::Commenter, call: bodies))
-    allow(Comments::CommentArticleJob).to receive(:broadcast)
+  it "出来上がりの知らせを取りこぼしても、購読がつながり直したときに欄を取り直して本文を出し、購読を外す" do
+    allow(Comments::CommentPersonaJob).to receive(:broadcast)
     article = create(:article, :awaiting_summary, summary: "・要約", title: "知らせを落とす記事")
     sign_in
 
     expand("知らせを落とす記事")
     click_button "コメントを見る"
     box_id = ActionView::RecordIdentifier.dom_id(article, :comments_box)
-    find("##{box_id} turbo-cable-stream-source[connected]", visible: :all)
+    wait_for_subscription(article)
 
-    # 知らせは止めてあるので、3 人が出るのは購読のつながり直しで欄を取り直したときだけ
-    Comments::CommentArticleJob.perform_now(article)
+    # 知らせは止めてあるので、本文が出るのは購読のつながり直しで欄を取り直したときだけ
+    article.persona_comments.each { |comment| write(comment) }
     page.execute_script(<<~JS, box_id)
       const source = document.querySelector(`#${arguments[0]} turbo-cable-stream-source`)
       if (source) { source.removeAttribute("connected"); source.setAttribute("connected", "") }
     JS
 
-    expect(page).to have_css("[data-persona-id]", count: 3)
+    expect(page).to have_css("li[data-state='written']", count: 3)
     expect(page).to have_no_css("##{box_id} turbo-cable-stream-source", visible: :all)
   end
 
-  it "上限の知らせを取りこぼしても、取り直すと上限を出し、購読も外す（畳んだ後に購読が溜まらない）" do
-    allow(Comments::Commenter).to receive(:new).and_return(instance_double(Comments::Commenter).tap do |commenter|
-      allow(commenter).to receive(:call).and_raise(Claude::Budget::Exhausted, "limit")
-    end)
-    allow(Comments::CommentArticleJob).to receive(:broadcast)
-    article = create(:article, :awaiting_summary, summary: "・要約", title: "上限を落とす記事")
-    sign_in
-
-    expand("上限を落とす記事")
-    click_button "コメントを見る"
-    box_id = ActionView::RecordIdentifier.dom_id(article, :comments_box)
-    find("##{box_id} turbo-cable-stream-source[connected]", visible: :all)
-
-    allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true))
-    Comments::CommentArticleJob.perform_now(article)
-    page.execute_script(<<~JS, box_id)
-      const source = document.querySelector(`#${arguments[0]} turbo-cable-stream-source`)
-      if (source) { source.removeAttribute("connected"); source.setAttribute("connected", "") }
-    JS
-
-    expect(page).to have_css("section[aria-label='コメント']", text: "今日はもう口を出せません")
-    expect(page).to have_no_css("##{box_id} turbo-cable-stream-source", visible: :all)
-  end
-
-  it "失敗が届くと「口を出せませんでした」、「もう一度」で頼み直して「考え中」に戻る" do
-    allow(Comments::Commenter).to receive(:new).and_return(instance_double(Comments::Commenter).tap do |commenter|
-      allow(commenter).to receive(:call).and_raise(Comments::Commenter::MalformedResponse, "応答の形式が不正")
-    end)
+  it "1 人だけ失敗すると、その人のカードに「口を出せませんでした」と「もう一度」。押すとその人だけ「書いています」に戻る" do
     article = create(:article, :awaiting_summary, summary: "・要約", title: "失敗する記事")
     sign_in
 
     expand("失敗する記事")
     click_button "コメントを見る"
-    find("##{ActionView::RecordIdentifier.dom_id(article, :comments_box)} turbo-cable-stream-source[connected]", visible: :all)
-    Comments::CommentArticleJob.perform_now(article)
+    wait_for_subscription(article)
+    failing, *others = article.persona_comments.order(:id).to_a
+    allow(Comments::Commenter).to receive(:new).with(article, failing.persona)
+      .and_return(instance_double(Comments::Commenter).tap { |c| allow(c).to receive(:call).and_raise(Comments::Commenter::MalformedResponse, "応答の形式が不正") })
+    [ failing, *others ].each { |comment| write(comment) }
 
-    expect(page).to have_css("section[aria-label='コメント']", text: "口を出せませんでした")
+    card = find("[data-persona-id='#{failing.persona_id}']")
+    expect(card).to have_text("口を出せませんでした")
+    expect(page).to have_css("li[data-state='written']", count: 2)
     screenshot!("failed")
-    requested_at = article.reload.comments_requested_at
-    click_button "もう一度"
 
-    expect(page).to have_css("section[aria-label='コメント']", text: "考え中")
-    expect(article.reload).to have_attributes(comments_failed_at: nil, comments_error: nil)
-    expect(article.comments_requested_at).to be > requested_at
+    card.click_button("もう一度")
+
+    expect(page).to have_css("[data-persona-id='#{failing.persona_id}'][data-state='writing']", text: "書いています")
+    expect(failing.reload.state).to eq(:writing)
+    expect(page).to have_css("li[data-state='written']", count: 2)
+  end
+
+  it "書いている途中で今日の上限に達した人のカードは「今日はもう口を出せません」になる" do
+    article = create(:article, :awaiting_summary, summary: "・要約", title: "途中で上限の記事")
+    sign_in
+
+    expand("途中で上限の記事")
+    click_button "コメントを見る"
+    wait_for_subscription(article)
+    comment = article.persona_comments.first
+    allow(Comments::Commenter).to receive(:new).with(article, comment.persona)
+      .and_return(instance_double(Comments::Commenter).tap { |c| allow(c).to receive(:call).and_raise(Claude::Budget::Exhausted, "limit") })
+    allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true))
+    write(comment)
+
+    expect(page).to have_css("[data-persona-id='#{comment.persona_id}']", text: "今日はもう口を出せません")
+    expect(page).to have_no_button("もう一度")
   end
 
   it "今日の上限に達していれば、広げた欄に「今日はもう口を出せません」が出て、押すボタンは出ない" do

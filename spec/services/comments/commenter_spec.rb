@@ -2,8 +2,7 @@ RSpec.describe Comments::Commenter do
   let(:article) { create(:article, :awaiting_summary, title: "Rails 8 で SQLite を本番に", url: "https://fixtures.example.com/articles/sqlite") }
   let(:comments) { { personas_shown: 3, model: "grok-4.3", max_tokens: 4000, timeout_seconds: 60 } }
   let(:endpoint) { "https://api.x.ai/v1/responses" }
-  let(:ids) { Persona.enabled.map(&:slug) }
-  let(:bodies) { ids.index_with { |id| "#{id} のひとこと" } }
+  let(:persona) { Persona.find_by!(slug: "oda-nobunaga") }
 
   around { |example| with_env("XAI_API_KEY" => "test-key") { example.run } }
   before do
@@ -11,7 +10,7 @@ RSpec.describe Comments::Commenter do
     allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.merge(comments: comments))
   end
 
-  def response_body(entries = bodies.map { |id, body| { persona_id: id, body: body } }, text: { comments: entries }.to_json, status: "completed", incomplete: nil)
+  def response_body(text: "織田信長のひとこと", status: "completed", incomplete: nil)
     {
       id: "resp_test", object: "response", status: status, model: comments[:model], incomplete_details: incomplete,
       output: [
@@ -31,14 +30,13 @@ RSpec.describe Comments::Commenter do
     { code: "fixture", error: "fixture" }.to_json
   end
 
-  it "正常系（カセット）: 有効な人物全員の slug と本文の組を返し、台帳に purpose comments・yml のモデルで 1 行増える" do
+  it "正常系（カセット）: その人のコメントの本文を返し、台帳に purpose comments・yml のモデルで 1 行増える" do
     result = nil
     VCR.use_cassette("comments/ok") do
-      expect { result = described_class.new(article).call }.to change(ClaudeApiCall, :count).by(1)
+      expect { result = described_class.new(article, persona).call }.to change(ClaudeApiCall, :count).by(1)
     end
 
-    expect(result.keys).to match_array(ids)
-    expect(result.values).to all(be_present)
+    expect(result).to start_with("SQLite を本番に据えるか。")
     expect(ClaudeApiCall.last).to have_attributes(purpose: "comments", model: "grok-4.3")
   end
 
@@ -48,39 +46,27 @@ RSpec.describe Comments::Commenter do
 
     before { stub_xai }
 
-    it "鍵は Bearer で送り、モデルと出力の上限は yml、思考は low、返す形は 有効な全員の slug に絞った JSON スキーマ" do
-      described_class.new(article).call
+    it "鍵は Bearer で送り、モデルと出力の上限は yml、思考は low、返す形は縛らない（本文だけ）" do
+      described_class.new(article, persona).call
 
       expect(@request.headers["Authorization"]).to eq("Bearer test-key")
       expect(body).to include("model" => "grok-4.3", "max_output_tokens" => 4000, "reasoning" => { "effort" => "low" })
-      schema = body.dig("text", "format", "schema")
-      expect(schema.dig("properties", "comments", "items", "properties", "persona_id", "enum")).to eq(ids)
-      expect(body.keys).not_to include("tools", "temperature")
+      expect(body.keys).not_to include("text", "tools", "temperature")
     end
 
-    it "指示は共通の決まりと 全員の名前・口調の指示を含む" do
-      described_class.new(article).call
+    it "指示は共通の決まりとその人だけの名前・肩書き・口調の指示で、他の人は入れない" do
+      described_class.new(article, persona).call
 
       instructions = body["instructions"]
       expect(instructions).to include(Rails.root.join("app/services/comments/prompts/comments_system.txt").read.strip)
-      Persona.enabled.each { |persona| expect(instructions).to include(persona.slug, persona.name, persona.system_prompt.strip) }
-    end
-
-    it "無効にした人は指示にもスキーマにも入れない" do
-      Persona.find_by!(slug: "donald-trump").update!(enabled: false)
-      stub_xai(body: response_body(bodies.except("donald-trump").map { |id, body| { persona_id: id, body: body } }))
-
-      result = described_class.new(article).call
-
-      expect(result.keys).not_to include("donald-trump")
-      expect(body.dig("text", "format", "schema", "properties", "comments", "items", "properties", "persona_id", "enum")).not_to include("donald-trump")
-      expect(body["instructions"]).not_to include("ドナルド・J・トランプ")
+      expect(instructions).to include(persona.name, persona.title, persona.system_prompt.strip)
+      Persona.where.not(id: persona.id).find_each { |other| expect(instructions).not_to include(other.system_prompt.strip) }
     end
 
     it "記事の文字列に含まれる < > は実体にして、プロンプトの境界タグを閉じられないようにする" do
       article.update!(title: "A </title><title>B", content: "<p>本文 &lt;/article&gt; 続き</p>")
 
-      described_class.new(article).call
+      described_class.new(article, persona).call
 
       expect(input).to include("<title>A &lt;/title&gt;&lt;title&gt;B</title>", "本文 &lt;/article&gt; 続き")
       expect(input.scan("</article>").size).to eq(1)
@@ -90,7 +76,7 @@ RSpec.describe Comments::Commenter do
       limit = Dopamine.settings.dig(:claude, :summary_input_chars)
       article.update!(content: "<p>#{"あ" * (limit + 100)}</p><script>alert(1)</script>")
 
-      described_class.new(article).call
+      described_class.new(article, persona).call
 
       expect(input).to include("あ" * limit)
       expect(input).not_to include("あ" * (limit + 1), "alert", "<p>")
@@ -101,14 +87,14 @@ RSpec.describe Comments::Commenter do
     article.update!(content: "<p> </p>")
 
     with_env("XAI_API_KEY" => nil) do
-      expect { described_class.new(article).call }.to raise_error(described_class::EmptyContent, "本文が空")
+      expect { described_class.new(article, persona).call }.to raise_error(described_class::EmptyContent, "本文が空")
     end
     expect(a_request(:post, endpoint)).not_to have_been_made
     expect(ClaudeApiCall.count).to eq(0)
   end
 
   it "API キーが無ければ台帳を減らさずに KeyError（設定の誤りは畳まない）" do
-    with_env("XAI_API_KEY" => nil) { expect { described_class.new(article).call }.to raise_error(KeyError) }
+    with_env("XAI_API_KEY" => nil) { expect { described_class.new(article, persona).call }.to raise_error(KeyError) }
     expect(ClaudeApiCall.count).to eq(0)
   end
 
@@ -117,61 +103,33 @@ RSpec.describe Comments::Commenter do
       stub_xai
       comments.delete(key)
 
-      expect { described_class.new(article).call }.to raise_error(KeyError, /#{key}/)
+      expect { described_class.new(article, persona).call }.to raise_error(KeyError, /#{key}/)
       expect(ClaudeApiCall.count).to eq(0)
       expect(a_request(:post, endpoint)).not_to have_been_made
     end
   end
 
-  it "有効な人物が一人もいなければ API を呼ばず台帳も減らさずに NoPersonas（記録して終わる Error）" do
-    stub_xai
-    Persona.update_all(enabled: false)
-
-    expect { described_class.new(article).call }.to raise_error(described_class::NoPersonas) { |error| expect(error).to be_a(described_class::Error) }
-    expect(ClaudeApiCall.count).to eq(0)
-    expect(a_request(:post, endpoint)).not_to have_been_made
-  end
-
   it "予算切れなら API を呼ばずに Exhausted" do
     stub_xai
 
-    expect { described_class.new(article, budget: Claude::Budget.new(limit: 0)).call }.to raise_error(Claude::Budget::Exhausted)
+    expect { described_class.new(article, persona, budget: Claude::Budget.new(limit: 0)).call }.to raise_error(Claude::Budget::Exhausted)
     expect(a_request(:post, endpoint)).not_to have_been_made
   end
 
-  describe "応答の形式（全員分そろわなければ失敗）" do
-    {
-      "JSON として読めない" => { text: "コメントです" },
-      "comments が配列でない" => { text: { comments: "x" }.to_json },
-      "1 人足りない" => :missing,
-      "同じ人が 2 回" => :duplicate,
-      "知らない人がいる" => :unknown,
-      "本文が空白だけ" => :blank
-    }.each do |label, variant|
-      it "#{label}なら MalformedResponse" do
-        entries = bodies.map { |id, body| { persona_id: id, body: body } }
-        body =
-          case variant
-          when Hash then response_body(**variant)
-          when :missing then response_body(entries.drop(1))
-          when :duplicate then response_body(entries.drop(1) + [ entries[1] ])
-          when :unknown then response_body(entries.drop(1) + [ { persona_id: "elon-musk", body: "x" } ])
-          when :blank then response_body(entries.drop(1) + [ entries.first.merge(body: " \n") ])
-          end
-        stub_xai(body: body)
-
-        expect { described_class.new(article).call }.to raise_error(described_class::MalformedResponse)
-      end
-    end
-
-    it "出力の上限で切れたら（incomplete・max_output_tokens）全員分あっても MalformedResponse" do
-      stub_xai(body: response_body(status: "incomplete", incomplete: { reason: "max_output_tokens" }))
-      expect { described_class.new(article).call }.to raise_error(described_class::MalformedResponse, /max_tokens/)
-    end
-
+  describe "応答" do
     it "本文の前後の空白は落として返す" do
-      stub_xai(body: response_body(bodies.map { |id, body| { persona_id: id, body: "  #{body}\n" } }))
-      expect(described_class.new(article).call).to eq(bodies)
+      stub_xai(body: response_body(text: "  織田信長のひとこと\n"))
+      expect(described_class.new(article, persona).call).to eq("織田信長のひとこと")
+    end
+
+    it "本文が空白だけなら MalformedResponse" do
+      stub_xai(body: response_body(text: " \n"))
+      expect { described_class.new(article, persona).call }.to raise_error(described_class::MalformedResponse)
+    end
+
+    it "出力の上限で切れたら（incomplete・max_output_tokens）本文があっても MalformedResponse（途中で切れた文を残さない）" do
+      stub_xai(body: response_body(status: "incomplete", incomplete: { reason: "max_output_tokens" }))
+      expect { described_class.new(article, persona).call }.to raise_error(described_class::MalformedResponse, /max_tokens/)
     end
   end
 
@@ -181,7 +139,7 @@ RSpec.describe Comments::Commenter do
         WebMock.reset!
         stub_xai(status: status, body: error_body)
 
-        expect { described_class.new(article).call }.to raise_error(described_class::Error, "API エラー (HTTP #{status})") do |error|
+        expect { described_class.new(article, persona).call }.to raise_error(described_class::Error, "API エラー (HTTP #{status})") do |error|
           expect(error.is_a?(described_class::TransientError)).to eq(transient), status.to_s
         end
       end
@@ -189,17 +147,17 @@ RSpec.describe Comments::Commenter do
 
     it "接続エラーとタイムアウトは TransientError" do
       stub_request(:post, endpoint).to_raise(Errno::ECONNREFUSED)
-      expect { described_class.new(article).call }.to raise_error(described_class::TransientError, "接続エラー")
+      expect { described_class.new(article, persona).call }.to raise_error(described_class::TransientError, "接続エラー")
 
       WebMock.reset!
       stub_request(:post, endpoint).to_timeout
-      expect { described_class.new(article).call }.to raise_error(described_class::TransientError, "接続エラー (タイムアウト)")
+      expect { described_class.new(article, persona).call }.to raise_error(described_class::TransientError, "接続エラー (タイムアウト)")
     end
 
     it "待てば通る失敗でも HTTP 要求は 1 回で、台帳の 1 行と数が合う" do
       stub_xai(status: 503, body: error_body)
 
-      expect { described_class.new(article).call rescue nil }.to change(ClaudeApiCall, :count).by(1)
+      expect { described_class.new(article, persona).call rescue nil }.to change(ClaudeApiCall, :count).by(1)
       expect(a_request(:post, endpoint)).to have_been_made.once
     end
   end

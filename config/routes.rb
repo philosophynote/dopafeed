@@ -25,7 +25,9 @@ Rails.application.routes.draw do
     get :summary, on: :member
     resource :dismissal, only: %i[create destroy]
     resource :bookmark, only: %i[create destroy]
-    resource :comments, only: %i[show create]
+    resource :comments, only: %i[show create] do
+      post :retry
+    end
   end
   resources :readings, only: [] do
     post :start, on: :member

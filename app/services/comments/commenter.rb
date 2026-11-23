@@ -1,11 +1,10 @@
 module Comments
-  # 組を替えるたびに払わないよう、1 回で全員分を作る。1 人でも欠けた応答は返さず失敗にする。
+  # 1 人分だけを作る。全員分を 1 本の応答で書かせると、書き終えるまで誰のコメントも出せないため。
   class Commenter
     class Error < StandardError; end
     class EmptyContent < Error; end
     class MalformedResponse < Error; end
     class TransientError < Error; end
-    class NoPersonas < Error; end
 
     PURPOSE = "comments".freeze
     TRANSIENT_STATUSES = [ 408, 429 ].freeze
@@ -13,9 +12,9 @@ module Comments
     THINKING_EFFORT = :low
     PROMPTS = Rails.root.join("app/services/comments/prompts")
 
-    def initialize(article, personas: Persona.enabled.to_a, budget: Claude::Budget.new, client: nil)
+    def initialize(article, persona, budget: Claude::Budget.new, client: nil)
       @article = article
-      @personas = personas
+      @persona = persona
       @budget = budget
       @client = client
     end
@@ -23,7 +22,6 @@ module Comments
     def call
       text = article.plain_content.first(input_chars)
       raise EmptyContent, "本文が空" if text.blank?
-      raise NoPersonas, "有効な人物がいない" if personas.empty?
 
       # 設定の欠けで台帳だけ減っていかないよう、鍵と yml の値は記録の前にすべて読む
       client
@@ -35,7 +33,7 @@ module Comments
 
     private
 
-    attr_reader :article, :personas, :budget
+    attr_reader :article, :persona, :budget
 
     def client
       @client ||= Client.build
@@ -47,7 +45,6 @@ module Comments
             .with_instructions(system_prompt)
             .with_max_output_tokens(max_tokens)
             .with_thinking(effort: THINKING_EFFORT)
-            .with_schema(schema)
             .ask_later(user_prompt(text))
             .generate
     rescue RubyLLM::Error => e
@@ -65,50 +62,18 @@ module Comments
       (status >= 500 || TRANSIENT_STATUSES.include?(status) ? TransientError : Error).new("API エラー (HTTP #{status})")
     end
 
-    # スキーマを渡しても、守られなかった応答を保存して表示を崩さないよう、こちらでも確かめる。
+    # 上限で切れた文は途中で終わっているので、本文があっても残さない
     def parse(message)
       raise MalformedResponse, "応答の形式が不正 (max_tokens で切れた)" if message.finish_reason == :max_tokens
 
-      entries = decode(message.content)
-      bodies = entries.to_h { |entry| [ entry["persona_id"], entry["body"].to_s.strip ] }
-      complete = entries.size == personas.size && bodies.keys.sort == personas.map(&:slug).sort && bodies.values.all?(&:present?)
-      raise MalformedResponse, "応答の形式が不正" unless complete
+      body = message.content.to_s.strip
+      raise MalformedResponse, "応答の形式が不正" if body.blank?
 
-      bodies
-    end
-
-    def decode(content)
-      data = content.is_a?(String) ? JSON.parse(content) : content
-      entries = data.is_a?(Hash) && data["comments"]
-      raise MalformedResponse, "応答の形式が不正" unless entries.is_a?(Array) && entries.all?(Hash)
-
-      entries
-    rescue JSON::ParserError
-      raise MalformedResponse, "応答の形式が不正"
-    end
-
-    def schema
-      {
-        type: "object",
-        properties: {
-          comments: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: { persona_id: { type: "string", enum: personas.map(&:slug) }, body: { type: "string" } },
-              required: %w[persona_id body],
-              additionalProperties: false
-            }
-          }
-        },
-        required: %w[comments],
-        additionalProperties: false
-      }
+      body
     end
 
     def system_prompt
-      sections = personas.map { |persona| "## #{persona.slug}: #{persona.name}（#{persona.title}）\n#{persona.system_prompt.strip}" }
-      [ PROMPTS.join("comments_system.txt").read.strip, *sections ].join("\n\n")
+      [ PROMPTS.join("comments_system.txt").read.strip, "#{persona.name}（#{persona.title}）\n#{persona.system_prompt.strip}" ].join("\n\n")
     end
 
     # 記事の文字列はタグで囲んで渡すので、中の < > を実体にして境界を偽装できなくする

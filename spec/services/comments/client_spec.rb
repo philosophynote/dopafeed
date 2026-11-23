@@ -29,11 +29,11 @@ RSpec.describe Comments::Client do
       expect(config.max_retries).to eq(0)
     end
 
-    it "yml の comments.timeout_seconds は同じ記事のコメント Job の重なり止めの期間より短い（長いと期間が切れて 2 本目が払う）" do
+    it "yml の comments.timeout_seconds は同じ行のコメント Job の重なり止めの期間より短い（長いと期間が切れて 2 本目が払う）" do
       timeout = Rails.application.config_for(:dopamine).dig(:comments, :timeout_seconds)
       skip "config/dopamine.yml に comments.timeout_seconds がまだ無い" if timeout.nil?
 
-      expect(timeout.seconds).to be < Comments::CommentArticleJob.concurrency_duration
+      expect(timeout.seconds).to be < Comments::CommentPersonaJob.concurrency_duration
     end
 
     it "comments.timeout_seconds が無ければ KeyError で止まる（黙って gem の既定の 300 秒に落ちない）" do

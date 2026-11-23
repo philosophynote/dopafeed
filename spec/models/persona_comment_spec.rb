@@ -15,6 +15,19 @@ RSpec.describe PersonaComment do
     expect(article.persona_comments.build(persona_id: "oda-nobunaga", body: " ")).not_to be_valid
   end
 
+  it "本文の無い行は書いている途中、失敗の時刻があれば失敗、本文があれば書き上がり" do
+    writing = article.persona_comments.create!(persona_id: "oda-nobunaga")
+    expect(writing).to be_valid
+    expect(writing.state).to eq(:writing)
+
+    writing.update!(failed_at: Time.current, error: "応答の形式が不正")
+    expect(writing.state).to eq(:failed)
+
+    writing.update!(body: "書けた", failed_at: nil, error: nil)
+    expect(writing.state).to eq(:written)
+    expect(described_class.written).to eq([ writing ])
+  end
+
   it "記事を消すとコメントも消える" do
     article.persona_comments.create!(persona_id: "oda-nobunaga", body: "x")
 
