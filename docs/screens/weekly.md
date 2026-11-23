@@ -33,7 +33,7 @@ dopamine.yml: `claude.curation_model`（週次コメントのモデル）、`cla
 personas.yml: なし
 
 ## 外部 API
-あり。Claude（`Claude::WeeklyCommentJob` → `Claude::WeeklyCommenter`、VCR: `claude/weekly_comment/ok.yml`）。`config/recurring.yml` で毎時積み、月曜の reset_hour を過ぎて前の週の行が無いときだけ 1 回呼ぶ（成功も失敗も 1 週 1 行。行のある週は呼び直さない）。前の週の完読が 0 本なら呼ばない。送るのは完読した記事の見出し・フィード名・段と本数だけ（本文・URL は送らない）
+あり。Claude（`Claude::WeeklyCommentJob` → `Claude::WeeklyCommenter`、VCR: `claude/weekly_comment/ok.yml`）。`config/recurring.yml` で毎時積み、月曜の reset_hour を過ぎて前の週の行が無いときだけ 1 回呼ぶ（呼ぶ前にその週の行を作って押さえ、成功も失敗もその 1 行に書く。行のある週は、押さえた Job の再試行のほかは呼び直さない）。前の週の完読が 0 本なら呼ばない。送るのは完読した記事の見出し・フィード名・段と本数だけ（本文・URL・週の日付は送らない。見出しとフィード名は合計 `claude.weekly_comment_input_chars`、無ければ `summary_input_chars` 字までで切る）
 
 ## 未決
 1. 画像生成の方法（サーバーで HTML → PNG は重い。Canvas で描くか、html-to-image 系は外部 JS なので不可。OG 画像的にサーバー側で SVG → PNG？ ADR が要る）
