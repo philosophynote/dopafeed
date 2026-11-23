@@ -1,4 +1,6 @@
 class Persona < ApplicationRecord
+  normalizes :name, :title, :color, :description, :system_prompt, with: ->(value) { value.gsub(/\A[[:space:]]+|[[:space:]]+\z/, "") }
+
   scope :ordered, -> { order(:position, :id) }
   scope :enabled, -> { where(enabled: true).ordered }
 

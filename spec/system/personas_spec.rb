@@ -60,4 +60,38 @@ RSpec.describe "Personas", type: :system do
     expect(page).to have_text("・要約")
     expect(page).to have_no_css("section[aria-label='コメント']")
   end
+
+  it "行の「書き換える」から口調を直して保存すると一覧に戻り、新しい名前と紹介が出る。空白だけなら赤字で止まる" do
+    sign_in
+    visit personas_path
+    within("[data-persona]", text: "松岡修造") { click_on "書き換える" }
+
+    expect(page).to have_field("名前", with: "松岡修造")
+    expect(viewport_width).to eq(390)
+    expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true)
+    expect(page.evaluate_script("Array.from(document.querySelectorAll('a, button, input:not([type=hidden]), textarea')).every(e => { const r = e.getBoundingClientRect(); return r.width >= 44 && r.height >= 44 })")).to be(true)
+    # iOS は 16px 未満の入力欄に触れると拡大する
+    expect(page.evaluate_script("Array.from(document.querySelectorAll('input:not([type=hidden]), textarea')).every(e => parseFloat(getComputedStyle(e).fontSize) >= 16)")).to be(true)
+    screenshot!("edit")
+
+    fill_in "ひとこと紹介", with: " "
+    fill_in "色", with: "red"
+    click_on "保存"
+    expect(page).to have_css("[role=alert]", text: "ひとこと紹介を入力してください")
+    expect(page).to have_css("[role=alert]", text: "色は #RRGGBB で指定してください")
+    expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true)
+    screenshot!("error")
+
+    fill_in "色", with: " #112233 "
+    fill_in "肩書き", with: "https://example.com/" + "very-long-title" * 8
+    fill_in "ひとこと紹介", with: "とにかく熱い"
+    fill_in "口調の指示（system_prompt）", with: "あなたは熱血の人だ。"
+    click_on "保存"
+
+    expect(page).to have_css("h1", text: "コメントの人物")
+    expect(page).to have_css("[data-persona]", text: "とにかく熱い")
+    expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true)
+    expect(Persona.find_by!(slug: "shuzo-matsuoka").color).to eq("#112233")
+    expect(Persona.find_by!(slug: "shuzo-matsuoka").system_prompt).to eq("あなたは熱血の人だ。")
+  end
 end

@@ -25,6 +25,12 @@ RSpec.describe Persona do
     end
   end
 
+  it "名前・肩書き・色・人物像・口調の指示は前後の空白を落とす（中の改行は残す）" do
+    persona = create(:persona, name: " 織田信長\n", system_prompt: "\n一行目\n二行目\n ")
+
+    expect(persona).to have_attributes(name: "織田信長", system_prompt: "一行目\n二行目")
+  end
+
   it "slug の重複は DB の一意制約でも止める" do
     create(:persona, slug: "oda-nobunaga")
 

@@ -48,6 +48,7 @@ RSpec.describe "Personas", type: :request do
       get personas_path
       expect(switch_of("外した人")["aria-checked"]).to eq("false")
       expect(page.find("[data-persona]", text: "外した人")).to have_css(".opacity-50")
+      expect(page.find("[data-persona]", text: "外した人")).to have_no_css("a.opacity-50, .opacity-50 a")
       expect(page.find("[data-persona]", text: "出る人")).to have_no_css(".opacity-50")
       expect(page).to have_text("有効 2 人。コメントでは 2 人全員が出ます")
 

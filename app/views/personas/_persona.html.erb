@@ -1,11 +1,14 @@
 <li id="<%= dom_id(persona) %>" class="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm" data-persona>
-  <div class="flex min-w-0 flex-1 gap-3 <%= "opacity-50" unless persona.enabled %>">
-    <span class="flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
+  <div class="flex min-w-0 flex-1 gap-3">
+    <span class="flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white <%= "opacity-50" unless persona.enabled %>"
           style="background-color: <%= persona.color %>" aria-hidden="true"><%= persona.name.first %></span>
     <div class="min-w-0">
-      <h2 class="break-words text-sm font-bold text-gray-900"><%= persona.name %></h2>
-      <p class="text-xs text-gray-500"><%= persona.title %></p>
-      <p class="mt-1 break-words text-xs leading-snug text-gray-700"><%= persona.description %></p>
+      <div class="<%= "opacity-50" unless persona.enabled %>">
+        <h2 class="break-words text-sm font-bold text-gray-900"><%= persona.name %></h2>
+        <p class="break-words text-xs text-gray-500"><%= persona.title %></p>
+        <p class="mt-1 break-words text-xs leading-snug text-gray-700"><%= persona.description %></p>
+      </div>
+      <%= link_to "書き換える", edit_persona_path(persona), class: "inline-flex min-h-11 min-w-11 items-center text-sm font-semibold text-orange-600" %>
     </div>
   </div>
   <%# 一覧のフォームのままだと、次の行を押した送信が前の送信を止め、DB だけ変わって表示が食い違う。行ごとの frame で送信を分ける %>
