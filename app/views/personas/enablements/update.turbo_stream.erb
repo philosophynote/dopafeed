@@ -1,0 +1,2 @@
+<%= turbo_stream.replace @persona, partial: "personas/persona", locals: { persona: @persona } %>
+<%= turbo_stream.replace "personas_summary", partial: "personas/summary" %>

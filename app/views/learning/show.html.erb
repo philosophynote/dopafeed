@@ -10,6 +10,13 @@
   <% end %>
 </section>
 
+<section class="mt-4 rounded-2xl bg-white shadow-sm" aria-label="コメント">
+  <%= link_to personas_path, class: "flex h-14 w-full items-center justify-between px-4 text-left active:bg-orange-50" do %>
+    <span>コメントの人物</span>
+    <span class="text-xs text-gray-400">出す・外す ›</span>
+  <% end %>
+</section>
+
 <section class="mt-4 rounded-2xl bg-white shadow-sm" aria-label="効果音">
   <button type="button" role="switch" aria-checked="true" class="group flex h-14 w-full items-center justify-between px-4 text-left active:bg-orange-50"
           data-controller="sound-toggle" data-action="sound-toggle#toggle">
