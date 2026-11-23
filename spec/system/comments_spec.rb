@@ -112,7 +112,7 @@ RSpec.describe "Comments", type: :system do
     comment = article.persona_comments.first
     allow(Comments::Commenter).to receive(:new).with(article, comment.persona)
       .and_return(instance_double(Comments::Commenter).tap { |c| allow(c).to receive(:call).and_raise(Claude::Budget::Exhausted, "limit") })
-    allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true))
+    allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true, remaining: 0))
     write(comment)
 
     expect(page).to have_css("[data-persona-id='#{comment.persona_id}']", text: "今日はもう口を出せません")
@@ -121,7 +121,7 @@ RSpec.describe "Comments", type: :system do
 
   it "今日の上限に達していれば、広げた欄に「今日はもう口を出せません」が出て、押すボタンは出ない" do
     create(:article, :awaiting_summary, summary: "・要約", title: "上限の日の記事")
-    allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true))
+    allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true, remaining: 0))
     sign_in
 
     expand("上限の日の記事")

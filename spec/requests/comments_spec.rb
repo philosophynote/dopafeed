@@ -151,7 +151,7 @@ RSpec.describe "Comments", type: :request do
 
     it "失敗した人のカードは、今日の上限に達していれば「もう一度」ではなく上限を出し、押されても積まない" do
       failed = article.persona_comments.create!(persona_id: "mao-zedong", failed_at: Time.current, error: "今日の上限")
-      allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true))
+      allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true, remaining: 0))
 
       get article_comments_path(article)
       expect(page.find("[data-persona-id='mao-zedong']")).to have_text("今日はもう口を出せません")
@@ -162,8 +162,80 @@ RSpec.describe "Comments", type: :request do
       expect(failed.reload.state).to eq(:failed)
     end
 
+    it "「別の 3 人」で一部だけ作った後に欄を取り直しても同じ組を出し、直前の組の人に入れ替えない" do
+      first = %w[oda-nobunaga joseph-stalin mao-zedong]
+      second = %w[shuzo-matsuoka otto-von-bismarck genghis-khan]
+      save(article, first + second)
+
+      post article_comments_path(article, except: second.join(",")), as: :turbo_stream
+      shown = shown_names
+      expect(shown).to include("donald-trump", "margaret-thatcher")
+      refresh = page.find("[data-controller='pending-refresh']")["data-pending-refresh-url-value"]
+
+      10.times do
+        get refresh
+        expect(shown_names).to eq(shown)
+      end
+    end
+
+    it "書いている途中で外した人は、書き上がっても出さない（コメントは残す）" do
+      save(article, %w[joseph-stalin mao-zedong])
+      writing = article.persona_comments.create!(persona_id: "oda-nobunaga")
+      Persona.find_by!(slug: "oda-nobunaga").update!(enabled: false)
+      writing.update!(body: "外した後に書けた")
+
+      get article_comments_path(article)
+
+      expect(shown_names).to match_array(%w[joseph-stalin mao-zedong])
+      expect(writing.reload.body).to eq("外した後に書けた")
+    end
+
+    it "今日の残りの回数が personas_shown より少なければ、残りの人数分だけ作る（上限で失敗すると分かっている枠を並べない）" do
+      allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: false, remaining: 1))
+
+      post article_comments_path(article), as: :turbo_stream
+
+      expect(article.persona_comments.count).to eq(1)
+      expect(enqueued_slugs.size).to eq(1)
+    end
+
+    it "「もう一度」で Job を積めなかったら、その人を失敗に戻す" do
+      failed = article.persona_comments.create!(persona_id: "mao-zedong", failed_at: Time.current, error: "応答の形式が不正")
+      allow(Comments::CommentPersonaJob).to receive(:perform_later).and_return(false)
+
+      post retry_article_comments_path(article, persona_comment_id: failed.id), as: :turbo_stream
+
+      expect(failed.reload).to have_attributes(state: :failed, error: "Job を積めなかった")
+      expect(response.body).to include("もう一度")
+    end
+
+    it "別の記事のコメントは頼み直せない（404）" do
+      other = create(:article).persona_comments.create!(persona_id: "mao-zedong", failed_at: Time.current, error: "x")
+
+      post retry_article_comments_path(article, persona_comment_id: other.id), as: :turbo_stream
+
+      expect(response).to have_http_status(:not_found)
+      expect(enqueued_slugs).to be_empty
+    end
+
+    it "yml の comments.stale_after_seconds より古い書いている途中は失敗として「もう一度」を出し、押すと積み直す。鍵が無ければ書いている途中のまま" do
+      stuck = article.persona_comments.create!(persona_id: "mao-zedong")
+      stuck.update_columns(updated_at: 2.hours.ago)
+
+      get article_comments_path(article)
+      expect(page.find("[data-persona-id='mao-zedong']")).to have_text("書いています")
+
+      comments[:stale_after_seconds] = 3600
+      get article_comments_path(article)
+      expect(page.find("[data-persona-id='mao-zedong']")).to have_button("もう一度")
+
+      post retry_article_comments_path(article, persona_comment_id: stuck.id), as: :turbo_stream
+      expect(stuck.reload.state).to eq(:writing)
+      expect(enqueued_slugs).to eq([ "mao-zedong" ])
+    end
+
     it "今日の上限に達していたら行も Job も作らずに「今日はもう口を出せません」" do
-      allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true))
+      allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true, remaining: 0))
 
       post article_comments_path(article), as: :turbo_stream
 
@@ -183,7 +255,7 @@ RSpec.describe "Comments", type: :request do
     end
 
     it "未生成で今日の上限に達していれば、取り直しても「今日はもう口を出せません」でボタンを出さない" do
-      allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true))
+      allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true, remaining: 0))
 
       get article_comments_path(article)
 
@@ -193,7 +265,7 @@ RSpec.describe "Comments", type: :request do
 
     it "書いている途中の人は、その Job が最後の 1 回を使って上限に達しても「書いています」のまま" do
       article.persona_comments.create!(persona_id: "oda-nobunaga")
-      allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true))
+      allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true, remaining: 0))
 
       get article_comments_path(article)
 

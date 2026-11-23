@@ -4,17 +4,17 @@ class CommentsController < ApplicationController
 
   def show
     @except = except
+    @ids = params[:ids].to_s.split(",")
   end
 
   def create
     @exhausted = false
     candidates = Persona.enabled.where.not(slug: @article.persona_comments.select(:persona_id)).to_a
     if candidates.any?
-      if helpers.comments_budget_exhausted?
-        @exhausted = true
-      else
-        request_comments(candidates.sample(Dopamine.settings.dig(:comments, :personas_shown)))
-      end
+      # 残りの回数を超えて枠を作ると、上限で失敗すると分かっている枠が並ぶ
+      count = [ Dopamine.settings.dig(:comments, :personas_shown), helpers.comments_budget_remaining ].min
+      @exhausted = count.zero?
+      request_comments(candidates.sample(count)) unless @exhausted
     end
 
     respond_to do |format|
@@ -28,7 +28,11 @@ class CommentsController < ApplicationController
 
   def retry
     comment = @article.persona_comments.find(params[:persona_comment_id])
-    enqueue(comment, reset: true) if comment.failed? && !helpers.comments_budget_exhausted?
+    unless helpers.comments_budget_exhausted?
+      # 二度押しで 2 本積むと、1 本目が再試行を待つ間に 2 本目が同じ人に払うので、戻すのは失敗を見た 1 回だけ
+      reset = comment.with_lock { comment.failed? && comment.update!(failed_at: nil, error: nil, updated_at: Time.current) }
+      enqueue(comment) if reset
+    end
 
     respond_to do |format|
       format.turbo_stream { render turbo_stream: turbo_stream.replace(helpers.dom_id(comment), partial: "comments/card", locals: { comment: comment }) }
@@ -56,8 +60,7 @@ class CommentsController < ApplicationController
     end
   end
 
-  def enqueue(comment, reset: false)
-    comment.update!(failed_at: nil, error: nil) if reset
+  def enqueue(comment)
     return if Comments::CommentPersonaJob.perform_later(comment)
 
     # 積めなかったのに書いている途中のまま残すと、走る Job が無いまま待ち続けて押し直せない

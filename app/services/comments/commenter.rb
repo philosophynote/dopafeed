@@ -1,5 +1,5 @@
 module Comments
-  # 1 人分だけを作る。全員分を 1 本の応答で書かせると、書き終えるまで誰のコメントも出せないため。
+  # 全員分を 1 本の応答で書かせると、書き終えるまで誰のコメントも出せないため、1 人分ずつ作る。
   class Commenter
     class Error < StandardError; end
     class EmptyContent < Error; end

@@ -26,12 +26,15 @@
 - Given 1 人だけ失敗した When 画面を見る Then その人のカードだけ「口を出せませんでした」と「もう一度」。押すとその人だけ頼み直す。他の人の本文はそのまま
 - Given どの状態でも When 画面を見る Then 「架空のキャラクター」の注記が出る
 - Given Claude::Budget が上限 When 「コメントを見る」Then Job を積まず、欄に「今日はもう口を出せません」が出る。書いている途中で上限に達した人のカードにも「今日はもう口を出せません」が出て、翌日は「もう一度」で頼み直せる
+- Given 今日の残りの回数が personas_shown より少ない When 押す Then 残りの人数分だけ作る
+- Given 書いている途中のまま `comments.stale_after_seconds` 秒より古い（Job が記録の前に止まった）When 画面を見る Then その人のカードは失敗と同じく「もう一度」を出す。鍵が無ければ書いている途中のまま
+- Given 書いている途中や「別の 3 人」の直後 When 購読がつながり直して欄を取り直す Then 同じ組を出す（組み替えの乱数で別人に変わらない）
 - Given 人物を外した（`personas.enabled` が false） When 保存済みの記事を開く Then その人のコメントは出さず、「N 人の中から」も有効な人数。コメントは DB に残り、有効に戻せばまた出る（ADR 0033）
 - Given 保存済みのコメントが外した人の分だけ When 開く Then 未生成と同じく「コメントを見る」を出し、押すと今の有効な人から選んで作る
 - Given 有効な人物が 0 人 When 記事を広げる Then コメントの欄を出さない（鍵の欠けと同じ。直に叩けば 404）
 
 ## 使う設定の鍵
-dopamine.yml: `comments.personas_shown`, `comments.model`, `comments.max_tokens`, `comments.timeout_seconds`, `claude.daily_call_limit`（要約と共用）, `claude.summary_input_chars`（ADR 0029）
+dopamine.yml: `comments.personas_shown`, `comments.model`, `comments.max_tokens`, `comments.timeout_seconds`, `comments.stale_after_seconds`（任意。無ければ止まった枠を失敗に倒さない）, `claude.daily_call_limit`（要約と共用）, `claude.summary_input_chars`（ADR 0029）
 personas の表（ADR 0033）: 有効な人物の全件。列は `slug`（英小文字とハイフン、`persona_comments.persona_id` が指す）・`name`・`title`・`color`（#RRGGBB）・`description`・`system_prompt`・`enabled`・`position`（並び順）
 - 初期値は db/seeds/personas.yml。表が空のときだけ migration と db:seed が入れ、以後の正は表
 - 初期の 8 人（nao の指定）: 織田信長、ヨシフ・スターリン、毛沢東、松岡修造、オットー・フォン・ビスマルク、チンギス・ハン、ドナルド・J・トランプ、マーガレット・サッチャー。全員故人

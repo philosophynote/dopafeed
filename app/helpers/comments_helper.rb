@@ -17,6 +17,10 @@ module CommentsHelper
     Claude::Budget.new.exhausted?
   end
 
+  def comments_budget_remaining
+    Claude::Budget.new.remaining
+  end
+
   def comments_state(article, exhausted: false)
     return :ready if article.persona_comments.by_enabled_personas.exists?
     return :exhausted if exhausted || comments_budget_exhausted?
@@ -24,15 +28,19 @@ module CommentsHelper
     :closed
   end
 
-  # 書いている途中と失敗の枠を先に出し、読み直しや別の組の後でも作っている人が欄から消えないようにする。
+  # 欄を取り直すときは ids で同じ組を出す。組み替えの乱数で、出たばかりのカードが別人に変わらないように。
+  # 書いている途中、失敗の順に新しく頼んだものを先に出し、作っている人が欄から押し出されないようにする。
   # 人物を外して残りが足りなくなっても、空や欠けた組を出さないよう有効な全員から選び直す。
-  def shown_persona_comments(article, except: [])
+  def shown_persona_comments(article, except: [], ids: [])
     count = Dopamine.settings.dig(:comments, :personas_shown)
     saved = article.persona_comments.by_enabled_personas.includes(:persona).to_a
+    same = saved.select { |comment| comment.id.to_s.in?(ids) }.sort_by { |comment| ids.index(comment.id.to_s) }
+    return same if same.any?
+
     rest = saved.reject { |comment| comment.persona_id.in?(except) }
     pool = rest.size >= count ? rest : saved
     unfinished, written = pool.partition { |comment| !comment.written? }
-    (unfinished.sort_by(&:created_at).reverse + written.shuffle).first(count)
+    (unfinished.sort_by { |comment| [ comment.writing? ? 0 : 1, -comment.updated_at.to_f ] } + written.shuffle).first(count)
   end
 
   def comments_box_state(shown)

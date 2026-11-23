@@ -1,6 +1,6 @@
 <%# 購読を外側の div に含めないと、出来上がった後も購読が溜まる %>
 <% state = comments_state(article, exhausted: local_assigns.fetch(:exhausted, false)) %>
-<% shown = state == :ready ? shown_persona_comments(article, except: local_assigns.fetch(:except, [])) : [] %>
+<% shown = state == :ready ? shown_persona_comments(article, except: local_assigns.fetch(:except, []), ids: local_assigns.fetch(:ids, [])) : [] %>
 <% box_state = state == :ready ? comments_box_state(shown) : state %>
 <div id="<%= dom_id(article, :comments_box) %>">
   <%= turbo_frame_tag dom_id(article, :comments) do %>
@@ -26,7 +26,7 @@
   <% end %>
   <%# 失敗のカードも、頼み直した後の知らせを受けるために購読を残す %>
   <% if box_state.in?(%i[writing failed]) %>
-    <div data-controller="pending-refresh" data-pending-refresh-url-value="<%= article_comments_path(article) %>"
+    <div data-controller="pending-refresh" data-pending-refresh-url-value="<%= article_comments_path(article, ids: shown.map(&:id).join(",")) %>"
          data-pending-refresh-frame-value="<%= dom_id(article, :comments) %>" data-pending-refresh-pending-value="writing"
          data-pending-refresh-settled-value="ready exhausted closed">
       <%= turbo_stream_from article, :comments %>

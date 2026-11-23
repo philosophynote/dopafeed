@@ -22,6 +22,16 @@ RSpec.describe Comments::CommentPersonaJob, type: :job do
     expect(comment.reload).to have_attributes(body: "織田信長のひとこと", state: :written)
   end
 
+  it "書いている途中で人物を外しても、頼まれた分は書き上げて残す（戻したときに出せるように）" do
+    comment
+    persona.update!(enabled: false)
+    allow(commenter).to receive(:call).and_return("織田信長のひとこと")
+
+    described_class.perform_now(comment)
+
+    expect(comment.reload.body).to eq("織田信長のひとこと")
+  end
+
   it "書き上がっていれば呼ばずにカードだけ送る（記事 × 人物で 1 回。二度払いしない）" do
     comment.update!(body: "既にある")
 
