@@ -113,5 +113,33 @@ RSpec.describe "Weekly", type: :request do
       travel_to(noon) { get weekly_path }
       expect(page).to have_no_css("[aria-label='Claude のひとこと']")
     end
+
+    it "「画像で共有」ボタンが、画像に描く数字とひとことを JSON で持ち、週の始まりの日付をファイル名にする" do
+      zenn = create(:feed, title: "Zenn")
+      3.times { |i| complete(noon - i.minutes, feed: zenn, dwell: 10.minutes) }
+      complete(noon - 7.days)
+      WeeklyComment.create!(week_start: Date.new(2026, 11, 9), body: "先週のひとこと")
+
+      travel_to(noon) { get weekly_path }
+
+      button = page.find("button[data-controller='weekly-share']", text: "画像で共有")
+      card = JSON.parse(button["data-weekly-share-card-value"])
+      expect(button["data-weekly-share-filename-value"]).to eq("dopafeed-weekly-2026-11-16.png")
+      expect(card).to include("title" => "今週のレポート", "range" => "11/16 – 11/22", "streak" => "1 日連続", "count" => 3,
+                              "change" => "先週比 +200%（1 本）", "up" => true, "footer" => "DopaFeed ・ 過去の自分と比べる週次カード")
+      expect(card["days"].map { |day| [ day["label"], day["count"], day["state"] ] }).to eq(
+        [ [ "月", 0, "past" ], [ "火", 0, "past" ], [ "水", 3, "today" ], [ "木", 0, "future" ], [ "金", 0, "future" ], [ "土", 0, "future" ], [ "日", 0, "future" ] ]
+      )
+      expect(card["stats"]).to eq([ [ "読書時間", "30分" ], [ "カード", "3 枚" ], [ "ひとこと要約", "3 本" ], [ "よく読んだフィード", "Zenn 3" ] ])
+      expect(card["comment"]).to eq("label" => "Claude のひとこと ・ 11/9 – 11/15 の週", "body" => "先週のひとこと")
+    end
+
+    it "0 本の週はフィードの行とひとことを描かない" do
+      travel_to(noon) { get weekly_path }
+
+      card = JSON.parse(page.find("button[data-controller='weekly-share']")["data-weekly-share-card-value"])
+      expect(card).to include("count" => 0, "change" => "先週 0 本", "up" => false, "comment" => nil)
+      expect(card["stats"].map(&:first)).to eq(%w[読書時間 カード ひとこと要約])
+    end
   end
 end

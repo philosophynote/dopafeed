@@ -3,15 +3,21 @@
 <% counts = report.daily_counts %>
 <% peak = counts.max %>
 <% today = report.today %>
-<header>
+<header class="flex items-center justify-between gap-2">
   <%= link_to collection_path, class: "-ml-2 inline-flex min-h-11 items-center gap-1 px-2 text-sm font-semibold text-gray-600 active:text-gray-900" do %>
     <span aria-hidden="true">‹</span>図鑑へ戻る
   <% end %>
+  <button type="button" class="inline-flex min-h-11 items-center gap-1 rounded-full bg-orange-500 px-4 text-sm font-bold text-white active:bg-orange-600 disabled:opacity-60"
+          data-controller="weekly-share" data-action="weekly-share#share"
+          data-weekly-share-card-value="<%= weekly_share_card(report, @comment).to_json %>"
+          data-weekly-share-filename-value="dopafeed-weekly-<%= report.start_day.iso8601 %>.png">
+    <span aria-hidden="true">📤</span>画像で共有
+  </button>
 </header>
 <section class="mt-1 rounded-2xl bg-white p-4 shadow-sm">
   <div class="flex items-baseline justify-between gap-2">
     <h1 class="text-xl font-black tracking-tight">今週のレポート</h1>
-    <p class="shrink-0 text-sm font-semibold text-gray-500"><%= report.start_day.strftime("%-m/%-d") %> – <%= report.end_day.strftime("%-m/%-d") %></p>
+    <p class="shrink-0 text-sm font-semibold text-gray-500"><%= week_range(report.start_day, report.end_day) %></p>
   </div>
   <p class="mt-1 text-sm font-semibold text-gray-600"><span aria-hidden="true">🔥</span><span class="sr-only">読んだ日が </span><%= report.streak_days %> 日連続</p>
 
@@ -71,7 +77,7 @@
     <section class="mt-4 rounded-xl bg-orange-50 p-3" aria-label="Claude のひとこと">
       <div class="flex items-baseline justify-between gap-2">
         <h2 class="text-sm font-bold text-orange-700">Claude のひとこと</h2>
-        <p class="shrink-0 text-xs font-semibold text-orange-700/70"><%= @comment.week_start.strftime("%-m/%-d") %> – <%= @comment.week_end.strftime("%-m/%-d") %> の週</p>
+        <p class="shrink-0 text-xs font-semibold text-orange-700/70"><%= week_range(@comment.week_start, @comment.week_end) %> の週</p>
       </div>
       <p class="mt-1 whitespace-pre-line break-words text-sm leading-relaxed text-gray-800"><%= @comment.body %></p>
     </section>
