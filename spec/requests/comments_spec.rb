@@ -160,15 +160,21 @@ RSpec.describe "Comments", type: :request do
       expect(Comments::CommentArticleJob).not_to have_been_enqueued
     end
 
-    it "無効にした人のコメントは出さず、人数の案内も有効な人数にする。有効に戻せばまた出る" do
+    it "無効にした人のコメントは出さず、有効に戻せば保存済みのコメントがまた出る" do
       save_all(article)
       Persona.where.not(slug: %w[oda-nobunaga joseph-stalin mao-zedong]).update_all(enabled: false)
 
       get article_comments_path(article)
       expect(shown_names).to match_array(%w[oda-nobunaga joseph-stalin mao-zedong])
 
-      Persona.update_all(enabled: true)
-      article.persona_comments.destroy_all
+      Persona.update_all(enabled: false)
+      Persona.where(slug: %w[donald-trump margaret-thatcher genghis-khan]).update_all(enabled: true)
+      get article_comments_path(article)
+      expect(shown_names).to match_array(%w[donald-trump margaret-thatcher genghis-khan])
+      expect(page).to have_text("ドナルド・J・トランプのひとこと")
+    end
+
+    it "未生成の人数の案内は有効な人数にする" do
       get article_comments_path(article)
       expect(page).to have_text("8 人の中から 3 人がランダムに現れます")
       Persona.where(slug: %w[donald-trump margaret-thatcher]).update_all(enabled: false)
@@ -184,6 +190,9 @@ RSpec.describe "Comments", type: :request do
 
       expect(page).to have_button("コメントを見る")
       expect(shown_names).to be_empty
+
+      expect { post article_comments_path(article) }.to have_enqueued_job(Comments::CommentArticleJob).with(article)
+      expect(article.reload.comments_requested_at).to be_present
     end
 
     it "有効な人物が一人もいなければ 404 で Job も積まない（鍵の欠けと同じく欄も出さない）" do

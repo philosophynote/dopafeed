@@ -21,8 +21,7 @@ module Comments
         next if article.persona_comments.by_enabled_personas.exists?
 
         now = Time.current
-        # 呼んでいる間に外して戻した人のコメントが先にあっても、一つの重なりで全員分を捨てない
-        PersonaComment.insert_all(bodies.map { |persona_id, body| { article_id: article.id, persona_id:, body:, created_at: now, updated_at: now } }, unique_by: %i[article_id persona_id])
+        PersonaComment.insert_all!(bodies.map { |persona_id, body| { article_id: article.id, persona_id:, body:, created_at: now, updated_at: now } })
         article.update!(comments_failed_at: nil, comments_error: nil)
       end
       self.class.broadcast(article)

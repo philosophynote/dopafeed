@@ -40,6 +40,17 @@ RSpec.describe Comments::CommentArticleJob, type: :job do
     expect(article.persona_comments.pluck(:persona_id)).to match_array([ "oda-nobunaga", *bodies.keys ])
   end
 
+  it "外した人のコメントしか無い記事で生成に失敗したら、失敗を記録する（考え中のまま止まらない）" do
+    Persona.find_by!(slug: "oda-nobunaga").update!(enabled: false)
+    article.persona_comments.create!(persona_id: "oda-nobunaga", body: "外した人の分")
+    article.update!(comments_requested_at: Time.current)
+    allow(commenter).to receive(:call).and_raise(Comments::Commenter::MalformedResponse, "応答の形式が不正")
+
+    described_class.perform_now(article)
+
+    expect(article.reload).to have_attributes(comments_failed_at: be_present, comments_error: "応答の形式が不正")
+  end
+
   it "呼んでいる間に重なった別の実行が保存していたら、そちらを残して書き足さない" do
     allow(commenter).to receive(:call) do
       Article.find(article.id).persona_comments.create!(persona_id: "oda-nobunaga", body: "先の実行")
