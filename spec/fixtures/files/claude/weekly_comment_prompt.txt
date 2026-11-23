@@ -1,4 +1,4 @@
-<week start="2026-11-09" end="2026-11-15">
+<week>
 <count>3</count>
 <previous_count>1</previous_count>
 <article><title>Solid Queue の再試行を読み解く</title><feed>Zenn</feed><rarity>レア</rarity></article>

@@ -6,6 +6,7 @@ class CreateWeeklyComments < ActiveRecord::Migration[8.1]
       t.string :model
       t.datetime :failed_at
       t.string :error
+      t.string :job_id
       t.timestamps
     end
   end

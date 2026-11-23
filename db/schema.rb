@@ -158,6 +158,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_040000) do
     t.string "model"
     t.datetime "failed_at"
     t.string "error"
+    t.string "job_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["week_start"], name: "index_weekly_comments_on_week_start", unique: true

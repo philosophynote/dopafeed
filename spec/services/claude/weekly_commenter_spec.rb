@@ -80,11 +80,24 @@ RSpec.describe Claude::WeeklyCommenter do
       expect(body["max_tokens"]).to eq(expected)
     end
 
-    it "本文と URL は送らない" do
+    it "本文・URL・週の日付は送らない" do
       described_class.new(report).call
 
       expect(content).not_to include("https://")
-      expect(content).not_to include("最初の段落")
+      expect(content).not_to match(/2026|11-09|11-15/)
+    end
+
+    it "見出しとフィード名の合計は weekly_comment_input_chars（無ければ summary_input_chars）までで切り、本数はそのまま送る" do
+      limit = settings.fetch(:weekly_comment_input_chars, settings[:summary_input_chars])
+      feed = create(:feed, title: "長い")
+      complete("あ" * limit, feed: feed, at: noon(Date.new(2026, 11, 13)))
+
+      described_class.new(report).call
+
+      titles = content.scan(%r{<title>(.*?)</title>}).flatten
+      feeds = content.scan(%r{<feed>(.*?)</feed>}).flatten
+      expect((titles + feeds).sum(&:size)).to be <= limit
+      expect(content).to include("<count>4</count>")
     end
 
     it "見出しとフィード名の < > は実体にして、プロンプトの境界タグを閉じられないようにする" do

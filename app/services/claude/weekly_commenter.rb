@@ -66,9 +66,25 @@ module Claude
 
     def user_prompt
       ERB.new(PROMPTS.join("weekly_comment.erb").read, trim_mode: "-").result_with_hash(
-        start_day: report.start_day, end_day: report.end_day, count: report.count, previous_count: report.previous_count,
-        cards: report.cards.map { |card| { title: escape(card.article.title), feed: escape(card.article.feed.title), rarity: rarity(card.tier) } }
+        count: report.count, previous_count: report.previous_count, cards: cards
       )
+    end
+
+    # 本数は切った後も全体の数を送る。見出しが途中で尽きても、週の量はひとことに正しく出る。
+    def cards
+      remaining = input_chars
+      report.cards.each_with_object([]) do |card, rows|
+        break rows unless remaining.positive?
+
+        title, feed = [ card.article.title, card.article.feed.title ].map do |text|
+          cut(escape(text), remaining).tap { |kept| remaining -= kept.size }
+        end
+        rows << { title: title, feed: feed, rarity: rarity(card.tier) }
+      end
+    end
+
+    def cut(text, limit)
+      text.size <= limit ? text : text[0, limit].sub(/&[a-z]*\z/, "")
     end
 
     def rarity(tier)
@@ -77,6 +93,11 @@ module Claude
 
     def escape(string)
       string.to_s.gsub("<", "&lt;").gsub(">", "&gt;")
+    end
+
+    # 見出しの総量は要約に送る本文 1 本ほどあれば週の傾向は読めるので、専用の鍵が無ければ要約の上限を使う。
+    def input_chars
+      Dopamine.settings.dig(:claude, :weekly_comment_input_chars) || Dopamine.settings.dig(:claude, :summary_input_chars)
     end
 
     # 要約と同じく数行の出力なので、専用の鍵が無ければ要約の上限で足りる。

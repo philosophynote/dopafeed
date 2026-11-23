@@ -44,16 +44,33 @@ RSpec.describe Claude::WeeklyCommentJob, type: :job do
     expect(WeeklyComment.sole.week_start).to eq(Date.new(2026, 11, 2))
   end
 
-  it "呼んでいる間に別の実行が同じ週の行を書いていたら、その行を残して静かに終える" do
+  it "呼ぶ前にその週を自分の job_id で押さえ、別の実行が押さえている週は呼ばない（滞留した毎時の Job が再試行の鎖を重ねない）" do
     complete(Time.zone.local(2026, 11, 12, 12))
-    allow(commenter).to receive(:call) do
-      WeeklyComment.create!(week_start: last_week, body: "先に書いたひとこと")
-      "後のひとこと"
-    end
+    WeeklyComment.create!(week_start: last_week, job_id: "another-job")
+
+    travel_to(now) { described_class.perform_now }
+
+    expect(Claude::WeeklyCommenter).not_to have_received(:new)
+    expect(WeeklyComment.sole).to have_attributes(job_id: "another-job", body: nil, failed_at: nil)
+  end
+
+  it "自分が押さえた週の再試行は呼び直し、書き終えたら同じ行に本文を入れる" do
+    complete(Time.zone.local(2026, 11, 12, 12))
+    job = described_class.new
+    WeeklyComment.create!(week_start: last_week, job_id: job.job_id)
+
+    travel_to(now) { job.perform_now }
+
+    expect(WeeklyComment.sole).to have_attributes(job_id: job.job_id, body: "先週は 1 本。来週はもう 1 本。")
+  end
+
+  it "呼んでいる間に別の実行が同じ週の行を作っても、例外を出さずに終える" do
+    complete(Time.zone.local(2026, 11, 12, 12))
+    allow(WeeklyComment).to receive(:create!).and_raise(ActiveRecord::RecordNotUnique)
 
     travel_to(now) { expect { described_class.perform_now }.not_to raise_error }
 
-    expect(WeeklyComment.sole.body).to eq("先に書いたひとこと")
+    expect(Claude::WeeklyCommenter).not_to have_received(:new)
   end
 
   it "再試行は最初に決めた週で積み直す（再試行が月曜をまたいでも別の週を呼ばない）" do
@@ -103,21 +120,22 @@ RSpec.describe Claude::WeeklyCommentJob, type: :job do
     expect(WeeklyComment.sole.failed_at).to be_present
   end
 
-  it "一時的な失敗は再試行に回し、尽きたら失敗の行を書く" do
+  it "一時的な失敗は押さえた行を残して再試行に回し、尽きたら同じ行を失敗にする" do
     complete(Time.zone.local(2026, 11, 12, 12))
     allow(commenter).to receive(:call).and_raise(Claude::WeeklyCommenter::TransientError, "接続エラー")
+    job = described_class.new
 
     travel_to(now) do
-      expect { described_class.perform_now }.to have_enqueued_job(described_class)
-      expect(WeeklyComment.count).to eq(0)
+      expect { job.perform_now }.to have_enqueued_job(described_class)
+      expect(WeeklyComment.sole).to have_attributes(job_id: job.job_id, body: nil, failed_at: nil)
 
-      perform_enqueued_jobs { described_class.perform_now }
+      perform_enqueued_jobs { job.perform_now }
     end
 
-    expect(WeeklyComment.sole).to have_attributes(week_start: last_week, error: "接続エラー")
+    expect(WeeklyComment.sole).to have_attributes(week_start: last_week, job_id: job.job_id, error: "接続エラー")
   end
 
-  it "日次上限なら行を書かずに捨てる（翌日以降の回で追いつく）" do
+  it "日次上限なら押さえた行を外して捨てる（翌日以降の回で追いつく）" do
     complete(Time.zone.local(2026, 11, 12, 12))
     allow(commenter).to receive(:call).and_raise(Claude::Budget::Exhausted, "limit")
 
