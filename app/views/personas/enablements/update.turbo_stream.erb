@@ -1,0 +1,2 @@
+<%= turbo_stream.replace @persona, partial: "personas/persona", locals: { persona: @persona }, method: :morph %>
+<%= turbo_stream.update "personas_summary", personas_summary %>

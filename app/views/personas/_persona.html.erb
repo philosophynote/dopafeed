@@ -1,0 +1,21 @@
+<li id="<%= dom_id(persona) %>" class="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm" data-persona>
+  <div class="flex min-w-0 flex-1 gap-3 <%= "opacity-50" unless persona.enabled %>">
+    <span class="flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
+          style="background-color: <%= persona.color %>" aria-hidden="true"><%= persona.name.first %></span>
+    <div class="min-w-0">
+      <h2 class="break-words text-sm font-bold text-gray-900"><%= persona.name %></h2>
+      <p class="text-xs text-gray-500"><%= persona.title %></p>
+      <p class="mt-1 break-words text-xs leading-snug text-gray-700"><%= persona.description %></p>
+    </div>
+  </div>
+  <%# 一覧のフォームのままだと、次の行を押した送信が前の送信を止め、DB だけ変わって表示が食い違う。行ごとの frame で送信を分ける %>
+  <%= turbo_frame_tag dom_id(persona, :switch_frame), class: "shrink-0" do %>
+    <%= button_to persona_enablement_path(persona), method: :patch, params: { enabled: !persona.enabled },
+                  form_class: "shrink-0", class: "group flex h-11 w-14 items-center justify-center", id: dom_id(persona, :switch),
+                  role: "switch", "aria-checked": persona.enabled.to_s, "aria-label": "#{persona.name}をコメントに出す" do %>
+      <span class="relative h-7 w-12 rounded-full bg-gray-300 transition-colors group-aria-checked:bg-orange-500" aria-hidden="true">
+        <span class="absolute left-0.5 top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform group-aria-checked:translate-x-5"></span>
+      </span>
+    <% end %>
+  <% end %>
+</li>

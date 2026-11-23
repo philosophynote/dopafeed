@@ -17,10 +17,11 @@
 6. ボタン「古い未読 64 本を一掃」（Swipe と同じ処理）、「学習をリセット（新鮮さを戻す）」（未決 2）
 7. サインアウト（モックに無いが Unit 0 の仮 root にある。ここに置く）
 8. 「効果音」トグル（#100、ADR 0022。モックに無い）。端末ごと（localStorage）で、初期値はオン。補足「消音スイッチが ON のときは鳴らない」。オンに戻すと試しに 1 回鳴る
+9. 「コメントの人物」（→ Personas。#172、docs/screens/personas.md）
 
 ## 遷移
 - Main の歯車 → Learning（full page）
-- Learning → Install / Main
+- Learning → Install / Personas / Main
 
 ## 受け入れ条件（Given-When-Then）
 - Given 通知トグルを切り替えた When 保存 Then 設定が DB に残り、Job は送信前にこの設定を見る

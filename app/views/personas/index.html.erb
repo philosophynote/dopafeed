@@ -1,0 +1,9 @@
+<header class="flex items-center gap-2">
+  <%= link_to "戻る", learning_path, class: "flex h-11 items-center rounded-full px-3 text-sm font-semibold text-orange-600 hover:bg-white" %>
+  <h1 class="text-xl font-bold">コメントの人物</h1>
+</header>
+<%= render "personas/summary" %>
+<ul class="mt-3 space-y-3" aria-label="コメントの人物" data-controller="focus-return" data-action="turbo:submit-end->focus-return#restore">
+  <%= render @personas %>
+</ul>
+<p class="mt-4 text-xs text-gray-500">外した人物のコメントは消えません。戻すと過去の記事でもまた出ます。</p>
