@@ -1,5 +1,5 @@
 RSpec.describe "Comments", type: :system do
-  let(:comments) { { personas_shown: 3, model: "grok-4.3", max_tokens: 4000, timeout_seconds: 60 } }
+  let(:comments) { { personas_shown: 3, model: "grok-4.3", max_tokens: 4000, timeout_seconds: 60, stream_interval_ms: 250 } }
 
   before do
     seed_personas
@@ -21,7 +21,7 @@ RSpec.describe "Comments", type: :system do
     Comments::CommentPersonaJob.perform_now(comment)
   end
 
-  it "「コメントを見る」で 2 人の枠が「書いています」で出て、書けた人から本文に変わる。「別の 2 人を見る」はまだ作っていない人を作る" do
+  it "「コメントを見る」で 2 人の枠が「書いています」で出て、書けた文字から流れ、書けた人から本文に変わる。「別の 2 人を見る」はまだ作っていない人を作る" do
     comments[:personas_shown] = 2
     article = create(:article, :awaiting_summary, summary: "・要約", title: "口を出される記事")
     sign_in
@@ -38,6 +38,11 @@ RSpec.describe "Comments", type: :system do
     screenshot!("writing")
 
     first, second = article.persona_comments.order(:id).to_a
+    Comments::CommentPersonaJob.broadcast(first, written: "#{first.persona.name}が書いている途中の")
+    expect(page).to have_css("[data-persona-id='#{first.persona_id}'][data-state='writing']", text: "#{first.persona.name}が書いている途中の")
+    expect(page).to have_css("[data-persona-id='#{first.persona_id}']", text: "書いています")
+    screenshot!("streaming")
+
     write(first)
     expect(page).to have_css("[data-persona-id='#{first.persona_id}']", text: "#{first.persona.name}がこの記事にひとこと。")
     expect(page).to have_css("[data-persona-id='#{second.persona_id}'][data-state='writing']")

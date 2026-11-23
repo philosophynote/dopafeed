@@ -16,10 +16,12 @@ module Comments
       # 押し直しで積まれた分も、待っている側が出来上がりを受け取れるよう知らせてから終わる
       return self.class.broadcast(comment) unless comment.writing?
 
-      body = Commenter.new(comment.article, comment.persona).call
+      body = Commenter.new(comment.article, comment.persona).call { |written| self.class.broadcast(comment, written:) }
       comment.update!(body:, failed_at: nil, error: nil)
       self.class.broadcast(comment)
     rescue Commenter::TransientError
+      # やり直しは頭から書き直すので、待つ間に途中の本文を出したままにしない
+      self.class.broadcast(comment)
       raise
     rescue Commenter::Error => e
       self.class.record_failure(comment, e.message)
@@ -41,10 +43,10 @@ module Comments
       broadcast(comment)
     end
 
-    def self.broadcast(comment)
-      comment.reload
+    def self.broadcast(comment, written: nil)
+      comment.reload if written.nil?
       Turbo::StreamsChannel.broadcast_replace_to(comment.article, :comments, target: ActionView::RecordIdentifier.dom_id(comment),
-                                                                            partial: "comments/card", locals: { comment: comment })
+                                                                            partial: "comments/card", locals: { comment: comment, written: written })
     end
   end
 end

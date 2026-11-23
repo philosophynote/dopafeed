@@ -2,7 +2,7 @@ module CommentsHelper
   # 鍵が揃うまで、または有効な人物がいない間は、押しても Job が失敗するだけなので、入口ごと出さない。
   def comments_enabled?
     settings = Dopamine.settings[:comments].to_h
-    %i[personas_shown model max_tokens timeout_seconds].all? { |key| settings[key].present? } && Persona.enabled.exists?
+    %i[personas_shown model max_tokens timeout_seconds stream_interval_ms].all? { |key| settings[key].present? } && Persona.enabled.exists?
   end
 
   def comments_lineup

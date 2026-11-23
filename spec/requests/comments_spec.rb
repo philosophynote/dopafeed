@@ -1,5 +1,5 @@
 RSpec.describe "Comments", type: :request do
-  let(:comments) { { personas_shown: 3, model: "grok-4.3", max_tokens: 4000, timeout_seconds: 60 } }
+  let(:comments) { { personas_shown: 3, model: "grok-4.3", max_tokens: 4000, timeout_seconds: 60, stream_interval_ms: 250 } }
   let(:article) { create(:article, :awaiting_summary, :opened) }
 
   before do

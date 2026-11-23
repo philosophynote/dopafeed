@@ -1,6 +1,6 @@
 RSpec.describe Comments::Commenter do
   let(:article) { create(:article, :awaiting_summary, title: "Rails 8 で SQLite を本番に", url: "https://fixtures.example.com/articles/sqlite") }
-  let(:comments) { { personas_shown: 3, model: "grok-4.3", max_tokens: 4000, timeout_seconds: 60 } }
+  let(:comments) { { personas_shown: 3, model: "grok-4.3", max_tokens: 4000, timeout_seconds: 60, stream_interval_ms: 250 } }
   let(:endpoint) { "https://api.x.ai/v1/responses" }
   let(:persona) { Persona.find_by!(slug: "oda-nobunaga") }
 
@@ -46,11 +46,11 @@ RSpec.describe Comments::Commenter do
 
     before { stub_xai }
 
-    it "鍵は Bearer で送り、モデルと出力の上限は yml、思考は low、返す形は縛らない（本文だけ）" do
+    it "鍵は Bearer で送り、モデルと出力の上限は yml、思考はしない、返す形は縛らない（本文だけ）" do
       described_class.new(article, persona).call
 
       expect(@request.headers["Authorization"]).to eq("Bearer test-key")
-      expect(body).to include("model" => "grok-4.3", "max_output_tokens" => 4000, "reasoning" => { "effort" => "low" })
+      expect(body).to include("model" => "grok-4.3", "max_output_tokens" => 4000, "reasoning" => { "effort" => "none" })
       expect(body.keys).not_to include("text", "tools", "temperature")
     end
 
@@ -80,6 +80,57 @@ RSpec.describe Comments::Commenter do
 
       expect(input).to include("あ" * limit)
       expect(input).not_to include("あ" * (limit + 1), "alert", "<p>")
+    end
+  end
+
+  describe "書けた文字から渡す（ストリーミング）" do
+    def sse(deltas, status: "completed", incomplete: nil)
+      events = deltas.map { |delta| { type: "response.output_text.delta", item_id: "msg_test", output_index: 0, content_index: 0, delta: delta } }
+      final = JSON.parse(response_body(text: deltas.join, status: status, incomplete: incomplete))
+      events << { type: status == "completed" ? "response.completed" : "response.incomplete", response: final }
+      events.map { |event| "event: #{event[:type]}\ndata: #{event.to_json}\n\n" }.join
+    end
+
+    def stub_stream(body)
+      stub_request(:post, endpoint).with { |req| @request = req }
+                                   .to_return(status: 200, body: body, headers: { "Content-Type" => "text/event-stream" })
+    end
+
+    it "ブロックを渡すと stream で頼み、書けた分を頭から積み上げて渡し、最後に全文を返す（台帳は 1 行）" do
+      comments[:stream_interval_ms] = 0
+      stub_stream(sse([ "織田", "信長の", "ひとこと" ]))
+      seen = []
+
+      result = nil
+      expect { result = described_class.new(article, persona).call { |text| seen << text } }.to change(ClaudeApiCall, :count).by(1)
+
+      expect(JSON.parse(@request.body)).to include("stream" => true)
+      expect(seen).to eq([ "織田", "織田信長の", "織田信長のひとこと" ])
+      expect(result).to eq("織田信長のひとこと")
+    end
+
+    it "渡すのは yml の stream_interval_ms ごとにまとめた分だけ（断片ごとには渡さない）" do
+      comments[:stream_interval_ms] = 60_000
+      stub_stream(sse([ "織田", "信長の", "ひとこと" ]))
+      seen = []
+
+      expect(described_class.new(article, persona).call { |text| seen << text }).to eq("織田信長のひとこと")
+      expect(seen).to be_empty
+    end
+
+    it "流している途中で出力の上限に切れたら、渡した分があっても MalformedResponse（切れた文は残さない）" do
+      comments[:stream_interval_ms] = 0
+      stub_stream(sse([ "織田", "信長の" ], status: "incomplete", incomplete: { reason: "max_output_tokens" }))
+
+      expect { described_class.new(article, persona).call { |_text| nil } }.to raise_error(described_class::MalformedResponse, /max_tokens/)
+    end
+
+    it "yml の comments.stream_interval_ms が無ければ API を呼ばず台帳も減らさずに KeyError" do
+      stub_stream(sse([ "織田" ]))
+      comments.delete(:stream_interval_ms)
+
+      expect { described_class.new(article, persona).call { |_text| nil } }.to raise_error(KeyError, /stream_interval_ms/)
+      expect(ClaudeApiCall.count).to eq(0)
     end
   end
 

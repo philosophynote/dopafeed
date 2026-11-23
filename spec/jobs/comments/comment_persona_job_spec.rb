@@ -32,6 +32,29 @@ RSpec.describe Comments::CommentPersonaJob, type: :job do
     expect(comment.reload.body).to eq("織田信長のひとこと")
   end
 
+  it "書けた分が届くたびに、そのカードへ途中の本文を「書いています」の印つきで送る（DB には書き上げた本文だけ残す）" do
+    allow(commenter).to receive(:call) do |&on_text|
+      on_text.call("織田信長の")
+      expect(comment.reload.body).to be_nil
+      "織田信長のひとこと"
+    end
+
+    expect { described_class.perform_now(comment) }
+      .to have_broadcasted_to(stream).with(a_string_including(ActionView::RecordIdentifier.dom_id(comment), "織田信長の", "書いています"))
+    expect(comment.reload.body).to eq("織田信長のひとこと")
+  end
+
+  it "流している途中で待てば通る失敗になったら、途中の本文を消したカードを送ってからやり直す" do
+    allow(commenter).to receive(:call) do |&on_text|
+      on_text.call("途中まで")
+      raise Comments::Commenter::TransientError, "接続エラー"
+    end
+
+    expect { described_class.perform_now(comment) }
+      .to have_broadcasted_to(stream).with(satisfy { |html| html.include?("書いています") && !html.include?("途中まで") })
+    expect(described_class).to have_been_enqueued.with(comment)
+  end
+
   it "書き上がっていれば呼ばずにカードだけ送る（記事 × 人物で 1 回。二度払いしない）" do
     comment.update!(body: "既にある")
 
