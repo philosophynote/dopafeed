@@ -1,6 +1,6 @@
 <% swipe = Dopamine.settings[:swipe] %>
 <li id="<%= dom_id(article) %>" class="relative" data-controller="swipe" data-action="sheet:finish->swipe#finish"
-    data-swipe-dismiss-ratio-value="<%= swipe[:dismiss_threshold_ratio] %>" data-swipe-flick-velocity-value="<%= swipe[:flick_velocity] %>" data-swipe-flick-window-ms-value="<%= swipe[:flick_window_ms] %>" data-swipe-flick-min-px-value="<%= swipe[:flick_min_px] %>" data-swipe-submit-timeout-seconds-value="<%= swipe[:submit_timeout_seconds] %>" data-swipe-dismiss-needs-process-mode-value="true">
+    data-swipe-dismiss-ratio-value="<%= swipe[:dismiss_threshold_ratio] %>" data-swipe-flick-velocity-value="<%= swipe[:flick_velocity] %>" data-swipe-flick-window-ms-value="<%= swipe[:flick_window_ms] %>" data-swipe-flick-min-px-value="<%= swipe[:flick_min_px] %>" data-swipe-submit-timeout-seconds-value="<%= swipe[:submit_timeout_seconds] %>">
   <%# 背景を li 基準にすると、詳細欄を広げた高さまで伸びてしまう %>
   <div class="relative">
     <%= render "articles/swipe_rail", target: "saveRail", modifier: "swipe-save-rail", icon: :bookmark, label: "保存" %>

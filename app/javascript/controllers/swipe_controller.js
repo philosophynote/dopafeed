@@ -13,7 +13,7 @@ let latestTap = 0
 
 export default class extends Controller {
   static targets = ["card", "rail", "saveRail", "form", "saveForm", "read", "detail"]
-  static values = { dismissRatio: Number, flickVelocity: Number, flickWindowMs: Number, flickMinPx: Number, submitTimeoutSeconds: Number, dismissNeedsProcessMode: Boolean }
+  static values = { dismissRatio: Number, flickVelocity: Number, flickWindowMs: Number, flickMinPx: Number, submitTimeoutSeconds: Number }
 
   disconnect() {
     this.settleCleanup?.()
@@ -59,7 +59,7 @@ export default class extends Controller {
       this.element.classList.add("swipe-active")
       this.capture()
     }
-    this.dx = Math.max(this.canDismiss() ? -Infinity : 0, Math.min(this.hasSaveFormTarget ? Infinity : 0, dx))
+    this.dx = Math.max(this.hasFormTarget ? -Infinity : 0, Math.min(this.hasSaveFormTarget ? Infinity : 0, dx))
     this.render(this.dx)
   }
 
@@ -71,10 +71,7 @@ export default class extends Controller {
 
     // pointercancel はスクロール等でも起こるため、速さによる払い判定は pointerup に限る。
     const flicked = event.type === "pointerup" && this.flicked(event.timeStamp)
-    // 引いている間に「読む」へ戻されたら、左へ引いた分は削除にしない
-    if (this.dx < 0 && !this.canDismiss()) {
-      this.settle(0)
-    } else if (this.dx !== 0 && (Math.abs(this.dx) >= this.threshold() || flicked)) {
+    if (this.dx !== 0 && (Math.abs(this.dx) >= this.threshold() || flicked)) {
       this.flyOut(Math.sign(this.dx))
     } else {
       this.settle(0)
@@ -118,11 +115,6 @@ export default class extends Controller {
 
   processing() {
     return this.element.closest("[data-process-mode]") !== null
-  }
-
-  // 読むつもりの指で消さないよう、Main の行は処理モードの間だけ左へ引ける
-  canDismiss() {
-    return this.hasFormTarget && (!this.dismissNeedsProcessModeValue || this.processing())
   }
 
   readTargetConnected(button) {
