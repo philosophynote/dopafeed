@@ -1,9 +1,12 @@
 RSpec.describe Comments::CommentArticleJob, type: :job do
   let(:article) { create(:article, :awaiting_summary, :opened) }
   let(:commenter) { instance_double(Comments::Commenter) }
-  let(:bodies) { Persona.all.map(&:id).index_with { |id| "#{id} のひとこと" } }
+  let(:bodies) { Persona.enabled.map(&:slug).index_with { |id| "#{id} のひとこと" } }
 
-  before { allow(Comments::Commenter).to receive(:new).with(article).and_return(commenter) }
+  before do
+    seed_personas
+    allow(Comments::Commenter).to receive(:new).with(article).and_return(commenter)
+  end
 
   it "claude キューに積まれる（日次上限を要約と共用する）" do
     expect(described_class.new(article).queue_name).to eq("claude")
@@ -25,6 +28,27 @@ RSpec.describe Comments::CommentArticleJob, type: :job do
     described_class.perform_now(article)
 
     expect(Comments::Commenter).not_to have_received(:new)
+  end
+
+  it "外した人のコメントしか無ければ、今の有効な人の分を作って足す（外した人のコメントは残す）" do
+    Persona.find_by!(slug: "oda-nobunaga").update!(enabled: false)
+    article.persona_comments.create!(persona_id: "oda-nobunaga", body: "外した人の分")
+    allow(commenter).to receive(:call).and_return(bodies)
+
+    described_class.perform_now(article)
+
+    expect(article.persona_comments.pluck(:persona_id)).to match_array([ "oda-nobunaga", *bodies.keys ])
+  end
+
+  it "外した人のコメントしか無い記事で生成に失敗したら、失敗を記録する（考え中のまま止まらない）" do
+    Persona.find_by!(slug: "oda-nobunaga").update!(enabled: false)
+    article.persona_comments.create!(persona_id: "oda-nobunaga", body: "外した人の分")
+    article.update!(comments_requested_at: Time.current)
+    allow(commenter).to receive(:call).and_raise(Comments::Commenter::MalformedResponse, "応答の形式が不正")
+
+    described_class.perform_now(article)
+
+    expect(article.reload).to have_attributes(comments_failed_at: be_present, comments_error: "応答の形式が不正")
   end
 
   it "呼んでいる間に重なった別の実行が保存していたら、そちらを残して書き足さない" do
@@ -131,7 +155,7 @@ RSpec.describe Comments::CommentArticleJob, type: :job do
     end
 
     it "保存済みで呼ばずに終わるときも、待っている画面のためにカードを送る（押し直しで待ち続けない）" do
-      Persona.all.each { |persona| article.persona_comments.create!(persona_id: persona.id, body: "#{persona.id} のひとこと") }
+      Persona.enabled.each { |persona| article.persona_comments.create!(persona_id: persona.slug, body: "#{persona.slug} のひとこと") }
 
       expect { described_class.perform_now(article) }.to have_broadcasted_to(stream).with(a_string_including("のひとこと"))
     end

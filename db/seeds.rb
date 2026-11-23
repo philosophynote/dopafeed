@@ -13,6 +13,13 @@ if User.none?
   User.create!(email_address: email_address, password: password)
 end
 
+# 本番は migration が入れる。schema を読むだけの db:setup で人物が空にならないよう、空のときだけ入れる
+if Persona.none?
+  YAML.load_file(Rails.root.join("db/seeds/personas.yml")).fetch("personas").each_with_index do |attrs, index|
+    Persona.create!(**attrs.symbolize_keys, position: index)
+  end
+end
+
 return if Rails.env.production?
 
 feeds = [

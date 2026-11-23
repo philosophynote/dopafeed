@@ -1,16 +1,19 @@
 RSpec.describe "Comments", type: :request do
   let(:comments) { { personas_shown: 3, model: "grok-4.3", max_tokens: 4000, timeout_seconds: 60 } }
   let(:article) { create(:article, :awaiting_summary, :opened) }
-  let(:names) { Persona.all.map(&:name) }
+  let(:names) { Persona.enabled.map(&:name) }
 
-  before { allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.merge(comments: comments)) }
+  before do
+    seed_personas
+    allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.merge(comments: comments))
+  end
 
   def page
     Capybara.string(response.body)
   end
 
   def save_all(article)
-    Persona.all.each { |persona| article.persona_comments.create!(persona_id: persona.id, body: "#{persona.name}のひとこと") }
+    Persona.enabled.each { |persona| article.persona_comments.create!(persona_id: persona.slug, body: "#{persona.name}のひとこと") }
   end
 
   def shown_names
@@ -33,7 +36,7 @@ RSpec.describe "Comments", type: :request do
 
       expect(page).to have_text("? ? ?")
       expect(page).to have_text("この記事に、誰が口を出すか")
-      expect(page).to have_text("#{Persona.all.size} 人の中から 3 人がランダムに現れます")
+      expect(page).to have_text("#{Persona.enabled.count} 人の中から 3 人がランダムに現れます")
       expect(page).to have_button("コメントを見る")
       expect(page).to have_text("人物は AI による架空のキャラクターです。本人の発言ではありません")
     end
@@ -133,7 +136,7 @@ RSpec.describe "Comments", type: :request do
       expect(shown_names.size).to eq(3)
       expect(shown_names.uniq.size).to eq(3)
       card = page.first("[data-persona-id]")
-      persona = Persona.find(card["data-persona-id"])
+      persona = Persona.find_by!(slug: card["data-persona-id"])
       expect(card).to have_text(persona.name)
       expect(card).to have_text(persona.title)
       expect(card).to have_text("AI")
@@ -155,6 +158,69 @@ RSpec.describe "Comments", type: :request do
         before = shown_names
       end
       expect(Comments::CommentArticleJob).not_to have_been_enqueued
+    end
+
+    it "無効にした人のコメントは出さず、有効に戻せば保存済みのコメントがまた出る" do
+      save_all(article)
+      Persona.where.not(slug: %w[oda-nobunaga joseph-stalin mao-zedong]).update_all(enabled: false)
+
+      get article_comments_path(article)
+      expect(shown_names).to match_array(%w[oda-nobunaga joseph-stalin mao-zedong])
+
+      Persona.update_all(enabled: false)
+      Persona.where(slug: %w[donald-trump margaret-thatcher genghis-khan]).update_all(enabled: true)
+      get article_comments_path(article)
+      expect(shown_names).to match_array(%w[donald-trump margaret-thatcher genghis-khan])
+      expect(page).to have_text("ドナルド・J・トランプのひとこと")
+    end
+
+    it "未生成の人数の案内は有効な人数にする" do
+      get article_comments_path(article)
+      expect(page).to have_text("8 人の中から 3 人がランダムに現れます")
+      Persona.where(slug: %w[donald-trump margaret-thatcher]).update_all(enabled: false)
+      get article_comments_path(article)
+      expect(page).to have_text("6 人の中から 3 人がランダムに現れます")
+      Persona.where.not(slug: %w[oda-nobunaga joseph-stalin mao-zedong]).update_all(enabled: false)
+      get article_comments_path(article)
+      expect(page).to have_text("3 人全員が現れます")
+      Persona.where(slug: "mao-zedong").update_all(enabled: false)
+      get article_comments_path(article)
+      expect(page).to have_text("2 人全員が現れます")
+    end
+
+    it "外した人のコメントしか無ければ、未生成と同じく「コメントを見る」を出す（空の組を出さない）" do
+      article.persona_comments.create!(persona_id: "oda-nobunaga", body: "外した人の分")
+      Persona.find_by!(slug: "oda-nobunaga").update!(enabled: false)
+
+      get article_comments_path(article)
+
+      expect(page).to have_button("コメントを見る")
+      expect(shown_names).to be_empty
+
+      expect { post article_comments_path(article) }.to have_enqueued_job(Comments::CommentArticleJob).with(article)
+      expect(article.reload.comments_requested_at).to be_present
+    end
+
+    it "作った人を全員外すと、頼んだ印が残っていても「考え中」にせず「コメントを見る」を出す。押し直した後は「考え中」" do
+      article.update!(comments_requested_at: 1.minute.ago)
+      article.persona_comments.create!(persona_id: "oda-nobunaga", body: "作った人の分")
+      Persona.find_by!(slug: "oda-nobunaga").update!(enabled: false)
+
+      get article_comments_path(article)
+      expect(page).to have_button("コメントを見る")
+
+      post article_comments_path(article)
+      get article_comments_path(article)
+      expect(page).to have_text("考え中")
+    end
+
+    it "有効な人物が一人もいなければ 404 で Job も積まない（鍵の欠けと同じく欄も出さない）" do
+      Persona.update_all(enabled: false)
+
+      get article_comments_path(article)
+      expect(response).to have_http_status(:not_found)
+      expect { post article_comments_path(article) }.not_to have_enqueued_job(Comments::CommentArticleJob)
+      expect(response).to have_http_status(:not_found)
     end
 
     it "AI の本文は HTML として解釈せず文字として出す" do

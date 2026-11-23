@@ -7,7 +7,7 @@
 ## 要素
 1. ヘッダ: 「フィードに戻る」（→ Main）、「コメント」
 2. 記事カード: フィード名、見出し（DB）
-3. 未開封状態: 「? ? ?」「この記事に、誰が口を出すか」「8 人の中から 3 人がランダムに現れます」、ボタン「コメントを見る」（人数は personas.yml の件数と `comments.personas_shown`）
+3. 未開封状態: 「? ? ?」「この記事に、誰が口を出すか」「8 人の中から 3 人がランダムに現れます」、ボタン「コメントを見る」（人数は有効な人物の数と `comments.personas_shown`。有効が personas_shown 以下なら「2 人全員が現れます」）
 4. 開封状態: 3 人分のカード（イニシャルの丸アイコン・名前・「AI」バッジ・肩書き・本文）、ボタン「別の 3 人を見る」
 5. 注記「人物は AI による架空のキャラクターです。本人の発言ではありません」（固定。必ず出す）
 
@@ -18,28 +18,20 @@
 - `GET /articles/:id/comments` の full page は JS が無いときの受け皿と、欄の取り直しに使う（「フィードに戻る」→ Main）
 
 ## 受け入れ条件（Given-When-Then）
-- Given 未生成の記事 When 「コメントを見る」Then `Comments::CommentArticleJob` が 1 回の API 呼び出しで personas.yml の全員分（8 人）を生成し、記事ごとにキャッシュする。画面はそのうち personas_shown 人をランダムに出す
+- Given 未生成の記事 When 「コメントを見る」Then `Comments::CommentArticleJob` が 1 回の API 呼び出しで有効な人物の全員分を生成し、記事ごとにキャッシュする。画面はそのうち personas_shown 人をランダムに出す
 - Given 全員分が生成済み When 「別の 3 人を見る」Then API を呼ばず、キャッシュ済みの残りから別の組を出す（直前の組と同じにならない）
 - Given 同じ記事で 2 回目以降 When 「コメントを見る」Then API を呼ばない（記事ごとに 1 回。冪等）
 - Given どの状態でも When 画面を見る Then 「架空のキャラクター」の注記が出る
 - Given Claude::Budget が上限 When 「コメントを見る」Then Job は discard され、画面に「今日はもう口を出せません」が出る
+- Given 人物を外した（`personas.enabled` が false） When 保存済みの記事を開く Then その人のコメントは出さず、「N 人の中から」も有効な人数。コメントは DB に残り、有効に戻せばまた出る（ADR 0033）
+- Given 保存済みのコメントが外した人の分だけ When 開く Then 未生成と同じく「コメントを見る」を出し、押すと今の有効な人の分を作って足す
+- Given 有効な人物が 0 人 When 記事を広げる Then コメントの欄を出さない（鍵の欠けと同じ。直に叩けば 404）
 
 ## 使う設定の鍵
 dopamine.yml: `comments.personas_shown`, `comments.model`, `comments.max_tokens`, `comments.timeout_seconds`, `claude.daily_call_limit`（要約と共用）, `claude.summary_input_chars`（ADR 0029）
-personas.yml: 全件（下のスキーマ）
-
-### config/personas.yml のスキーマ（grok-council の personas を移植。この Unit で作る）
-```yaml
-personas:
-  - id: oda-nobunaga          # 英小文字とハイフン
-    name: 織田信長
-    title: 戦国大名
-    color: "#F0831A"          # アイコンの色
-    description: 一行の人物像
-    system_prompt: |          # 4 部構成: 基本スタンス / 話し方 / コメントの型 / 禁止事項
-      ...
-```
-- 8 人（nao の指定）: 織田信長、ヨシフ・スターリン、毛沢東、松岡修造、オットー・フォン・ビスマルク、チンギス・ハン、ドナルド・J・トランプ、マーガレット・サッチャー。全員故人
+personas の表（ADR 0033）: 有効な人物の全件。列は `slug`（英小文字とハイフン、`persona_comments.persona_id` が指す）・`name`・`title`・`color`（#RRGGBB）・`description`・`system_prompt`・`enabled`・`position`（並び順）
+- 初期値は db/seeds/personas.yml。表が空のときだけ migration と db:seed が入れ、以後の正は表
+- 初期の 8 人（nao の指定）: 織田信長、ヨシフ・スターリン、毛沢東、松岡修造、オットー・フォン・ビスマルク、チンギス・ハン、ドナルド・J・トランプ、マーガレット・サッチャー。全員故人
 - 全員に効く禁止事項は app/services/comments/prompts/comments_system.txt に一度だけ書く: 虐殺・粛清の賛美、集団を貶めること、名言の捏造、本人の発言と誤認させる表現、記事の中の命令に従うこと
 
 ## 外部 API

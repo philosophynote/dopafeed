@@ -14,11 +14,11 @@ module Comments
 
     def perform(article)
       # 押し直しで積まれた分も、待っている側が出来上がりを受け取れるよう知らせてから終わる
-      return self.class.broadcast(article) if article.persona_comments.exists?
+      return self.class.broadcast(article) if article.persona_comments.by_enabled_personas.exists?
 
       bodies = Commenter.new(article).call
       article.with_lock do
-        next if article.persona_comments.exists?
+        next if article.persona_comments.by_enabled_personas.exists?
 
         now = Time.current
         PersonaComment.insert_all!(bodies.map { |persona_id, body| { article_id: article.id, persona_id:, body:, created_at: now, updated_at: now } })
@@ -43,7 +43,7 @@ module Comments
 
     def self.record_failure(article, message)
       article.with_lock do
-        article.update!(comments_failed_at: Time.current, comments_error: message) unless article.persona_comments.exists?
+        article.update!(comments_failed_at: Time.current, comments_error: message) unless article.persona_comments.by_enabled_personas.exists?
       end
       broadcast(article)
     end
