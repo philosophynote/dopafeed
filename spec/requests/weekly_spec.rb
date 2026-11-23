@@ -106,10 +106,11 @@ RSpec.describe "Weekly", type: :request do
     end
 
     it "先週のひとことが無い・失敗したなら欄ごと出さない" do
-      WeeklyComment.create!(week_start: Date.new(2026, 11, 9), failed_at: noon, error: "接続エラー")
-
       travel_to(noon) { get weekly_path }
+      expect(page).to have_no_css("[aria-label='Claude のひとこと']")
 
+      WeeklyComment.create!(week_start: Date.new(2026, 11, 9), failed_at: noon, error: "接続エラー")
+      travel_to(noon) { get weekly_path }
       expect(page).to have_no_css("[aria-label='Claude のひとこと']")
     end
   end

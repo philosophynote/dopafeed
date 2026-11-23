@@ -1,6 +1,6 @@
 # 失敗も 1 週 1 行に残す。行の無い週だけを呼ぶので、失敗した週を毎時呼び直して払い続けない。
 class WeeklyComment < ApplicationRecord
-  validates :week_start, presence: true, uniqueness: true
+  validates :week_start, presence: true
   validates :body, presence: true, unless: :failed_at
   validate :week_start_on_monday
 

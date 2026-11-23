@@ -1,5 +1,5 @@
 module Claude
-  # 毎時積まれ、終わった週の行がまだ無いときだけ呼ぶ。月曜に止まっていても次の回で追いつく。
+  # 月曜の決まった時刻に 1 回だけ積むと、その時刻に止まっていた週は書かれない。毎時積んで、行の無い週だけを呼ぶ。
   class WeeklyCommentJob < BaseJob
     retry_on WeeklyCommenter::TransientError, wait: :polynomially_longer do |job, error|
       WeeklyComment.record_failure!(job.week_start, error.message)
@@ -11,12 +11,15 @@ module Claude
 
     def perform(week_start = nil)
       @week_start = week_start || WeeklyReport.new.start_day - WeeklyReport::DAYS
+      # 再試行は arguments から積み直す。週を固定しないと、再試行が月曜をまたいだとき別の週を呼ぶ
+      self.arguments = [ @week_start ]
       return if WeeklyComment.exists?(week_start: @week_start)
 
       report = WeeklyReport.new(today: @week_start + (WeeklyReport::DAYS - 1))
       return if report.count.zero?
 
-      WeeklyComment.create!(week_start: @week_start, body: WeeklyCommenter.new(report).call)
+      commenter = WeeklyCommenter.new(report)
+      WeeklyComment.create!(week_start: @week_start, body: commenter.call, model: commenter.model)
     rescue ActiveRecord::RecordNotUnique
       nil
     rescue WeeklyCommenter::TransientError

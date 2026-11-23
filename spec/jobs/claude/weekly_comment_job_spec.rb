@@ -3,7 +3,8 @@ RSpec.describe Claude::WeeklyCommentJob, type: :job do
   # 2026-11-18（水）の正午。先週は 11/9（月）〜 11/15（日）
   let(:now) { Time.zone.local(2026, 11, 18, reset_hour) + 8.hours }
   let(:last_week) { Date.new(2026, 11, 9) }
-  let(:commenter) { instance_double(Claude::WeeklyCommenter, call: "先週は 1 本。来週はもう 1 本。") }
+  let(:commenter) { instance_double(Claude::WeeklyCommenter, call: "先週は 1 本。来週はもう 1 本。", model: "curation-model") }
+  let(:monday_reset) { Time.zone.local(2026, 11, 16, reset_hour) }
 
   def complete(at)
     create(:reading, article: create(:article), opened_at: at - 5.minutes, returned_at: at, completed_at: at)
@@ -21,7 +22,47 @@ RSpec.describe Claude::WeeklyCommentJob, type: :job do
     travel_to(now) { described_class.perform_now }
 
     expect(Claude::WeeklyCommenter).to have_received(:new).with(having_attributes(start_day: last_week, count: 1))
-    expect(WeeklyComment.sole).to have_attributes(week_start: last_week, body: "先週は 1 本。来週はもう 1 本。", failed_at: nil)
+    expect(WeeklyComment.sole).to have_attributes(week_start: last_week, body: "先週は 1 本。来週はもう 1 本。", model: "curation-model", failed_at: nil)
+  end
+
+  it "月曜の reset_hour の手前ではまだ前の週を書かず、過ぎた回で書く。その手前の完読は前の週に数える" do
+    complete(monday_reset - 1.minute)
+
+    travel_to(monday_reset - 1.minute) { described_class.perform_now }
+    expect(WeeklyComment.where(week_start: last_week)).to be_none
+
+    travel_to(monday_reset + 27.minutes) { described_class.perform_now }
+    expect(Claude::WeeklyCommenter).to have_received(:new).with(having_attributes(start_day: last_week, count: 1))
+    expect(WeeklyComment.where(week_start: last_week).sole.body).to be_present
+  end
+
+  it "週を渡せばその週を書く" do
+    complete(Time.zone.local(2026, 11, 4, 12))
+
+    travel_to(now) { described_class.perform_now(Date.new(2026, 11, 2)) }
+
+    expect(WeeklyComment.sole.week_start).to eq(Date.new(2026, 11, 2))
+  end
+
+  it "呼んでいる間に別の実行が同じ週の行を書いていたら、その行を残して静かに終える" do
+    complete(Time.zone.local(2026, 11, 12, 12))
+    allow(commenter).to receive(:call) do
+      WeeklyComment.create!(week_start: last_week, body: "先に書いたひとこと")
+      "後のひとこと"
+    end
+
+    travel_to(now) { expect { described_class.perform_now }.not_to raise_error }
+
+    expect(WeeklyComment.sole.body).to eq("先に書いたひとこと")
+  end
+
+  it "再試行は最初に決めた週で積み直す（再試行が月曜をまたいでも別の週を呼ばない）" do
+    complete(Time.zone.local(2026, 11, 12, 12))
+    allow(commenter).to receive(:call).and_raise(Claude::WeeklyCommenter::TransientError, "接続エラー")
+
+    travel_to(now) { described_class.perform_now }
+
+    expect(described_class).to have_been_enqueued.with(last_week)
   end
 
   it "その週の行が既にあれば呼ばない（同じ週に再生成しない）" do

@@ -16,9 +16,13 @@ module Claude
     end
 
     def call
-      client
+      client # API キーの無い箱で台帳だけ減っていかないよう、記録の前に作る
       budget.record!(purpose: PURPOSE, model: model)
       parse(request)
+    end
+
+    def model
+      Dopamine.settings.dig(:claude, :curation_model)
     end
 
     private
@@ -75,11 +79,7 @@ module Claude
       string.to_s.gsub("<", "&lt;").gsub(">", "&gt;")
     end
 
-    def model
-      Dopamine.settings.dig(:claude, :curation_model)
-    end
-
-    # 鍵が足されるまでは、同じく数行の出力である要約の上限で代える。
+    # 要約と同じく数行の出力なので、専用の鍵が無ければ要約の上限で足りる。
     def max_tokens
       Dopamine.settings.dig(:claude, :weekly_comment_max_tokens) || Dopamine.settings.dig(:claude, :summary_max_tokens)
     end

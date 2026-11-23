@@ -155,6 +155,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_040000) do
   create_table "weekly_comments", force: :cascade do |t|
     t.date "week_start", null: false
     t.text "body"
+    t.string "model"
     t.datetime "failed_at"
     t.string "error"
     t.datetime "created_at", null: false
