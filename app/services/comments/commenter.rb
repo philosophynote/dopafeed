@@ -5,6 +5,7 @@ module Comments
     class EmptyContent < Error; end
     class MalformedResponse < Error; end
     class TransientError < Error; end
+    class NoPersonas < Error; end
 
     PURPOSE = "comments".freeze
     TRANSIENT_STATUSES = [ 408, 429 ].freeze
@@ -12,7 +13,7 @@ module Comments
     THINKING_EFFORT = :low
     PROMPTS = Rails.root.join("app/services/comments/prompts")
 
-    def initialize(article, personas: Persona.all, budget: Claude::Budget.new, client: nil)
+    def initialize(article, personas: Persona.enabled.to_a, budget: Claude::Budget.new, client: nil)
       @article = article
       @personas = personas
       @budget = budget
@@ -22,6 +23,7 @@ module Comments
     def call
       text = article.plain_content.first(input_chars)
       raise EmptyContent, "本文が空" if text.blank?
+      raise NoPersonas, "有効な人物がいない" if personas.empty?
 
       # 設定の欠けで台帳だけ減っていかないよう、鍵と yml の値は記録の前にすべて読む
       client
@@ -69,7 +71,7 @@ module Comments
 
       entries = decode(message.content)
       bodies = entries.to_h { |entry| [ entry["persona_id"], entry["body"].to_s.strip ] }
-      complete = entries.size == personas.size && bodies.keys.sort == personas.map(&:id).sort && bodies.values.all?(&:present?)
+      complete = entries.size == personas.size && bodies.keys.sort == personas.map(&:slug).sort && bodies.values.all?(&:present?)
       raise MalformedResponse, "応答の形式が不正" unless complete
 
       bodies
@@ -93,7 +95,7 @@ module Comments
             type: "array",
             items: {
               type: "object",
-              properties: { persona_id: { type: "string", enum: personas.map(&:id) }, body: { type: "string" } },
+              properties: { persona_id: { type: "string", enum: personas.map(&:slug) }, body: { type: "string" } },
               required: %w[persona_id body],
               additionalProperties: false
             }
@@ -105,7 +107,7 @@ module Comments
     end
 
     def system_prompt
-      sections = personas.map { |persona| "## #{persona.id}: #{persona.name}（#{persona.title}）\n#{persona.system_prompt.strip}" }
+      sections = personas.map { |persona| "## #{persona.slug}: #{persona.name}（#{persona.title}）\n#{persona.system_prompt.strip}" }
       [ PROMPTS.join("comments_system.txt").read.strip, *sections ].join("\n\n")
     end
 

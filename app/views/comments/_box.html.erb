@@ -22,7 +22,7 @@
       <% else %>
         <p class="pt-2 text-center text-2xl font-black tracking-widest text-gray-400" aria-hidden="true">? ? ?</p>
         <p class="mt-1 text-center text-sm font-bold text-gray-800">この記事に、誰が口を出すか</p>
-        <p class="mt-1 text-center text-xs text-gray-500"><%= Persona.all.size %> 人の中から <%= Dopamine.settings.dig(:comments, :personas_shown) %> 人がランダムに現れます</p>
+        <p class="mt-1 text-center text-xs text-gray-500"><%= Persona.enabled.count %> 人の中から <%= Dopamine.settings.dig(:comments, :personas_shown) %> 人がランダムに現れます</p>
         <%= button_to "コメントを見る", article_comments_path(article), form_class: "mt-3",
                       class: "flex h-11 w-full items-center justify-center rounded-full bg-gray-800 text-sm font-bold text-white active:bg-gray-700" %>
       <% end %>

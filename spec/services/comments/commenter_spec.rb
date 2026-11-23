@@ -2,11 +2,14 @@ RSpec.describe Comments::Commenter do
   let(:article) { create(:article, :awaiting_summary, title: "Rails 8 で SQLite を本番に", url: "https://fixtures.example.com/articles/sqlite") }
   let(:comments) { { personas_shown: 3, model: "grok-4.3", max_tokens: 4000, timeout_seconds: 60 } }
   let(:endpoint) { "https://api.x.ai/v1/responses" }
-  let(:ids) { Persona.all.map(&:id) }
+  let(:ids) { Persona.enabled.map(&:slug) }
   let(:bodies) { ids.index_with { |id| "#{id} のひとこと" } }
 
   around { |example| with_env("XAI_API_KEY" => "test-key") { example.run } }
-  before { allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.merge(comments: comments)) }
+  before do
+    seed_personas
+    allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.merge(comments: comments))
+  end
 
   def response_body(entries = bodies.map { |id, body| { persona_id: id, body: body } }, text: { comments: entries }.to_json, status: "completed", incomplete: nil)
     {
@@ -28,7 +31,7 @@ RSpec.describe Comments::Commenter do
     { code: "fixture", error: "fixture" }.to_json
   end
 
-  it "正常系（カセット）: yml の人物全員の persona id と本文の組を返し、台帳に purpose comments・yml のモデルで 1 行増える" do
+  it "正常系（カセット）: 有効な人物全員の slug と本文の組を返し、台帳に purpose comments・yml のモデルで 1 行増える" do
     result = nil
     VCR.use_cassette("comments/ok") do
       expect { result = described_class.new(article).call }.to change(ClaudeApiCall, :count).by(1)
@@ -45,7 +48,7 @@ RSpec.describe Comments::Commenter do
 
     before { stub_xai }
 
-    it "鍵は Bearer で送り、モデルと出力の上限は yml、思考は low、返す形は 全員の id に絞った JSON スキーマ" do
+    it "鍵は Bearer で送り、モデルと出力の上限は yml、思考は low、返す形は 有効な全員の slug に絞った JSON スキーマ" do
       described_class.new(article).call
 
       expect(@request.headers["Authorization"]).to eq("Bearer test-key")
@@ -60,7 +63,18 @@ RSpec.describe Comments::Commenter do
 
       instructions = body["instructions"]
       expect(instructions).to include(Rails.root.join("app/services/comments/prompts/comments_system.txt").read.strip)
-      Persona.all.each { |persona| expect(instructions).to include(persona.id, persona.name, persona.system_prompt.strip) }
+      Persona.enabled.each { |persona| expect(instructions).to include(persona.slug, persona.name, persona.system_prompt.strip) }
+    end
+
+    it "無効にした人は指示にもスキーマにも入れない" do
+      Persona.find_by!(slug: "donald-trump").update!(enabled: false)
+      stub_xai(body: response_body(bodies.except("donald-trump").map { |id, body| { persona_id: id, body: body } }))
+
+      result = described_class.new(article).call
+
+      expect(result.keys).not_to include("donald-trump")
+      expect(body.dig("text", "format", "schema", "properties", "comments", "items", "properties", "persona_id", "enum")).not_to include("donald-trump")
+      expect(body["instructions"]).not_to include("ドナルド・J・トランプ")
     end
 
     it "記事の文字列に含まれる < > は実体にして、プロンプトの境界タグを閉じられないようにする" do
@@ -107,6 +121,15 @@ RSpec.describe Comments::Commenter do
       expect(ClaudeApiCall.count).to eq(0)
       expect(a_request(:post, endpoint)).not_to have_been_made
     end
+  end
+
+  it "有効な人物が一人もいなければ API を呼ばず台帳も減らさずに NoPersonas（記録して終わる Error）" do
+    stub_xai
+    Persona.update_all(enabled: false)
+
+    expect { described_class.new(article).call }.to raise_error(described_class::NoPersonas) { |error| expect(error).to be_a(described_class::Error) }
+    expect(ClaudeApiCall.count).to eq(0)
+    expect(a_request(:post, endpoint)).not_to have_been_made
   end
 
   it "予算切れなら API を呼ばずに Exhausted" do

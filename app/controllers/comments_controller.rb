@@ -8,7 +8,7 @@ class CommentsController < ApplicationController
 
   def create
     @exhausted = false
-    unless @article.persona_comments.exists?
+    unless @article.persona_comments.by_enabled_personas.exists?
       @exhausted = helpers.comments_budget_exhausted?
       request_comments unless @exhausted
     end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_20_010000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_23_000000) do
   create_table "article_judgments", force: :cascade do |t|
     t.integer "article_id", null: false
     t.float "originality"
@@ -98,6 +98,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_010000) do
     t.datetime "updated_at", null: false
     t.index ["article_id", "persona_id"], name: "index_persona_comments_on_article_id_and_persona_id", unique: true
     t.index ["article_id"], name: "index_persona_comments_on_article_id"
+  end
+
+  create_table "personas", force: :cascade do |t|
+    t.string "slug", null: false
+    t.string "name", null: false
+    t.string "title", null: false
+    t.string "color", null: false
+    t.string "description", null: false
+    t.text "system_prompt", null: false
+    t.boolean "enabled", default: true, null: false
+    t.integer "position", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["slug"], name: "index_personas_on_slug", unique: true
   end
 
   create_table "purged_articles", force: :cascade do |t|

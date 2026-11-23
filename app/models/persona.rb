@@ -1,14 +1,8 @@
-# 人物は製品の設定なので DB に置かず、config/personas.yml を正とする。
-Persona = Data.define(:id, :name, :title, :color, :description, :system_prompt) do
-  def self.all
-    @all ||= YAML.load_file(Rails.root.join("config/personas.yml")).fetch("personas").map { |attrs| new(**attrs.symbolize_keys) }.freeze
-  end
+class Persona < ApplicationRecord
+  scope :ordered, -> { order(:position, :id) }
+  scope :enabled, -> { where(enabled: true).ordered }
 
-  def self.ids
-    all.map(&:id)
-  end
-
-  def self.find(id)
-    all.find { |persona| persona.id == id }
-  end
+  validates :slug, presence: true, uniqueness: true, format: { with: /\A[a-z]+(-[a-z]+)*\z/ }
+  validates :color, format: { with: /\A#\h{6}\z/ }
+  validates :name, :title, :description, :system_prompt, presence: true
 end
