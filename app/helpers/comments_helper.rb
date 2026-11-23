@@ -17,33 +17,30 @@ module CommentsHelper
     Claude::Budget.new.exhausted?
   end
 
-  def comments_state(article, exhausted: false)
+  def comments_budget_remaining
+    Claude::Budget.new.remaining
+  end
+
+  def comments_state(article)
     return :ready if article.persona_comments.by_enabled_personas.exists?
-    return :exhausted if exhausted
-    # 走っている Job が最後の 1 回を使っても、出来上がりを待つ間は上限にしない
-    return :pending if comments_awaited?(article)
-    # 知らせを取りこぼしても取り直しで上限を出す。押せない日に前の失敗の「もう一度」は出さない
     return :exhausted if comments_budget_exhausted?
-    return :failed if article.comments_failed_at.present?
 
     :closed
   end
 
-  # 人物を外して残りが足りなくなっても、空や欠けた組を出さないよう有効な全員から選び直す。
-  def shown_persona_comments(article, except: [])
-    count = Dopamine.settings.dig(:comments, :personas_shown)
-    saved = article.persona_comments.by_enabled_personas.includes(:persona).to_a
-    rest = saved.reject { |comment| comment.persona_id.in?(except) }
-    (rest.size >= count ? rest : saved).sample(count)
+  # 押しても上限で作れず、組み替える作り済みの人もいないなら、押させずに上限を出す。
+  # 押した応答だけで決めると、JS が無いときの戻り先や読み直しでまたボタンが出る
+  def comments_next_exhausted?(article, shown)
+    return false if comments_budget_remaining.positive?
+
+    unasked = Persona.enabled.where.not(slug: article.persona_comments.select(:persona_id)).exists?
+    unasked && (article.persona_comments.by_enabled_personas.pluck(:persona_id) - shown.map(&:persona_id)).empty?
   end
 
-  private
+  def comments_box_state(shown)
+    return :writing if shown.any?(&:writing?)
+    return :failed if shown.any?(&:failed?)
 
-  # 頼んだ後に保存済みのコメントがあれば、その依頼は済んでいる。外した人の分しか無くても待ち状態に戻さない
-  def comments_awaited?(article)
-    return false if article.comments_requested_at.blank? || article.comments_failed_at.present?
-
-    answered_at = article.persona_comments.maximum(:created_at)
-    answered_at.nil? || answered_at < article.comments_requested_at
+    :ready
   end
 end

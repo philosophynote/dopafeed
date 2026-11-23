@@ -67,7 +67,7 @@ RSpec.describe "Persona の書き換え", type: :request do
     it "書き換えた口調の指示は、次に作るコメントの指示に入る" do
       patch persona_path(persona), params: { persona: attrs }
 
-      instructions = Comments::Commenter.new(build(:article)).send(:system_prompt)
+      instructions = Comments::Commenter.new(build(:article), persona.reload).send(:system_prompt)
       expect(instructions).to include("あなたは信長だ。\n短く斬れ。")
       expect(instructions).not_to include("あなたは織田信長だ。")
     end

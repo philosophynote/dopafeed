@@ -3,7 +3,55 @@ class PersonaComment < ApplicationRecord
   # 外した人のコメントも戻したときにまた出せるよう、人物の表とは外部キーで結ばず slug で引く
   belongs_to :persona, primary_key: :slug, inverse_of: false
 
-  validates :body, presence: true
+  validates :body, presence: true, allow_nil: true
 
   scope :by_enabled_personas, -> { joins(:persona).where(personas: { enabled: true }) }
+  scope :written, -> { where.not(body: nil) }
+
+  # 押したときに選んだ組を、取り直しや再読込でも同じ顔ぶれで出す。組は同じ時刻の shown_at で束ねる。
+  # 組の人を外して欠けたときや記録を始める前の行は、乱数を使わず作った順に補う。
+  # 読むたびに選び直すと、表示した組と押したときに照合する組が食い違う
+  def self.lineup(article)
+    saved = article.persona_comments.by_enabled_personas.includes(:persona).sort_by(&:id)
+    shown_at = saved.filter_map(&:shown_at).max
+    group = shown_at ? saved.select { |comment| comment.shown_at == shown_at } : []
+    group + (saved - group).first([ Dopamine.settings.dig(:comments, :personas_shown) - group.size, 0 ].max)
+  end
+
+  # 押したときの組の人。外した人も含めるのは、外す前に描いた欄からの押下を古い押下と見分けないため
+  def self.recorded_lineup(article)
+    shown_at = article.persona_comments.maximum(:shown_at)
+    shown_at ? article.persona_comments.where(shown_at:).pluck(:persona_id) : []
+  end
+
+  # 直前の組の人は、他の人で足りないときだけ使う（人物を外した後に欠けた組を出さないため）。
+  # 書いている途中、失敗の順に新しく頼んだものを先に取り、作っている人が組から押し出されないようにする
+  def self.pick(saved, except:)
+    previous, rest = saved.partition { |comment| comment.persona_id.in?(except) }
+    (ordered(rest) + ordered(previous)).first(Dopamine.settings.dig(:comments, :personas_shown))
+  end
+
+  def self.ordered(comments)
+    unfinished, written = comments.partition { |comment| !comment.written? }
+    unfinished.sort_by { |comment| [ comment.writing? ? 0 : 1, -comment.updated_at.to_f ] } + written.shuffle
+  end
+  private_class_method :ordered
+
+  def state
+    return :written if body?
+    return :failed if failed_at? || stale?
+
+    :writing
+  end
+
+  # Job が記録の前に止まると（旧版のワーカーが取った、プロセスが落ちたなど）、本文も失敗も書かれずに残る。
+  # 頼み直せるよう、yml の秒数より古い書いている途中は失敗として扱う。鍵が無ければ扱いを変えない
+  def stale?
+    after = Dopamine.settings.dig(:comments, :stale_after_seconds)
+    after.present? && updated_at.present? && updated_at < after.seconds.ago
+  end
+
+  def written? = state == :written
+  def failed? = state == :failed
+  def writing? = state == :writing
 end

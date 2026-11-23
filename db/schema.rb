@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_23_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_23_080000) do
   create_table "article_judgments", force: :cascade do |t|
     t.integer "article_id", null: false
     t.float "originality"
@@ -93,9 +93,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_000000) do
   create_table "persona_comments", force: :cascade do |t|
     t.integer "article_id", null: false
     t.string "persona_id", null: false
-    t.text "body", null: false
+    t.text "body"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "failed_at"
+    t.string "error"
+    t.datetime "shown_at"
     t.index ["article_id", "persona_id"], name: "index_persona_comments_on_article_id_and_persona_id", unique: true
     t.index ["article_id"], name: "index_persona_comments_on_article_id"
   end
