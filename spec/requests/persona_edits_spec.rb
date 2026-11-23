@@ -27,7 +27,7 @@ RSpec.describe "Persona の書き換え", type: :request do
 
       expect(page).to have_field("名前", with: "織田信長")
       expect(page).to have_field("肩書き", with: "戦国大名")
-      expect(page).to have_field("色", with: "#C8102E")
+      expect(page).to have_field("色", type: "color", with: "#c8102e")
       expect(page).to have_field("ひとこと紹介", with: "革新家")
       expect(page).to have_field("口調の指示（system_prompt）", with: "あなたは織田信長だ。")
       expect(page).to have_button("保存")

@@ -12,8 +12,8 @@
   </div>
   <div class="space-y-1">
     <%= form.label :color, "色", class: "block text-sm font-semibold" %>
-    <%= form.text_field :color, required: true, inputmode: "text", autocapitalize: "off", spellcheck: false,
-                                class: "#{field_class} font-mono", aria: { invalid: persona.errors.include?(:color) } %>
+    <%= form.color_field :color, class: "block h-11 w-full cursor-pointer rounded-xl border border-gray-300 bg-white p-1 text-base",
+                                 aria: { invalid: persona.errors.include?(:color) } %>
     <%= persona_error(persona, :color) %>
   </div>
   <div class="space-y-1">

@@ -75,14 +75,12 @@ RSpec.describe "Personas", type: :system do
     screenshot!("edit")
 
     fill_in "ひとこと紹介", with: " "
-    fill_in "色", with: "red"
     click_on "保存"
     expect(page).to have_css("[role=alert]", text: "ひとこと紹介を入力してください")
-    expect(page).to have_css("[role=alert]", text: "色は #RRGGBB で指定してください")
     expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true)
     screenshot!("error")
 
-    fill_in "色", with: " #112233 "
+    find_field("色", type: "color").set("#112233")
     fill_in "肩書き", with: "https://example.com/" + "very-long-title" * 8
     fill_in "ひとこと紹介", with: "とにかく熱い"
     fill_in "口調の指示（system_prompt）", with: "あなたは熱血の人だ。"

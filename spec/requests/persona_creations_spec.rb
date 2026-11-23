@@ -16,14 +16,14 @@ RSpec.describe "Persona の追加", type: :request do
   context "ログイン済み" do
     before { sign_in_as(create(:user)) }
 
-    it "一覧の「人物を足す」から開け、空の入力欄（色だけ初期値入り）と、出始めについての注記を出す" do
+    it "一覧の「人物を足す」から開け、空の入力欄（色はカラーピッカーで初期値入り）と、出始めについての注記を出す" do
       get personas_path
       expect(page).to have_link("人物を足す", href: new_persona_path)
 
       get new_persona_path
 
       expect(page).to have_css("h1", text: "人物を足す")
-      expect(page).to have_field("色", with: "#6B7280")
+      expect(page).to have_field("色", type: "color", with: "#6b7280")
       %w[名前 肩書き ひとこと紹介 口調の指示（system_prompt）].each do |label|
         expect(page.find_field(label).value).to be_blank, label
       end
@@ -48,7 +48,7 @@ RSpec.describe "Persona の追加", type: :request do
       expect(page).to have_text("有効 9 人")
     end
 
-    it "空の項目や色の形式の誤りは 422 で欄の下に赤字を出し、入れた値を残して何も足さない" do
+    it "空の項目や色の形式の誤りは 422 で欄の下に赤字を出し、文字の欄は入れた値を残して何も足さない" do
       expect { post personas_path, params: { persona: attrs.merge(name: " ", color: "blue") } }.not_to change(Persona, :count)
 
       expect(response).to have_http_status(:unprocessable_content)
@@ -56,7 +56,6 @@ RSpec.describe "Persona の追加", type: :request do
       expect(page).to have_css("[role=alert]", text: "色は #RRGGBB で指定してください")
       expect(page).to have_no_css("[role=alert]", text: "肩書き")
       expect(page).to have_field("肩書き", with: "土佐の脱藩浪士")
-      expect(page).to have_field("色", with: "blue")
     end
   end
 end
