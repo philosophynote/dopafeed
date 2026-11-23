@@ -130,7 +130,7 @@ RSpec.describe "Weekly", type: :request do
       expect(card["days"].map { |day| [ day["label"], day["count"], day["state"] ] }).to eq(
         [ [ "月", 0, "past" ], [ "火", 0, "past" ], [ "水", 3, "today" ], [ "木", 0, "future" ], [ "金", 0, "future" ], [ "土", 0, "future" ], [ "日", 0, "future" ] ]
       )
-      expect(card["stats"]).to eq([ [ "読書時間", "30分" ], [ "カード", "3 枚" ], [ "ひとこと要約", "3 本" ], [ "よく読んだフィード", "Zenn 3" ] ])
+      expect(card["stats"]).to eq([ [ "読書時間", "30分" ], [ "カード", "3 枚" ], [ "ひとこと要約", "3 本" ], [ "よく読んだフィード", "Zenn", "3" ] ])
       expect(card["comment"]).to eq("label" => "Claude のひとこと ・ 11/9 – 11/15 の週", "body" => "先週のひとこと")
     end
 

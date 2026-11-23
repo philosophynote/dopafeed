@@ -12,12 +12,18 @@ RSpec.describe "Weekly の画像で共有", type: :system do
   end
 
   # 共有シートとダウンロードは headless で開けないので、渡されたファイルを記録する
-  def stub_share(supported:)
-    page.execute_script(<<~JS, supported)
+  def stub_share(supported:, error: nil)
+    page.execute_script(<<~JS, supported, error)
       window.__shared = null
-      const supported = arguments[0]
+      window.__downloaded = null
+      window.__settled = false
+      const [supported, error] = arguments
       navigator.canShare = supported ? () => true : undefined
-      navigator.share = async ({ files }) => { window.__shared = files[0] }
+      navigator.share = async ({ files }) => {
+        window.__offered = files[0]
+        if (error) throw new DOMException("stub", error)
+        window.__shared = files[0]
+      }
       HTMLAnchorElement.prototype.click = function () { window.__downloaded = this.download }
       URL.createObjectURL = (file) => { window.__shared = file; return "blob:stub" }
     JS
@@ -60,6 +66,32 @@ RSpec.describe "Weekly の画像で共有", type: :system do
       click_button "画像で共有"
 
       expect(shared_image).to eq([ "dopafeed-weekly-2026-11-16.png", "image/png", 1080, 1350, "dopafeed-weekly-2026-11-16.png" ])
+    end
+  end
+
+  it "共有シートを閉じただけなら保存させず、ボタンはまた押せる" do
+    travel_to(noon) do
+      sign_in
+      visit weekly_path
+      stub_share(supported: true, error: "AbortError")
+
+      click_button "画像で共有"
+
+      expect(page).to have_button("画像で共有", disabled: false)
+      expect(page.evaluate_script("[!!window.__offered, window.__shared, window.__downloaded]")).to eq([ true, nil, nil ])
+    end
+  end
+
+  it "共有シートを開けなかった（NotAllowedError）ときは、作った PNG を保存させる" do
+    travel_to(noon) do
+      sign_in
+      visit weekly_path
+      stub_share(supported: true, error: "NotAllowedError")
+
+      click_button "画像で共有"
+
+      expect(shared_image).to eq([ "dopafeed-weekly-2026-11-16.png", "image/png", 1080, 1350, "dopafeed-weekly-2026-11-16.png" ])
+      expect(page).to have_button("画像で共有", disabled: false)
     end
   end
 end

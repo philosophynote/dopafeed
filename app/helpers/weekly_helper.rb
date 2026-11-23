@@ -32,7 +32,7 @@ module WeeklyHelper
       up: report.change_percent.to_i.positive?,
       days: report.daily_counts.each_with_index.map { |count, i| { label: WEEKDAYS[i], count: count, state: day_state(report.start_day + i, report.today) } },
       stats: [ [ "読書時間", hours_and_minutes(report.dwell_seconds) ], [ "カード", "#{report.count} 枚" ], [ "ひとこと要約", "#{report.summarized_count} 本" ],
-               ([ "よく読んだフィード", "#{top_feed.title} #{top_count}" ] if top_feed) ].compact,
+               ([ "よく読んだフィード", top_feed.title, top_count.to_s ] if top_feed) ].compact,
       comment: (comment && { label: "Claude のひとこと ・ #{week_range(comment.week_start, comment.week_end)} の週", body: comment.body }),
       footer: "DopaFeed ・ 過去の自分と比べる週次カード"
     }

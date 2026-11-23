@@ -10,23 +10,39 @@ const INK = "#111827"
 const MUTED = "#6b7280"
 const FAINT = "#d1d5db"
 const CLOSING = "、。，．！？）」』】"
+const COMMENT_BOTTOM = HEIGHT - PAD - 60
+// 保存の画面が URL を読み終える前に解放すると、保存できないブラウザがある
+const REVOKE_AFTER_MS = 60000
 
-// 画面の DOM を写さず、サーバーが渡した数字から描く。DOM を画像にするには外部 JS が要り、画面の崩れも写り込む。
 export default class extends Controller {
   static values = { card: Object, filename: String }
 
+  // iOS は押した操作の中でしか共有シートを開かない。押してから描くと待ちの間に操作の扱いが切れうるので、表示したときに描いておく
+  connect() {
+    this.file = null
+    this.preparing = this.render().then((blob) => (this.file = new File([blob], this.filenameValue, { type: "image/png" })))
+    this.preparing.catch((error) => console.error(error))
+  }
+
+  // 処理中に離れると、押せない状態のまま Turbo のキャッシュに残る
+  disconnect() {
+    this.element.disabled = false
+  }
+
   async share() {
     this.element.disabled = true
+    let file = null
     try {
-      const file = new File([await this.render()], this.filenameValue, { type: "image/png" })
+      file = this.file || await this.preparing
       if (navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], title: this.cardValue.title })
       } else {
         this.download(file)
       }
     } catch (error) {
-      // 共有シートを閉じただけなら失敗ではない
-      if (error.name !== "AbortError") console.error(error)
+      // 共有シートを閉じただけなら何もしない。開けなかったときは、作った画像を保存させて押した結果を残す
+      if (error.name === "NotAllowedError" && file) this.download(file)
+      else if (error.name !== "AbortError") console.error(error)
     } finally {
       this.element.disabled = false
     }
@@ -38,7 +54,7 @@ export default class extends Controller {
     link.href = url
     link.download = file.name
     link.click()
-    setTimeout(() => URL.revokeObjectURL(url), 0)
+    setTimeout(() => URL.revokeObjectURL(url), REVOKE_AFTER_MS)
   }
 
   render() {
@@ -57,19 +73,19 @@ export default class extends Controller {
     let y = PAD + 56
     this.text(ctx, card.title, PAD, y, 56, INK, "900")
     this.text(ctx, card.range, WIDTH - PAD, y, 36, MUTED, "600", "right")
-    y += 64
-    this.text(ctx, `🔥 ${card.streak}`, PAD, y, 36, MUTED, "700")
+    y += 60
+    this.text(ctx, `🔥 ${card.streak}`, PAD, y, 34, MUTED, "700")
 
-    y += 130
-    this.text(ctx, String(card.count), PAD, y, 130, ORANGE, "900")
-    const countWidth = this.measure(ctx, String(card.count), 130, "900")
-    this.text(ctx, "本 読了", PAD + countWidth + 20, y, 48, INK, "700")
-    y += 56
-    this.text(ctx, card.change, PAD, y, 38, card.up ? "#047857" : MUTED, "700")
+    y += 120
+    const count = card.count.toLocaleString("ja-JP")
+    this.text(ctx, count, PAD, y, 120, ORANGE, "900")
+    this.text(ctx, "本 読了", PAD + this.measure(ctx, count, 120, "900") + 20, y, 46, INK, "700")
+    y += 54
+    this.text(ctx, card.change, PAD, y, 36, card.up ? "#047857" : MUTED, "700")
 
     // 一番高い棒の上に本数の字が乗るので、その分を空ける
-    y = this.bars(ctx, card, y + 84)
-    y = this.stats(ctx, card, y + 30)
+    y = this.bars(ctx, card, y + 76)
+    y = this.stats(ctx, card, y + 24)
     if (card.comment) this.comment(ctx, card.comment, y + 24)
 
     this.text(ctx, card.footer, WIDTH / 2, HEIGHT - PAD + 4, 28, MUTED, "500", "center")
@@ -77,7 +93,7 @@ export default class extends Controller {
   }
 
   bars(ctx, card, top) {
-    const height = 180
+    const height = 150
     const gap = 24
     const width = (WIDTH - PAD * 2 - gap * 6) / 7
     const peak = Math.max(...card.days.map((day) => day.count), 0)
@@ -88,54 +104,59 @@ export default class extends Controller {
       if (barHeight > 0) {
         this.roundRect(ctx, x, top + height - barHeight, width, barHeight, 14)
         ctx.fill()
-        this.text(ctx, String(day.count), x + width / 2, top + height - barHeight - 14, 30, MUTED, "700", "center")
+        this.text(ctx, String(day.count), x + width / 2, top + height - barHeight - 12, 28, MUTED, "700", "center")
       }
       const color = day.state === "today" ? ORANGE : day.state === "future" ? FAINT : MUTED
-      this.text(ctx, day.label, x + width / 2, top + height + 44, 32, color, "700", "center")
+      this.text(ctx, day.label, x + width / 2, top + height + 40, 30, color, "700", "center")
     })
-    return top + height + 44
+    return top + height + 40
   }
 
+  // 値が長いときは名前だけを「…」で詰め、後ろの本数は残す
   stats(ctx, card, top) {
     let y = top
     ctx.fillStyle = "#f3f4f6"
     ctx.fillRect(PAD, y, WIDTH - PAD * 2, 2)
-    card.stats.forEach(([label, value]) => {
-      y += 56
-      this.text(ctx, label, PAD, y, 34, MUTED, "600")
-      const labelWidth = this.measure(ctx, label, 34, "600")
-      this.text(ctx, this.fit(ctx, value, WIDTH - PAD * 2 - labelWidth - 32, 34, "800"), WIDTH - PAD, y, 34, INK, "800", "right")
+    card.stats.forEach(([label, value, tail]) => {
+      y += 50
+      this.text(ctx, label, PAD, y, 32, MUTED, "600")
+      const suffix = tail ? ` ${tail}` : ""
+      const room = WIDTH - PAD * 2 - this.measure(ctx, label, 32, "600") - 32 - this.measure(ctx, suffix, 32, "800")
+      this.text(ctx, `${this.fit(ctx, value, room, 32, "800")}${suffix}`, WIDTH - PAD, y, 32, INK, "800", "right")
     })
     return y
   }
 
   comment(ctx, comment, top) {
-    const lineHeight = 48
-    const room = Math.floor((HEIGHT - PAD * 2 - top - 84) / lineHeight)
-    let lines = this.wrap(ctx, comment, WIDTH - PAD * 2 - 64, 32, "500")
-    if (lines.length > room) lines = [...lines.slice(0, room - 1), this.fit(ctx, `${lines[room - 1]}${lines[room]}`, WIDTH - PAD * 2 - 64, 32, "500")]
+    const lineHeight = 44
+    const room = Math.floor((COMMENT_BOTTOM - top - 80) / lineHeight)
+    let lines = this.wrap(ctx, comment.body, WIDTH - PAD * 2 - 64, 30, "500")
+    if (lines.length > room) lines = [...lines.slice(0, room - 1), this.fit(ctx, lines.slice(room - 1).join(""), WIDTH - PAD * 2 - 64, 30, "500")]
     ctx.fillStyle = "#fff7ed"
-    this.roundRect(ctx, PAD, top, WIDTH - PAD * 2, 84 + lines.length * lineHeight, 28)
+    this.roundRect(ctx, PAD, top, WIDTH - PAD * 2, 80 + lines.length * lineHeight, 28)
     ctx.fill()
-    this.text(ctx, comment.label, PAD + 32, top + 56, 30, "#c2410c", "800")
-    lines.forEach((line, i) => this.text(ctx, line, PAD + 32, top + 108 + i * lineHeight, 32, INK, "500"))
+    this.text(ctx, comment.label, PAD + 32, top + 52, 28, "#c2410c", "800")
+    lines.forEach((line, i) => this.text(ctx, line, PAD + 32, top + 100 + i * lineHeight, 30, INK, "500"))
   }
 
-  // 日本語は語の切れ目に空白が無いので、1 文字ずつ測って折り返す。句読点と閉じ括弧は行頭に送らず、前の行にはみ出させる
-  wrap(ctx, comment, maxWidth, size, weight) {
+  // 日本語は語の切れ目に空白が無いので 1 文字ずつ測り、英数字の語だけはまとめて送る。句読点と閉じ括弧は行頭に送らず、前の行にはみ出させる
+  wrap(ctx, body, maxWidth, size, weight) {
     ctx.font = `${weight} ${size}px ${FONT}`
     const lines = []
     let line = ""
-    for (const char of comment.body) {
-      if (char === "\n") { lines.push(line); line = ""; continue }
-      if (ctx.measureText(line + char).width > maxWidth && line && !CLOSING.includes(char)) { lines.push(line); line = "" }
-      line += char
+    for (const token of body.match(/[A-Za-z0-9_.\-/]+|\n|./gu) || []) {
+      if (token === "\n") { lines.push(line); line = ""; continue }
+      if (line && !CLOSING.includes(token) && ctx.measureText(line + token).width > maxWidth) {
+        lines.push(line)
+        line = token.trimStart()
+        continue
+      }
+      line += token
     }
     if (line) lines.push(line)
     return lines
   }
 
-  // 収まらない分は末尾を「…」にする
   fit(ctx, string, maxWidth, size, weight) {
     ctx.font = `${weight} ${size}px ${FONT}`
     if (ctx.measureText(string).width <= maxWidth) return string
