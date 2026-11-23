@@ -53,6 +53,10 @@ class WeeklyReport
     ReadingStreak.days(today: today)
   end
 
+  def cards
+    readings.sort_by { |reading| [ reading.completed_at, reading.id ] }
+  end
+
   private
 
   def week_range(first_day)

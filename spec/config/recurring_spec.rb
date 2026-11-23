@@ -18,4 +18,11 @@ RSpec.describe "config/recurring.yml" do
     expect(task["queue"]).to eq("feeds")
     expect(task["schedule"]).to be_present
   end
+
+  it "production で Claude::WeeklyCommentJob を毎時積む（生成するかは Job が決める）" do
+    task = recurring.fetch("production").fetch("weekly_comment")
+    expect(task["class"]).to eq("Claude::WeeklyCommentJob")
+    expect(task["queue"]).to eq("claude")
+    expect(task["schedule"]).to match(/every hour/)
+  end
 end

@@ -1,0 +1,7 @@
+<week start="<%= start_day %>" end="<%= end_day %>">
+<count><%= count %></count>
+<previous_count><%= previous_count %></previous_count>
+<%- cards.each do |card| -%>
+<article><title><%= card[:title] %></title><feed><%= card[:feed] %></feed><rarity><%= card[:rarity] %></rarity></article>
+<%- end -%>
+</week>
