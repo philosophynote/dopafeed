@@ -13,8 +13,10 @@ RSpec.describe "Comments", type: :system do
     all("[data-persona-id]").map { |card| card["data-persona-id"] }
   end
 
+  # つながった直後の取り直しが、後から書いた知らせより遅れて届くと古い欄に戻るので、取り直しが終わるまで待つ
   def wait_for_subscription(article)
     find("##{ActionView::RecordIdentifier.dom_id(article, :comments_box)} turbo-cable-stream-source[connected]", visible: :all)
+    find("turbo-frame##{ActionView::RecordIdentifier.dom_id(article, :comments)}[complete]", visible: :all)
   end
 
   def write(comment)
@@ -38,7 +40,7 @@ RSpec.describe "Comments", type: :system do
     screenshot!("writing")
 
     first, second = article.persona_comments.order(:id).to_a
-    Comments::CommentPersonaJob.broadcast(first, written: "#{first.persona.name}が書いている途中の")
+    Comments::CommentPersonaJob.broadcast_written(first, "#{first.persona.name}が書いている途中の")
     expect(page).to have_css("[data-persona-id='#{first.persona_id}'][data-state='writing']", text: "#{first.persona.name}が書いている途中の")
     expect(page).to have_css("[data-persona-id='#{first.persona_id}']", text: "書いています")
     screenshot!("streaming")
@@ -50,6 +52,8 @@ RSpec.describe "Comments", type: :system do
 
     write(second)
     expect(page).to have_css("li[data-state='written']", count: 2)
+    expect(page).to have_css("section[aria-label='コメント'][data-state='ready']")
+    expect(page).to have_no_css("turbo-cable-stream-source", visible: :all)
     expect(page).to have_current_path(root_path)
     screenshot!("opened")
 
@@ -105,6 +109,47 @@ RSpec.describe "Comments", type: :system do
     expect(page).to have_css("[data-persona-id='#{failing.persona_id}'][data-state='writing']", text: "書いています")
     expect(failing.reload.state).to eq(:writing)
     expect(page).to have_css("li[data-state='written']", count: 2)
+  end
+
+  it "購読が切れている間に「もう一度」を押しても、つながり直したときに欄を取り直して「書いています」を出す" do
+    article = create(:article, :awaiting_summary, summary: "・要約", title: "切れ間に頼み直す記事")
+    comment = article.persona_comments.create!(persona_id: "oda-nobunaga", failed_at: Time.current, error: "応答の形式が不正", shown_at: Time.current)
+    sign_in
+
+    expand("切れ間に頼み直す記事")
+    wait_for_subscription(article)
+    allow(Comments::CommentPersonaJob).to receive(:broadcast)
+    click_button "もう一度"
+    page.document.synchronize { raise Capybara::ExpectationNotMet, "頼み直しが届いていない" unless comment.reload.writing? }
+    expect(page).to have_text("口を出せませんでした")
+
+    page.execute_script(<<~JS, ActionView::RecordIdentifier.dom_id(article, :comments_box))
+      const source = document.querySelector(`#${arguments[0]} turbo-cable-stream-source`)
+      source.removeAttribute("connected"); source.setAttribute("connected", "")
+    JS
+
+    expect(page).to have_css("[data-persona-id='oda-nobunaga'][data-state='writing']", text: "書いています")
+  end
+
+  it "今日の上限に達した後の「別の 2 人を見る」は、組み替える人がいなければ同じ組のままボタンの位置に「今日はもう口を出せません」" do
+    comments[:personas_shown] = 2
+    article = create(:article, :awaiting_summary, summary: "・要約", title: "上限で次が無い記事")
+    sign_in
+
+    expand("上限で次が無い記事")
+    click_button "コメントを見る"
+    wait_for_subscription(article)
+    article.persona_comments.each { |comment| write(comment) }
+    expect(page).to have_css("li[data-state='written']", count: 2)
+    before = shown_ids
+    allow(Claude::Budget).to receive(:new).and_return(instance_double(Claude::Budget, exhausted?: true, remaining: 0))
+
+    click_button "別の 2 人を見る"
+
+    expect(page).to have_css("section[aria-label='コメント']", text: "今日はもう口を出せません")
+    expect(page).to have_no_button("別の 2 人を見る")
+    expect(shown_ids).to match_array(before)
+    screenshot!("exhausted-next")
   end
 
   it "書いている途中で今日の上限に達した人のカードは「今日はもう口を出せません」になる" do
