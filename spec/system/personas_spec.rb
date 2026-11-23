@@ -119,6 +119,7 @@ RSpec.describe "Personas", type: :system do
     expect(switch_of("坂本龍馬")["aria-checked"]).to eq("true")
     expect(page).to have_text("有効 9 人。コメントでは 9 人の中から 3 人が出ます")
     expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true)
+    page.scroll_to(find("[data-persona]", text: "坂本龍馬"), align: :center)
     screenshot!("added")
   end
 end
