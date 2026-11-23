@@ -431,6 +431,21 @@ RSpec.describe "Process mode", type: :system do
       expect(sfx_log).not_to include("melody")
     end
 
+    it "読むモードで閾値を越えて swipe が鳴った引きは、「処理」に切り替えてから離しても削除するだけで、コンボに数えず melody を重ねない" do
+      sign_in
+      width = card_width("一本目")
+      drag_card("一本目", from: [ width * 0.8, 40 ], to: [ width * 0.8 - width * ratio * 1.3, 40 ], release: false)
+      expect(sfx_log).to eq([ "swipe" ])
+      page.execute_script("document.querySelector('input[name=mode][value=process]').click()")
+      expect(page).to have_css("[data-process-mode]")
+      drag_card("一本目", from: [ width * 0.8, 40 ], to: [ width * 0.8, 40 ], steps: 0, down: false)
+
+      expect(page).to have_css("#toast [data-controller='toast']", text: "1 件を削除しました")
+      expect(Article.find_by!(title: "一本目")).to be_dismissed
+      expect(combo).to have_text("0 COMBO", normalize_ws: true)
+      expect(sfx_log).to eq([ "swipe" ])
+    end
+
     it "待ちの上限を越えて失敗に見えた削除も、後から成功が届けばコンボに数え直す" do
       allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.deep_merge(swipe: { submit_timeout_seconds: 1 }))
       sign_in

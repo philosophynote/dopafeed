@@ -170,7 +170,8 @@ export default class extends Controller {
   flyOut(direction) {
     this.flying = true
     const form = direction > 0 ? this.saveFormTarget : this.formTarget
-    const counted = this.processing()
+    // 読むモードで swipe が鳴った引きは、離す前に「処理」へ切り替えられても数えない（melody を重ねて 1 件に 2 音鳴らさない）
+    const counted = this.processing() && !this.swipeSounded
     if (counted) this.dispatch("processed", { detail: { form } })
     this.settle(direction * this.cardTarget.offsetWidth * FLY_OUT_RATIO, () => this.submit(form, counted))
   }
