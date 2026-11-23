@@ -16,7 +16,7 @@ module Comments
       # 押し直しで積まれた分も、待っている側が出来上がりを受け取れるよう知らせてから終わる
       return self.class.broadcast(comment) unless comment.writing?
 
-      body = Commenter.new(comment.article, comment.persona).call { |written| self.class.broadcast(comment, written:) }
+      body = Commenter.new(comment.article, comment.persona).call { |written| self.class.broadcast_written(comment, written) }
       comment.update!(body:, failed_at: nil, error: nil)
       self.class.broadcast(comment)
     rescue Commenter::TransientError
@@ -41,6 +41,13 @@ module Comments
         comment.update!(failed_at: Time.current, error: message) unless comment.written?
       end
       broadcast(comment)
+    end
+
+    # 途中の本文は飾りなので、配れなくても払った生成を捨てずに書き続ける
+    def self.broadcast_written(comment, written)
+      broadcast(comment, written:)
+    rescue StandardError => e
+      Rails.logger.warn("[comments] #{name} partial broadcast failed: #{e.class.name}")
     end
 
     def self.broadcast(comment, written: nil)

@@ -44,6 +44,19 @@ RSpec.describe Comments::CommentPersonaJob, type: :job do
     expect(comment.reload.body).to eq("織田信長のひとこと")
   end
 
+  it "途中の本文を配れなくても、生成は捨てずに書き上げて保存する" do
+    allow(Turbo::StreamsChannel).to receive(:broadcast_replace_to).and_call_original
+    allow(Turbo::StreamsChannel).to receive(:broadcast_replace_to).with(anything, :comments, hash_including(locals: hash_including(written: "途中"))).and_raise(RuntimeError, "描けない")
+    allow(commenter).to receive(:call) do |&on_text|
+      on_text.call("途中")
+      "織田信長のひとこと"
+    end
+
+    described_class.perform_now(comment)
+
+    expect(comment.reload.body).to eq("織田信長のひとこと")
+  end
+
   it "流している途中で待てば通る失敗になったら、途中の本文を消したカードを送ってからやり直す" do
     allow(commenter).to receive(:call) do |&on_text|
       on_text.call("途中まで")

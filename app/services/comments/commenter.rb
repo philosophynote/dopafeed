@@ -19,7 +19,7 @@ module Comments
       @client = client
     end
 
-    # ブロックを渡すと、書けた分を頭から積み上げた文字列で yml の間隔ごとに渡す
+    # 常にストリーミングで受ける。ブロックを渡すと、書けた分を頭から積み上げた文字列で yml の間隔ごとに渡す
     def call(&on_text)
       text = article.plain_content.first(input_chars)
       raise EmptyContent, "本文が空" if text.blank?
@@ -48,8 +48,6 @@ module Comments
                    .with_max_output_tokens(max_tokens)
                    .with_thinking(effort: THINKING_EFFORT)
                    .ask_later(user_prompt(text))
-      return chat.generate unless on_text
-
       stream(chat, interval_ms, &on_text)
     rescue RubyLLM::Error => e
       raise classify(e)
@@ -71,7 +69,7 @@ module Comments
       written = +""
       sent_at = monotonic_ms
       chat.generate do |chunk|
-        next unless chunk.content.is_a?(String) && chunk.content.present?
+        next unless block_given? && chunk.content.is_a?(String) && !chunk.content.empty?
 
         written << chunk.content
         next if monotonic_ms - sent_at < interval_ms
@@ -85,9 +83,11 @@ module Comments
       Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond)
     end
 
-    # 上限で切れた文は途中で終わっているので、本文があっても残さない
+    # 終わりの知らせが無いまま閉じた流れや、上限で切れた文は途中で終わっているので、本文があっても残さない
     def parse(message)
+      raise TransientError, "接続エラー (途中で切れた)" if message.finish_reason.nil?
       raise MalformedResponse, "応答の形式が不正 (max_tokens で切れた)" if message.finish_reason == :max_tokens
+      raise MalformedResponse, "応答の形式が不正 (#{message.finish_reason})" unless message.finish_reason == :stop
 
       body = message.content.to_s.strip
       raise MalformedResponse, "応答の形式が不正" if body.blank?
