@@ -180,6 +180,12 @@ RSpec.describe "Comments", type: :request do
       Persona.where(slug: %w[donald-trump margaret-thatcher]).update_all(enabled: false)
       get article_comments_path(article)
       expect(page).to have_text("6 人の中から 3 人がランダムに現れます")
+      Persona.where.not(slug: %w[oda-nobunaga joseph-stalin mao-zedong]).update_all(enabled: false)
+      get article_comments_path(article)
+      expect(page).to have_text("3 人全員が現れます")
+      Persona.where(slug: "mao-zedong").update_all(enabled: false)
+      get article_comments_path(article)
+      expect(page).to have_text("2 人全員が現れます")
     end
 
     it "外した人のコメントしか無ければ、未生成と同じく「コメントを見る」を出す（空の組を出さない）" do

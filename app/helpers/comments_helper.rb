@@ -5,6 +5,14 @@ module CommentsHelper
     %i[personas_shown model max_tokens timeout_seconds].all? { |key| settings[key].present? } && Persona.enabled.exists?
   end
 
+  def comments_lineup
+    enabled = Persona.enabled.count
+    shown = Dopamine.settings.dig(:comments, :personas_shown)
+    return "#{enabled} 人全員が現れます" if enabled <= shown
+
+    "#{enabled} 人の中から #{shown} 人がランダムに現れます"
+  end
+
   def comments_budget_exhausted?
     Claude::Budget.new.exhausted?
   end
