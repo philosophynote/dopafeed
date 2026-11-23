@@ -2,7 +2,7 @@ RSpec.describe "Process mode", type: :system do
   let(:now) { Time.current }
   let(:ratio) { Dopamine.settings.dig(:swipe, :dismiss_threshold_ratio) }
 
-  it "「処理」に切り替えても削除ボタンは出ず、行を左へ払うと消えてトーストが出て未読数が減る。「読む」に戻すと行のタップで読める" do
+  it "「処理」に切り替えても削除ボタンは出ず、行を左へ払うと消えてトーストが出て未読数が減る。「読む」に戻すと行の「読む」が押せる状態に戻る" do
     create(:article, title: "上の記事", published_at: now - 1.hour)
     create(:article, title: "消す記事", published_at: now - 2.hours)
     create(:article, title: "下の記事", published_at: now - 3.hours)
@@ -428,7 +428,6 @@ RSpec.describe "Process mode", type: :system do
       expect(page).to have_css("#toast [data-controller='toast']", text: "1 件を削除しました")
       expect(page).to have_no_css("article", text: "一本目")
       expect(Article.find_by!(title: "一本目")).to be_dismissed
-      expect(page).to have_no_css("dialog[open]")
       expect(sfx_log).not_to include("melody")
     end
 

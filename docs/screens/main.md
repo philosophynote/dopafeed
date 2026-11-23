@@ -38,7 +38,7 @@
 - 第一の陣の導線: 設定ボタンは Learning の最小版（`/learning`。サインアウト + Install への導線だけ。Unit 5 で置いた）へ。フィード追加の「+」は出さない（5 フィードは seed と Unit 3 で入る。AddFeed は第二の陣）
 - 第二の陣（#77）: 「フィードを追加」から AddFeed のシートを開く。閉じると Main に戻る
 - Reader（Saved の行・JS 無しから開く）の「閉じる」で Main に戻ると、完読したカードは一覧から消え、ステータスカードが更新される（Reader が判定する。ADR 0010）
-- 行を左へ払う（読むモード・処理モードとも。#171）→ `POST /articles/:id/dismissal`（行の送信の列に並べる。右へ払うと `POST /articles/:id/bookmark`。#159）→ Turbo Stream で行が消えて画面下（タブバーの上）に「元に戻す」のトーストが出て、未読数が減る（swipe.md、ADR 0012・0023、#112、#129）
+- 行を左へ払う（読むモード・処理モードとも。#171）→ `POST /articles/:id/dismissal`（行の送信の列に並べる。右へ払うと `POST /articles/:id/bookmark`。#159）→ Turbo Stream で行が消えて画面下（タブバーの上）に「元に戻す」のトーストが出て、未読数が減る（swipe.md、ADR 0012・0023・0032、#112、#129、#171）
 
 ## 受け入れ条件（Given-When-Then）
 - Given 未読記事が 3 本ある When Main を開く Then 3 本が published_at の新しい順に並ぶ
