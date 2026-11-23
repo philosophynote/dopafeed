@@ -8,7 +8,7 @@
     <span aria-hidden="true">‹</span>図鑑へ戻る
   <% end %>
   <button type="button" class="inline-flex min-h-11 items-center gap-1 rounded-full bg-orange-500 px-4 text-sm font-bold text-white active:bg-orange-600 disabled:opacity-60"
-          data-controller="weekly-share" data-action="weekly-share#share"
+          data-controller="weekly-share" data-action="weekly-share#share turbo:before-cache@document->weekly-share#reset"
           data-weekly-share-card-value="<%= weekly_share_card(report, @comment).to_json %>"
           data-weekly-share-filename-value="dopafeed-weekly-<%= report.start_day.iso8601 %>.png">
     <span aria-hidden="true">📤</span>画像で共有

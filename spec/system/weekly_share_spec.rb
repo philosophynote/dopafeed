@@ -94,4 +94,41 @@ RSpec.describe "Weekly の画像で共有", type: :system do
       expect(page).to have_button("画像で共有", disabled: false)
     end
   end
+
+  it "フィード名が数万字あっても、表示した後に画像を作り終えて共有できる" do
+    huge = create(:feed, title: "あ" * 50_000)
+    6.times do |i|
+      at = noon - i.hours
+      create(:reading, article: create(:article, feed: huge), opened_at: at - 6.minutes, returned_at: at, completed_at: at)
+    end
+
+    travel_to(noon) do
+      sign_in
+      visit weekly_path
+      stub_share(supported: true)
+
+      click_button "画像で共有"
+
+      expect(shared_image).to eq([ "dopafeed-weekly-2026-11-16.png", "image/png", 1080, 1350, nil ])
+    end
+  end
+
+  it "共有の途中で離れても、戻るで Weekly に戻ればまた押せる" do
+    travel_to(noon) do
+      sign_in
+      visit weekly_path
+      page.execute_script("navigator.canShare = () => true; navigator.share = () => new Promise(() => {})")
+      click_button "画像で共有"
+      expect(page).to have_button("画像で共有", disabled: true)
+
+      click_link "図鑑へ戻る"
+      expect(page).to have_current_path(collection_path)
+      expect(page).to have_no_button("画像で共有")
+      page.go_back
+
+      expect(page).to have_current_path(weekly_path)
+
+      expect(page).to have_button("画像で共有", disabled: false)
+    end
+  end
 end

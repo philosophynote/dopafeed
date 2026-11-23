@@ -19,13 +19,14 @@ export default class extends Controller {
 
   // iOS は押した操作の中でしか共有シートを開かない。押してから描くと待ちの間に操作の扱いが切れうるので、表示したときに描いておく
   connect() {
+    this.element.disabled = false
     this.file = null
     this.preparing = this.render().then((blob) => (this.file = new File([blob], this.filenameValue, { type: "image/png" })))
     this.preparing.catch((error) => console.error(error))
   }
 
   // 処理中に離れると、押せない状態のまま Turbo のキャッシュに残る
-  disconnect() {
+  reset() {
     this.element.disabled = false
   }
 
@@ -160,9 +161,16 @@ export default class extends Controller {
   fit(ctx, string, maxWidth, size, weight) {
     ctx.font = `${weight} ${size}px ${FONT}`
     if (ctx.measureText(string).width <= maxWidth) return string
-    let fitted = string
-    while (fitted && ctx.measureText(`${fitted}…`).width > maxWidth) fitted = fitted.slice(0, -1)
-    return `${fitted}…`
+    // 1 文字ずつ削ると、外から来る長い名前で測る回数が字数に比例し、表示した直後に画面が止まる
+    const chars = Array.from(string)
+    let low = 0
+    let high = chars.length
+    while (low < high) {
+      const mid = Math.ceil((low + high) / 2)
+      if (ctx.measureText(`${chars.slice(0, mid).join("")}…`).width <= maxWidth) low = mid
+      else high = mid - 1
+    }
+    return `${chars.slice(0, low).join("")}…`
   }
 
   text(ctx, string, x, y, size, color, weight, align = "left") {
