@@ -1,4 +1,3 @@
-# 週のレポート（GET /weekly）。docs/screens/weekly.md の受け入れ条件のうち、描画で確かめられるもの
 RSpec.describe "Weekly", type: :request do
   let(:reset_hour) { Dopamine.settings.dig(:daily_goal, :reset_hour) }
   let(:gold) { Dopamine.top_rarity[:name] }
@@ -38,6 +37,35 @@ RSpec.describe "Weekly", type: :request do
       expect(page).to have_text("ひとこと要約 32 本", normalize_ws: true)
       expect(page.find("[aria-label='フィード別']")).to have_text("Zenn 32", normalize_ws: true)
       expect(page.all("[aria-label='曜日別'] li").map { |li| li["aria-label"] }).to eq(%w[月曜 火曜 水曜 木曜 金曜 土曜 日曜].each_with_index.map { |day, i| "#{day} #{i == 2 ? 32 : 0} 本" })
+      expect(page).to have_css("[aria-label='今週の本数'] .text-emerald-700", text: "先週比 +39%")
+    end
+
+    it "曜日は今日を橙の字、まだ来ない日を薄い灰の字にする" do
+      travel_to(noon) { get weekly_path }
+
+      days = page.all("[aria-label='曜日別'] li")
+      expect(days.map { |li| li["data-day-state"] }).to eq(%w[past past today future future future future])
+      expect(days[2]).to have_css(".text-orange-600", text: "水")
+      expect(days[3]).to have_css(".text-gray-300", text: "木")
+    end
+
+    it "判定中のカードがあれば内訳に「判定中 N」を足す" do
+      complete(noon - 1.hour, tier: nil)
+
+      travel_to(noon) { get weekly_path }
+
+      expect(page.find("[aria-label='カード']")).to have_text("SS レア 0 ・ 判定中 1", normalize_ws: true)
+    end
+
+    it "今週は読んだが先週 0 本なら、Weekly も図鑑の 1 行も先週比を出さず「先週 0 本」" do
+      complete(noon - 1.hour)
+
+      travel_to(noon) { get weekly_path }
+      expect(page.find("[aria-label='今週の本数']")).to have_text("1 本 読了 先週 0 本", normalize_ws: true)
+      expect(page).to have_no_text("先週比")
+
+      travel_to(noon) { get collection_path }
+      expect(page.find("a[href='#{weekly_path}']")).to have_text("今週 1 本 ・ 先週 0 本", normalize_ws: true)
     end
 
     it "今週の読了 0・先週 0 なら 0 本で、先週比は出さず「先週 0 本」。棒は空、フィード別は無い" do
@@ -45,7 +73,9 @@ RSpec.describe "Weekly", type: :request do
 
       expect(page.find("[aria-label='今週の本数']")).to have_text("0 本 読了 先週 0 本", normalize_ws: true)
       expect(page).to have_no_text("先週比")
-      expect(page).to have_css("[aria-label='曜日別'] li", count: 7)
+      bars = page.all("[aria-label='曜日別'] li > span:nth-child(2)")
+      expect(bars.map { |bar| bar["style"] }).to all(eq("height: 0%"))
+      expect(bars.size).to eq(7)
       expect(page).to have_no_css("[aria-label='フィード別']")
       expect(page).to have_text("読書時間 0分", normalize_ws: true)
     end

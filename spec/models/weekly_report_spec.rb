@@ -26,6 +26,14 @@ RSpec.describe WeeklyReport do
     expect(report.previous_count).to eq(1)
   end
 
+  it "週は次の月曜の reset_hour の手前で終わる" do
+    next_monday = Date.new(2026, 11, 23).in_time_zone.change(hour: reset_hour)
+    complete(next_monday - 1.minute)
+    complete(next_monday)
+
+    expect(report.count).to eq(1)
+  end
+
   it "未完の行は数えない" do
     create(:reading, article: create(:article), opened_at: at(today), returned_at: at(today) + 5.seconds)
 

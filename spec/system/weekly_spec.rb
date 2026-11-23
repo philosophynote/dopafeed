@@ -1,4 +1,3 @@
-# 週のレポートを 390×844 で開く。図鑑からの動線、棒の高さ、0 本で崩れないこと、横スクロールとタップ領域
 RSpec.describe "Weekly", type: :system do
   let(:reset_hour) { Dopamine.settings.dig(:daily_goal, :reset_hour) }
   # 2026-11-20（金）の正午。今週は 11/16（月）〜 11/22（日）

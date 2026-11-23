@@ -1,9 +1,8 @@
-<%# Weekly（docs/screens/weekly.md）。Claude のひとことと画像で共有はまだ無い %>
 <% content_for :title, "今週のレポート" %>
 <% report = @report %>
 <% counts = report.daily_counts %>
 <% peak = counts.max %>
-<% today = ReadingDay.of %>
+<% today = report.today %>
 <header>
   <%= link_to collection_path, class: "-ml-2 inline-flex min-h-11 items-center gap-1 px-2 text-sm font-semibold text-gray-600 active:text-gray-900" do %>
     <span aria-hidden="true">‹</span>図鑑へ戻る
@@ -27,10 +26,11 @@
   <ol class="mt-4 grid h-28 grid-cols-7 items-end gap-2" aria-label="曜日別">
     <% counts.each_with_index do |count, i| %>
       <% day = report.start_day + i %>
-      <li class="flex h-full flex-col items-center justify-end gap-1" aria-label="<%= WeeklyHelper::WEEKDAYS[i] %>曜 <%= count %> 本">
+      <% state = day_state(day, today) %>
+      <li class="flex h-full flex-col items-center justify-end gap-1" data-day-state="<%= state %>" aria-label="<%= WeeklyHelper::WEEKDAYS[i] %>曜 <%= count %> 本">
         <span class="text-xs font-bold text-gray-600" aria-hidden="true"><%= count if count.positive? %></span>
-        <span class="w-full rounded-t-md <%= day > today ? "bg-gray-100" : "bg-orange-400" %>" style="height: <%= peak.positive? ? (count * 100.0 / peak).round : 0 %>%" aria-hidden="true"></span>
-        <span class="text-xs font-semibold <%= day == today ? "text-orange-600" : "text-gray-500" %>" aria-hidden="true"><%= WeeklyHelper::WEEKDAYS[i] %></span>
+        <span class="w-full rounded-t-md bg-orange-400" style="height: <%= peak.positive? ? (count * 100.0 / peak).round : 0 %>%" aria-hidden="true"></span>
+        <span class="text-xs font-semibold <%= { today: "text-orange-600", future: "text-gray-300" }.fetch(state, "text-gray-500") %>" aria-hidden="true"><%= WeeklyHelper::WEEKDAYS[i] %></span>
       </li>
     <% end %>
   </ol>
@@ -45,7 +45,7 @@
       <dt class="font-semibold text-gray-600">カード</dt>
       <dd class="text-right">
         <span class="font-bold"><%= report.count %> 枚</span>
-        <span class="block text-xs text-gray-500"><%= (Dopamine.rarity_names.map { |name| "#{rarity_label(name)} #{tiers.fetch(name, 0)}" } + [ ("判定中 #{tiers[nil]}" if tiers[nil]) ]).compact.join(" ・ ") %></span>
+        <span class="block text-xs text-gray-500"><%= rarity_breakdown(tiers) %></span>
       </dd>
     </div>
     <div class="flex items-baseline justify-between gap-2">

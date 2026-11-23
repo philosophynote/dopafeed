@@ -1,9 +1,8 @@
-# 週の集計は完読した {Reading} だけから数える。週は月曜の reset_hour に始まる
 class WeeklyReport
   WEEK_START = :monday
   DAYS = 7
 
-  attr_reader :start_day
+  attr_reader :start_day, :today
 
   def initialize(today: ReadingDay.of)
     @today = today
@@ -22,7 +21,6 @@ class WeeklyReport
     @previous_count ||= Reading.completed.where(completed_at: week_range(start_day - DAYS)).count
   end
 
-  # 先週 0 本の比は無限大になり、数字として意味を持たない。
   def change_percent
     return nil if previous_count.zero?
 
@@ -52,7 +50,7 @@ class WeeklyReport
   end
 
   def streak_days
-    ReadingStreak.days(today: @today)
+    ReadingStreak.days(today: today)
   end
 
   private
