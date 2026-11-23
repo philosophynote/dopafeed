@@ -9,7 +9,7 @@ Rails.application.routes.draw do
   root "main#show"
   resources :feeds, only: %i[index new create edit update destroy]
   resource :learning, only: :show, controller: :learning
-  resources :personas, only: %i[index edit update] do
+  resources :personas, only: %i[index new create edit update] do
     resource :enablement, only: :update, module: :personas
   end
   resource :install, only: :show, controller: :install

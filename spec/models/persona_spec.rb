@@ -36,4 +36,28 @@ RSpec.describe Persona do
 
     expect { build(:persona, slug: "oda-nobunaga").save!(validate: false) }.to raise_error(ActiveRecord::RecordNotUnique)
   end
+
+  it "slug を渡さずに作ると persona- と英小文字の乱数を振り、渡した slug はそのまま使う" do
+    made = create(:persona, slug: nil)
+    given = create(:persona, slug: "oda-nobunaga")
+
+    expect(made.slug).to match(/\Apersona-[a-z]{8}\z/)
+    expect(made).to be_valid
+    expect(given.slug).to eq("oda-nobunaga")
+  end
+
+  it "position を渡さずに作ると今の最後の後ろに並び、表が空なら先頭になる。明示した 0 はそのまま使う" do
+    expect(described_class.create!(attributes_for(:persona).except(:position)).position).to eq(0)
+
+    create(:persona, position: 5)
+    create(:persona, position: 2)
+
+    expect(described_class.create!(attributes_for(:persona).except(:position)).position).to eq(6)
+    expect(create(:persona, position: 0).position).to eq(0)
+  end
+
+  it "色を渡さずに作ると灰色 #6B7280 になる" do
+    expect(described_class.new.color).to eq("#6B7280")
+    expect(create(:persona, color: "#112233").color).to eq("#112233")
+  end
 end

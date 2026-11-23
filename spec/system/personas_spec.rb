@@ -75,14 +75,12 @@ RSpec.describe "Personas", type: :system do
     screenshot!("edit")
 
     fill_in "ひとこと紹介", with: " "
-    fill_in "色", with: "red"
     click_on "保存"
     expect(page).to have_css("[role=alert]", text: "ひとこと紹介を入力してください")
-    expect(page).to have_css("[role=alert]", text: "色は #RRGGBB で指定してください")
     expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true)
     screenshot!("error")
 
-    fill_in "色", with: " #112233 "
+    find_field("色", type: "color").set("#112233")
     fill_in "肩書き", with: "https://example.com/" + "very-long-title" * 8
     fill_in "ひとこと紹介", with: "とにかく熱い"
     fill_in "口調の指示（system_prompt）", with: "あなたは熱血の人だ。"
@@ -93,5 +91,33 @@ RSpec.describe "Personas", type: :system do
     expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true)
     expect(Persona.find_by!(slug: "shuzo-matsuoka").color).to eq("#112233")
     expect(Persona.find_by!(slug: "shuzo-matsuoka").system_prompt).to eq("あなたは熱血の人だ。")
+  end
+
+  it "一覧の「人物を足す」から書いて保存すると一覧に戻り、最後の行に有効で出る。390×844 で横スクロールと小さいタップ領域がない" do
+    sign_in
+    visit personas_path
+    click_on "人物を足す"
+
+    expect(page).to have_css("h1", text: "人物を足す")
+    expect(viewport_width).to eq(390)
+    expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true)
+    expect(page.evaluate_script("Array.from(document.querySelectorAll('a, button, input:not([type=hidden]), textarea')).every(e => { const r = e.getBoundingClientRect(); return r.width >= 44 && r.height >= 44 })")).to be(true)
+    expect(page.evaluate_script("Array.from(document.querySelectorAll('input:not([type=hidden]), textarea')).every(e => parseFloat(getComputedStyle(e).fontSize) >= 16)")).to be(true)
+
+    fill_in "名前", with: "坂本龍馬"
+    fill_in "肩書き", with: "土佐の脱藩浪士"
+    fill_in "ひとこと紹介", with: "日本を今一度せんたくいたし申し候"
+    fill_in "口調の指示（system_prompt）", with: "あなたは坂本龍馬だ。土佐弁で話せ。"
+    screenshot!("new")
+    click_on "保存"
+
+    expect(page).to have_css("h1", text: "コメントの人物")
+    expect(page).to have_css("[data-persona]", count: 9)
+    expect(all("[data-persona] h2").last.text).to eq("坂本龍馬")
+    expect(switch_of("坂本龍馬")["aria-checked"]).to eq("true")
+    expect(page).to have_text("有効 9 人。コメントでは 9 人の中から 3 人が出ます")
+    expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true)
+    page.scroll_to(find("[data-persona]", text: "坂本龍馬"), align: :center)
+    screenshot!("added")
   end
 end
