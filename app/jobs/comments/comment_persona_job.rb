@@ -54,22 +54,15 @@ module Comments
       Rails.logger.warn("[comments] #{name} partial broadcast failed: #{e.class.name}")
     end
 
+    # 組が書き上がったかは欄の側で見る。別のタブには別の組が出ていて、ここからはどの組が出ているか分からない
     def self.broadcast(comment)
       comment.reload
-      article = comment.article
-      lineup = PersonaComment.lineup(article)
-      if lineup.any? && lineup.all?(&:written?)
-        # カードだけ替えると、欄は書いている途中の印と購読を持ったまま残る。
-        # 判定の後に別の組が押されていれば、その欄を古い組で上書きして購読を外さないよう、同じ組を描いている欄だけに送る
-        box = ActionView::RecordIdentifier.dom_id(article, :comments_box)
-        Turbo::StreamsChannel.broadcast_replace_to(article, :comments, targets: "##{box}[data-lineup='#{lineup.map(&:id).join("-")}']",
-                                                                     partial: "comments/box", locals: { article:, lineup: })
-      elsif comment.persona.enabled?
-        Turbo::StreamsChannel.broadcast_replace_to(article, :comments, target: ActionView::RecordIdentifier.dom_id(comment),
-                                                                     partial: "comments/card", locals: { comment: })
+      target = ActionView::RecordIdentifier.dom_id(comment)
+      if comment.persona.enabled?
+        Turbo::StreamsChannel.broadcast_replace_to(comment.article, :comments, target:, partial: "comments/card", locals: { comment: })
       else
         # 本文は戻したときに出せるよう残すが、外した人のカードは欄に出さない
-        Turbo::StreamsChannel.broadcast_remove_to(article, :comments, target: ActionView::RecordIdentifier.dom_id(comment))
+        Turbo::StreamsChannel.broadcast_remove_to(comment.article, :comments, target:)
       end
     end
   end
