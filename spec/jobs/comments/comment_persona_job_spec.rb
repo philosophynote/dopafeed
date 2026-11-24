@@ -32,13 +32,78 @@ RSpec.describe Comments::CommentPersonaJob, type: :job do
     expect(comment.reload.body).to eq("織田信長のひとこと")
   end
 
-  it "外した人のカードは、本文を送らずに消す知らせだけを送る" do
-    comment
-    persona.update!(enabled: false)
-    allow(commenter).to receive(:call).and_return("織田信長のひとこと")
+  it "書けた分が届くたびに、そのカードへ途中の本文を送る（DB には書き上げた本文だけ残す）" do
+    allow(commenter).to receive(:call) do |&on_text|
+      on_text.call("織田信長の")
+      expect(comment.reload.body).to be_nil
+      "織田信長のひとこと"
+    end
 
     expect { described_class.perform_now(comment) }
-      .not_to have_broadcasted_to(stream).with(a_string_including("織田信長のひとこと"))
+      .to have_broadcasted_to(stream).with(a_string_including(ActionView::RecordIdentifier.dom_id(comment, :written), "織田信長の"))
+    expect(comment.reload.body).to eq("織田信長のひとこと")
+  end
+
+  it "途中の本文は、書いているカードにだけある本文の枠へ送る（遅れて届いても、書き上がったカードを途中に戻さない）" do
+    allow(commenter).to receive(:call) do |&on_text|
+      on_text.call("織田信長の")
+      "織田信長のひとこと"
+    end
+    written_target = ActionView::RecordIdentifier.dom_id(comment, :written)
+
+    expect { described_class.perform_now(comment) }
+      .to have_broadcasted_to(stream).with(satisfy { |html| html.include?(%(action="update" target="#{written_target}")) && html.include?("織田信長の") && !html.include?("<li") })
+    described_class.broadcast(comment)
+    expect(ApplicationController.render(partial: "comments/card", locals: { comment: comment.reload })).not_to include(written_target)
+  end
+
+  it "流している途中で人物を外したら、次の断片から送らない（クエリキャッシュの古い有効を使わない）" do
+    allow(commenter).to receive(:call) do |&on_text|
+      on_text.call("一つ目の断片")
+      Persona.connection.raw_connection.execute("UPDATE personas SET enabled = 0 WHERE slug = 'oda-nobunaga'")
+      on_text.call("二つ目の断片")
+      "織田信長のひとこと"
+    end
+
+    ActiveRecord::Base.cache do
+      expect { described_class.perform_now(comment) }
+        .not_to have_broadcasted_to(stream).with(a_string_including("二つ目の断片"))
+    end
+  end
+
+  it "途中の本文を配れなくても、生成は捨てずに書き上げて保存する" do
+    allow(Turbo::StreamsChannel).to receive(:broadcast_update_to).and_raise(RuntimeError, "描けない")
+    allow(commenter).to receive(:call) do |&on_text|
+      on_text.call("途中")
+      "織田信長のひとこと"
+    end
+
+    described_class.perform_now(comment)
+
+    expect(comment.reload.body).to eq("織田信長のひとこと")
+  end
+
+  it "流している途中で待てば通る失敗になったら、途中の本文を消したカードを送ってからやり直す" do
+    allow(commenter).to receive(:call) do |&on_text|
+      on_text.call("途中まで")
+      raise Comments::Commenter::TransientError, "接続エラー"
+    end
+
+    expect { described_class.perform_now(comment) }
+      .to have_broadcasted_to(stream).with(satisfy { |html| html.include?("書いています") && !html.include?("途中まで") })
+    expect(described_class).to have_been_enqueued.with(comment)
+  end
+
+  it "外した人のカードは、途中の本文も書き上げた本文も送らずに消す知らせだけを送る" do
+    comment
+    persona.update!(enabled: false)
+    allow(commenter).to receive(:call) do |&on_text|
+      on_text.call("織田信長の")
+      "織田信長のひとこと"
+    end
+
+    expect { described_class.perform_now(comment) }
+      .not_to have_broadcasted_to(stream).with(a_string_including("織田信長の"))
   end
 
   context "欄に並んだ組（押したときに選んだ人）" do

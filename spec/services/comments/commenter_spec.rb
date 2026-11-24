@@ -1,6 +1,6 @@
 RSpec.describe Comments::Commenter do
   let(:article) { create(:article, :awaiting_summary, title: "Rails 8 で SQLite を本番に", url: "https://fixtures.example.com/articles/sqlite") }
-  let(:comments) { { personas_shown: 3, model: "grok-4.3", max_tokens: 4000, timeout_seconds: 60 } }
+  let(:comments) { { personas_shown: 3, model: "grok-4.3", max_tokens: 4000, timeout_seconds: 60, stream_interval_ms: 250 } }
   let(:endpoint) { "https://api.x.ai/v1/responses" }
   let(:persona) { Persona.find_by!(slug: "oda-nobunaga") }
 
@@ -21,9 +21,19 @@ RSpec.describe Comments::Commenter do
     }.to_json
   end
 
-  def stub_xai(status: 200, body: response_body)
+  def sse(deltas, status: "completed", incomplete: nil, final: true)
+    events = deltas.map { |delta| { type: "response.output_text.delta", item_id: "msg_test", output_index: 0, content_index: 0, delta: delta } }
+    if final
+      response = JSON.parse(response_body(text: deltas.join, status: status, incomplete: incomplete))
+      events << { type: status == "completed" ? "response.completed" : "response.incomplete", response: response }
+    end
+    events.map { |event| "event: #{event[:type]}\ndata: #{event.to_json}\n\n" }.join
+  end
+
+  def stub_xai(status: 200, body: sse([ "織田信長のひとこと" ]))
+    content_type = status == 200 ? "text/event-stream" : "application/json"
     stub_request(:post, endpoint).with { |req| @request = req }
-                                 .to_return(status: status, body: body, headers: { "Content-Type" => "application/json" })
+                                 .to_return(status: status, body: body, headers: { "Content-Type" => content_type })
   end
 
   def error_body
@@ -46,11 +56,11 @@ RSpec.describe Comments::Commenter do
 
     before { stub_xai }
 
-    it "鍵は Bearer で送り、モデルと出力の上限は yml、思考は low、返す形は縛らない（本文だけ）" do
+    it "鍵は Bearer で送り、モデルと出力の上限は yml、思考はしない、返す形は縛らない（本文だけ）" do
       described_class.new(article, persona).call
 
       expect(@request.headers["Authorization"]).to eq("Bearer test-key")
-      expect(body).to include("model" => "grok-4.3", "max_output_tokens" => 4000, "reasoning" => { "effort" => "low" })
+      expect(body).to include("model" => "grok-4.3", "max_output_tokens" => 4000, "reasoning" => { "effort" => "none" })
       expect(body.keys).not_to include("text", "tools", "temperature")
     end
 
@@ -80,6 +90,97 @@ RSpec.describe Comments::Commenter do
 
       expect(input).to include("あ" * limit)
       expect(input).not_to include("あ" * (limit + 1), "alert", "<p>")
+    end
+  end
+
+  describe "書けた文字から渡す（ストリーミング）" do
+    it "stream で頼み、ブロックには書けた分を頭から積み上げて渡し、最後に全文を返す（台帳は 1 行）" do
+      comments[:stream_interval_ms] = 0
+      stub_xai(body: sse([ "織田", "信長の", "ひとこと" ]))
+      seen = []
+
+      result = nil
+      expect { result = described_class.new(article, persona).call { |text| seen << text } }.to change(ClaudeApiCall, :count).by(1)
+
+      expect(JSON.parse(@request.body)).to include("stream" => true)
+      expect(seen).to eq([ "織田", "織田信長の", "織田信長のひとこと" ])
+      expect(result).to eq("織田信長のひとこと")
+    end
+
+    it "渡すのは yml の stream_interval_ms ごとにまとめた分だけ（断片ごとには渡さない）" do
+      comments[:stream_interval_ms] = 60_000
+      stub_xai(body: sse([ "織田", "信長の", "ひとこと" ]))
+      seen = []
+
+      expect(described_class.new(article, persona).call { |text| seen << text }).to eq("織田信長のひとこと")
+      expect(seen).to be_empty
+    end
+
+    it "流している途中で出力の上限に切れたら、渡した分があっても MalformedResponse（切れた文は残さない）" do
+      comments[:stream_interval_ms] = 0
+      stub_xai(body: sse([ "織田", "信長の" ], status: "incomplete", incomplete: { reason: "max_output_tokens" }))
+
+      expect { described_class.new(article, persona).call { |_text| nil } }.to raise_error(described_class::MalformedResponse, /max_tokens/)
+    end
+
+    it "終わりの知らせが来ないまま流れが閉じたら、書けた分があっても TransientError（切れた文を書き上がりにしない）" do
+      comments[:stream_interval_ms] = 0
+      stub_xai(body: sse([ "織田", "信長の" ], final: false))
+      seen = []
+
+      expect { described_class.new(article, persona).call { |text| seen << text } }.to raise_error(described_class::TransientError, "接続エラー (途中で切れた)")
+      expect(seen).to eq([ "織田", "織田信長の" ])
+    end
+
+    it "内容の検閲など、上限以外の理由で途中で止まった応答も残さない" do
+      stub_xai(body: sse([ "織田信長の" ], status: "incomplete", incomplete: { reason: "content_filter" }))
+
+      expect { described_class.new(article, persona).call }.to raise_error(described_class::MalformedResponse)
+    end
+
+    it "流している途中で response.failed が届いたら、待てば通る失敗（server_error）は TransientError" do
+      failed = { type: "response.failed", response: { id: "resp_test", status: "failed", error: { code: "server_error", message: "fixture" } } }
+      body = sse([ "織田" ], final: false) + "event: response.failed\ndata: #{failed.to_json}\n\n"
+      stub_xai(body: body)
+
+      expect { described_class.new(article, persona).call { |_text| nil } }.to raise_error(described_class::TransientError)
+    end
+
+    it "最初の断片が届く前に流れが閉じたら（生存確認だけで終わった）、待てば通る TransientError" do
+      stub_xai(body: ": ping\n\n: ping\n\n")
+
+      expect { described_class.new(article, persona).call { |_text| nil } }.to raise_error(described_class::TransientError, "接続エラー (途中で切れた)")
+    end
+
+    it "流れ全体が yml の timeout_seconds を超えたら、生存確認が続いていても打ち切って TransientError" do
+      comments[:timeout_seconds] = 0.2
+      chat = double("chat")
+      allow(chat).to receive_messages(with_instructions: chat, with_max_output_tokens: chat, with_thinking: chat, ask_later: chat)
+      allow(chat).to receive(:generate) { sleep 2 }
+      client = double("client", chat: chat)
+
+      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      expect { described_class.new(article, persona, client: client).call { |_text| nil } }
+        .to raise_error(described_class::TransientError, "接続エラー (時間切れ)")
+      expect(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).to be < 1
+    end
+
+    it "空白だけの断片も落とさずに積み上げる" do
+      comments[:stream_interval_ms] = 0
+      stub_xai(body: sse([ "Rails", " ", "8" ]))
+      seen = []
+
+      described_class.new(article, persona).call { |text| seen << text }
+
+      expect(seen.last).to eq("Rails 8")
+    end
+
+    it "yml の comments.stream_interval_ms が無ければ API を呼ばず台帳も減らさずに KeyError" do
+      stub_xai(body: sse([ "織田" ]))
+      comments.delete(:stream_interval_ms)
+
+      expect { described_class.new(article, persona).call { |_text| nil } }.to raise_error(KeyError, /stream_interval_ms/)
+      expect(ClaudeApiCall.count).to eq(0)
     end
   end
 
@@ -118,17 +219,17 @@ RSpec.describe Comments::Commenter do
 
   describe "応答" do
     it "本文の前後の空白は落として返す" do
-      stub_xai(body: response_body(text: "  織田信長のひとこと\n"))
+      stub_xai(body: sse([ "  織田信長の", "ひとこと\n" ]))
       expect(described_class.new(article, persona).call).to eq("織田信長のひとこと")
     end
 
     it "本文が空白だけなら MalformedResponse" do
-      stub_xai(body: response_body(text: " \n"))
+      stub_xai(body: sse([ " ", "\n" ]))
       expect { described_class.new(article, persona).call }.to raise_error(described_class::MalformedResponse)
     end
 
     it "出力の上限で切れたら（incomplete・max_output_tokens）本文があっても MalformedResponse（途中で切れた文を残さない）" do
-      stub_xai(body: response_body(status: "incomplete", incomplete: { reason: "max_output_tokens" }))
+      stub_xai(body: sse([ "織田信長の" ], status: "incomplete", incomplete: { reason: "max_output_tokens" }))
       expect { described_class.new(article, persona).call }.to raise_error(described_class::MalformedResponse, /max_tokens/)
     end
   end

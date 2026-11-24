@@ -1,5 +1,5 @@
 module Comments
-  # 思考込みで 8 人分を書くので、要約の claude.timeout_seconds とは別の待ち時間を使う。
+  # 呼び先が xAI で、流れの途中の待ちも数えるので、要約の claude.timeout_seconds とは別の待ち時間を使う。
   module Client
     PROVIDER = :xai
 

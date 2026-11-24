@@ -16,10 +16,12 @@ module Comments
       # 押し直しで積まれた分も、待っている側が出来上がりを受け取れるよう知らせてから終わる
       return self.class.broadcast(comment) unless comment.writing?
 
-      body = Commenter.new(comment.article, comment.persona).call
+      body = Commenter.new(comment.article, comment.persona).call { |written| self.class.broadcast_written(comment, written) }
       comment.update!(body:, failed_at: nil, error: nil)
       self.class.broadcast(comment)
     rescue Commenter::TransientError
+      # やり直しは頭から書き直すので、待つ間に途中の本文を出したままにしない
+      self.class.broadcast(comment)
       raise
     rescue Commenter::Error => e
       self.class.record_failure(comment, e.message)
@@ -39,6 +41,17 @@ module Comments
         comment.update!(failed_at: Time.current, error: message) unless comment.written?
       end
       broadcast(comment)
+    end
+
+    # 途中の本文は飾りなので、配れなくても払った生成を捨てずに書き続ける
+    def self.broadcast_written(comment, written)
+      # 外した人の途中の本文を欄に出さない。Job は 1 つの実行の中でクエリキャッシュを持つので、配るたびに引き直す
+      return unless Persona.uncached { Persona.exists?(slug: comment.persona_id, enabled: true) }
+
+      Turbo::StreamsChannel.broadcast_update_to(comment.article, :comments, target: ActionView::RecordIdentifier.dom_id(comment, :written),
+                                                                           html: ERB::Util.html_escape(written))
+    rescue StandardError => e
+      Rails.logger.warn("[comments] #{name} partial broadcast failed: #{e.class.name}")
     end
 
     # 組が書き上がったかは欄の側で見る。別のタブには別の組が出ていて、ここからはどの組が出ているか分からない

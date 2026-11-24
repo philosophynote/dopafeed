@@ -13,13 +13,13 @@
 
 ## 遷移
 - Main の広げた欄（要約の下）に「コメント」の欄を出し、その場で開く（行を広げる ADR 0019 に合わせ、別画面へ移らない）。yml の `comments.*` の鍵が揃うまでは欄ごと出さない
-- 「コメントを見る」→ 欄の中で差し替え。選んだ 3 人のカードがすぐ「書いています…」で出て、書けた人から本文に変わる（Turbo Stream でカードごとに届く）
+- 「コメントを見る」→ 欄の中で差し替え。選んだ 3 人のカードがすぐ「書いています…」で出て、書けた文字から本文が流れ、書き上がると印が消える（Turbo Stream でカードごとに届く）
 - 「別の 3 人を見る」も欄の中だけ差し替える。まだ作っていない有効な人がいればその人たちを作り、いなければ保存済みから組み替える
 - 失敗はカードごと。その人だけ「もう一度」で頼み直す。最初から上限に達していれば欄に「今日はもう口を出せません」
 - `GET /articles/:id/comments` の full page は JS が無いときの受け皿と、欄の取り直しに使う（「フィードに戻る」→ Main）
 
 ## 受け入れ条件（Given-When-Then）
-- Given 未生成の記事 When 「コメントを見る」Then 有効な人物から personas_shown 人を無作為に選び、その人たちのカードを「書いています…」で出す。`Comments::CommentPersonaJob` が 1 人 1 回の API 呼び出しで書き、書けた人のカードから本文に変わる。読み直しても同じ人の枠が出る（ADR 0034）
+- Given 未生成の記事 When 「コメントを見る」Then 有効な人物から personas_shown 人を無作為に選び、その人たちのカードを「書いています…」で出す。`Comments::CommentPersonaJob` が 1 人 1 回の API 呼び出し（ストリーミング）で書き、書けた文字が `comments.stream_interval_ms` ごとにそのカードへ流れる。DB に残すのは書き上げた本文だけ。読み直しても同じ人の枠が出る（ADR 0034）
 - Given まだ作っていない有効な人がいる When 「別の 3 人を見る」Then 直前の組を除き、まだ作っていない人から選んで作る（足りなければ保存済みの人で埋める）。後から有効にした人もここで作られる
 - Given 有効な全員分が作成済み When 「別の 3 人を見る」Then API を呼ばず、保存済みの残りから別の組を出す（直前の組と同じにならない）
 - Given 同じ人のコメントが作成済み When もう一度押す Then その人の分は API を呼ばない（記事 × 人物で 1 回。冪等）
@@ -41,7 +41,7 @@
 - Given 有効な人物が 0 人 When 記事を広げる Then コメントの欄を出さない（鍵の欠けと同じ。直に叩けば 404）
 
 ## 使う設定の鍵
-dopamine.yml: `comments.personas_shown`, `comments.model`, `comments.max_tokens`, `comments.timeout_seconds`, `comments.stale_after_seconds`（任意。無ければ止まった枠を失敗に倒さない）, `claude.daily_call_limit`（要約と共用）, `claude.summary_input_chars`（ADR 0029）
+dopamine.yml: `comments.personas_shown`, `comments.model`, `comments.max_tokens`, `comments.timeout_seconds`, `comments.stale_after_seconds`（任意。無ければ止まった枠を失敗に倒さない）, `comments.stream_interval_ms`, `claude.daily_call_limit`（要約と共用）, `claude.summary_input_chars`（ADR 0029）
 personas の表（ADR 0033）: 有効な人物の全件。列は `slug`（英小文字とハイフン、`persona_comments.persona_id` が指す）・`name`・`title`・`color`（#RRGGBB）・`description`・`system_prompt`・`enabled`・`position`（並び順）
 - 初期値は db/seeds/personas.yml。表が空のときだけ migration と db:seed が入れ、以後の正は表
 - 初期の 8 人（nao の指定）: 織田信長、ヨシフ・スターリン、毛沢東、松岡修造、オットー・フォン・ビスマルク、チンギス・ハン、ドナルド・J・トランプ、マーガレット・サッチャー。全員故人

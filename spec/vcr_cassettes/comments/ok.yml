@@ -6,7 +6,7 @@ http_interactions:
       uri: https://api.x.ai/v1/responses
       body:
         encoding: UTF-8
-        string: '{"model":"grok-4.3","input":[{"role":"user","content":"(comments.erb)"}],"instructions":"(comments_system.txt と人物 1 人の設定)","stream":false,"store":false,"include":["reasoning.encrypted_content"],"max_output_tokens":4000,"reasoning":{"effort":"low"}}'
+        string: '{"model":"grok-4.3","input":[{"role":"user","content":"(comments.erb)"}],"instructions":"(comments_system.txt と人物 1 人の設定)","stream":true,"store":false,"include":["reasoning.encrypted_content"],"max_output_tokens":4000,"reasoning":{"effort":"none"}}'
       headers:
         Content-Type:
           - application/json
@@ -18,9 +18,9 @@ http_interactions:
         message: OK
       headers:
         Content-Type:
-          - application/json
+          - text/event-stream
       body:
         encoding: UTF-8
-        string: '{"id": "resp_fixture0000", "object": "response", "status": "completed", "model": "grok-4.3", "incomplete_details": null, "output": [{"type": "reasoning", "id": "rs_fixture0000", "summary": []}, {"type": "message", "id": "msg_fixture0000", "role": "assistant", "status": "completed", "content": [{"type": "output_text", "text": "SQLite を本番に据えるか。古い常識にしがみつく理由は無い。一人用なら軽さこそ武器じゃ。試して良ければ、わしの城にもすぐ布け。", "annotations": []}]}], "usage": {"input_tokens": 1900, "output_tokens": 120, "total_tokens": 2020}}'
+        string: "event: response.output_text.delta\ndata: {\"type\": \"response.output_text.delta\", \"item_id\": \"msg_fixture0000\", \"output_index\": 1, \"content_index\": 0, \"delta\": \"SQLite を本番に据えるか。古い常識にしがみつく理由は無い。一人用なら軽さこそ武器じゃ。試して良ければ、わしの城にもすぐ布け。\"}\n\nevent: response.completed\ndata: {\"type\": \"response.completed\", \"response\": {\"id\": \"resp_fixture0000\", \"object\": \"response\", \"status\": \"completed\", \"model\": \"grok-4.3\", \"incomplete_details\": null, \"output\": [{\"type\": \"reasoning\", \"id\": \"rs_fixture0000\", \"summary\": []}, {\"type\": \"message\", \"id\": \"msg_fixture0000\", \"role\": \"assistant\", \"status\": \"completed\", \"content\": [{\"type\": \"output_text\", \"text\": \"SQLite を本番に据えるか。古い常識にしがみつく理由は無い。一人用なら軽さこそ武器じゃ。試して良ければ、わしの城にもすぐ布け。\", \"annotations\": []}]}], \"usage\": {\"input_tokens\": 1900, \"output_tokens\": 120, \"total_tokens\": 2020}}}\n\n"
     recorded_at: Fri, 20 Nov 2026 15:00:00 GMT
 recorded_with: VCR 6.4.1

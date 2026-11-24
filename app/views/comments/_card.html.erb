@@ -12,6 +12,8 @@
     <% when :written %>
       <p class="mt-1 break-words text-sm leading-relaxed text-gray-800"><%= comment.body %></p>
     <% when :writing %>
+      <%# 途中の本文はこの枠にだけ届く。書き上がったカードには枠が無いので、遅れて届いた途中の本文で戻らない %>
+      <p id="<%= dom_id(comment, :written) %>" class="mt-1 break-words text-sm leading-relaxed text-gray-800 empty:hidden"><%= local_assigns[:written] %></p>
       <p class="mt-1 text-sm text-gray-400 motion-safe:animate-pulse" role="status">書いています…</p>
     <% else %>
       <% if comments_budget_exhausted? %>
