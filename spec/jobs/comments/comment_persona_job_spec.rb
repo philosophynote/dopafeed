@@ -32,7 +32,7 @@ RSpec.describe Comments::CommentPersonaJob, type: :job do
     expect(comment.reload.body).to eq("織田信長のひとこと")
   end
 
-  it "書けた分が届くたびに、そのカードへ途中の本文を「書いています」の印つきで送る（DB には書き上げた本文だけ残す）" do
+  it "書けた分が届くたびに、そのカードへ途中の本文を送る（DB には書き上げた本文だけ残す）" do
     allow(commenter).to receive(:call) do |&on_text|
       on_text.call("織田信長の")
       expect(comment.reload.body).to be_nil
@@ -40,13 +40,39 @@ RSpec.describe Comments::CommentPersonaJob, type: :job do
     end
 
     expect { described_class.perform_now(comment) }
-      .to have_broadcasted_to(stream).with(a_string_including(ActionView::RecordIdentifier.dom_id(comment), "織田信長の", "書いています"))
+      .to have_broadcasted_to(stream).with(a_string_including(ActionView::RecordIdentifier.dom_id(comment, :written), "織田信長の"))
     expect(comment.reload.body).to eq("織田信長のひとこと")
   end
 
+  it "途中の本文は、書いているカードにだけある本文の枠へ送る（遅れて届いても、書き上がったカードを途中に戻さない）" do
+    allow(commenter).to receive(:call) do |&on_text|
+      on_text.call("織田信長の")
+      "織田信長のひとこと"
+    end
+    written_target = ActionView::RecordIdentifier.dom_id(comment, :written)
+
+    expect { described_class.perform_now(comment) }
+      .to have_broadcasted_to(stream).with(satisfy { |html| html.include?(%(action="update" target="#{written_target}")) && html.include?("織田信長の") && !html.include?("<li") })
+    described_class.broadcast(comment)
+    expect(ApplicationController.render(partial: "comments/card", locals: { comment: comment.reload })).not_to include(written_target)
+  end
+
+  it "流している途中で人物を外したら、次の断片から送らない（クエリキャッシュの古い有効を使わない）" do
+    allow(commenter).to receive(:call) do |&on_text|
+      on_text.call("一つ目の断片")
+      Persona.connection.raw_connection.execute("UPDATE personas SET enabled = 0 WHERE slug = 'oda-nobunaga'")
+      on_text.call("二つ目の断片")
+      "織田信長のひとこと"
+    end
+
+    ActiveRecord::Base.cache do
+      expect { described_class.perform_now(comment) }
+        .not_to have_broadcasted_to(stream).with(a_string_including("二つ目の断片"))
+    end
+  end
+
   it "途中の本文を配れなくても、生成は捨てずに書き上げて保存する" do
-    allow(Turbo::StreamsChannel).to receive(:broadcast_replace_to).and_call_original
-    allow(Turbo::StreamsChannel).to receive(:broadcast_replace_to).with(anything, :comments, hash_including(locals: hash_including(written: "途中"))).and_raise(RuntimeError, "描けない")
+    allow(Turbo::StreamsChannel).to receive(:broadcast_update_to).and_raise(RuntimeError, "描けない")
     allow(commenter).to receive(:call) do |&on_text|
       on_text.call("途中")
       "織田信長のひとこと"

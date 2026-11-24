@@ -5,6 +5,8 @@ module Comments
     class EmptyContent < Error; end
     class MalformedResponse < Error; end
     class TransientError < Error; end
+    # Timeout::Error を継ぐと Faraday が自分のタイムアウトに包み直し、流れの期限と区別できなくなる
+    class StreamTimeout < StandardError; end
 
     PURPOSE = "comments".freeze
     TRANSIENT_STATUSES = [ 408, 429 ].freeze
@@ -48,7 +50,10 @@ module Comments
                    .with_max_output_tokens(max_tokens)
                    .with_thinking(effort: THINKING_EFFORT)
                    .ask_later(user_prompt(text))
-      stream(chat, interval_ms, &on_text)
+      # 読み取りごとの待ちは生存確認が届くたびに延びるので、流れ全体にも同じ秒数の期限を置く
+      Timeout.timeout(settings.fetch(:timeout_seconds), StreamTimeout) { stream(chat, interval_ms, &on_text) }
+    rescue StreamTimeout
+      raise TransientError, "接続エラー (時間切れ)"
     rescue RubyLLM::Error => e
       raise classify(e)
     rescue StandardError => e
@@ -59,7 +64,8 @@ module Comments
     def classify(error)
       status = error.response&.status
       return TransientError.new(error.try(:timeout?) ? "接続エラー (タイムアウト)" : "接続エラー") if status.nil?
-      return Error.new("応答の形式が不正 (HTTP #{status})") if status < 400
+      # 流れは 200 で始まるので、断片が届く前に閉じた流れもここに来る。断片の後に閉じたときと同じく待てば通る
+      return TransientError.new("接続エラー (途中で切れた)") if status < 400
 
       (status >= 500 || TRANSIENT_STATUSES.include?(status) ? TransientError : Error).new("API エラー (HTTP #{status})")
     end
@@ -75,7 +81,8 @@ module Comments
         next if monotonic_ms - sent_at < interval_ms
 
         sent_at = monotonic_ms
-        yield written.strip
+        # 配る途中で期限の例外を受けると、Solid Cable への書き込みが半端に止まるので、配り終えてから受ける
+        Thread.handle_interrupt(StreamTimeout => :never) { yield written.strip }
       end
     end
 

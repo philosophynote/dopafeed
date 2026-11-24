@@ -47,6 +47,9 @@ RSpec.describe "Comments", type: :system do
 
     write(first)
     expect(page).to have_css("[data-persona-id='#{first.persona_id}']", text: "#{first.persona.name}がこの記事にひとこと。")
+    Comments::CommentPersonaJob.broadcast_written(first, "遅れて届いた途中の")
+    expect(page).to have_no_text("遅れて届いた途中の", wait: 1)
+    expect(page).to have_css("[data-persona-id='#{first.persona_id}'][data-state='written']", text: "#{first.persona.name}がこの記事にひとこと。")
     expect(page).to have_css("[data-persona-id='#{second.persona_id}'][data-state='writing']")
     screenshot!("partly-written")
 

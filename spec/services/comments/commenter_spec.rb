@@ -146,6 +146,25 @@ RSpec.describe Comments::Commenter do
       expect { described_class.new(article, persona).call { |_text| nil } }.to raise_error(described_class::TransientError)
     end
 
+    it "最初の断片が届く前に流れが閉じたら（生存確認だけで終わった）、待てば通る TransientError" do
+      stub_xai(body: ": ping\n\n: ping\n\n")
+
+      expect { described_class.new(article, persona).call { |_text| nil } }.to raise_error(described_class::TransientError, "接続エラー (途中で切れた)")
+    end
+
+    it "流れ全体が yml の timeout_seconds を超えたら、生存確認が続いていても打ち切って TransientError" do
+      comments[:timeout_seconds] = 0.2
+      chat = double("chat")
+      allow(chat).to receive_messages(with_instructions: chat, with_max_output_tokens: chat, with_thinking: chat, ask_later: chat)
+      allow(chat).to receive(:generate) { sleep 2 }
+      client = double("client", chat: chat)
+
+      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      expect { described_class.new(article, persona, client: client).call { |_text| nil } }
+        .to raise_error(described_class::TransientError, "接続エラー (時間切れ)")
+      expect(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).to be < 1
+    end
+
     it "空白だけの断片も落とさずに積み上げる" do
       comments[:stream_interval_ms] = 0
       stub_xai(body: sse([ "Rails", " ", "8" ]))

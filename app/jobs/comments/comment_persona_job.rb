@@ -45,11 +45,11 @@ module Comments
 
     # 途中の本文は飾りなので、配れなくても払った生成を捨てずに書き続ける
     def self.broadcast_written(comment, written)
-      # 外した人の途中の本文を欄に出さない。配るたびに引き直すのは、書いている途中に外されうるため
-      return unless Persona.exists?(slug: comment.persona_id, enabled: true)
+      # 外した人の途中の本文を欄に出さない。Job は 1 つの実行の中でクエリキャッシュを持つので、配るたびに引き直す
+      return unless Persona.uncached { Persona.exists?(slug: comment.persona_id, enabled: true) }
 
-      Turbo::StreamsChannel.broadcast_replace_to(comment.article, :comments, target: ActionView::RecordIdentifier.dom_id(comment),
-                                                                            partial: "comments/card", locals: { comment:, written: })
+      Turbo::StreamsChannel.broadcast_update_to(comment.article, :comments, target: ActionView::RecordIdentifier.dom_id(comment, :written),
+                                                                           html: ERB::Util.html_escape(written))
     rescue StandardError => e
       Rails.logger.warn("[comments] #{name} partial broadcast failed: #{e.class.name}")
     end
