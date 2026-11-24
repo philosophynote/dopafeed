@@ -161,6 +161,27 @@ RSpec.describe "Feeds", type: :system do
     expect(page.evaluate_script("document.activeElement.getAttribute('aria-label')")).to eq("「二つ目」の操作")
   end
 
+  it "キーボードでも開くのは 1 行だけで、Tab でメニューを離れると閉じ、削除の確認をやめると ⋯ に戻る" do
+    create(:feed, title: "一つ目")
+    create(:feed, title: "二つ目")
+    sign_in
+    click_on "購読"
+
+    menu_of("一つ目").send_keys(:enter)
+    expect(menu_open?("一つ目")).to be(true)
+    menu_of("二つ目").send_keys(:enter)
+    expect(menu_open?("二つ目")).to be(true)
+    expect(menu_open?("一つ目")).to be(false)
+
+    find("[data-feed]", text: "二つ目").find_button("削除").send_keys(:tab)
+    expect(menu_open?("二つ目")).to be(false)
+
+    menu_of("一つ目").send_keys(:enter)
+    dismiss_confirm { find("[data-feed]", text: "一つ目").find_button("削除").send_keys(:enter) }
+    expect(menu_open?("一つ目")).to be(false)
+    expect(page.evaluate_script("document.activeElement.getAttribute('aria-label')")).to eq("「一つ目」の操作")
+  end
+
   it "入力中は入力欄の上でもラベルの上でも、メニューの項目の上でも、横に指を動かして削除が始まらない" do
     feed = create(:feed, title: "残す購読")
     sign_in
