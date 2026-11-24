@@ -2,7 +2,7 @@ import { Controller } from "@hotwired/stimulus"
 import { EDGE_PX, LOCK_PX } from "controllers/swipe_thresholds"
 
 // 興味なしと違い取り消せないため、指を離してから通常の削除ボタンの確認を通す。
-// data-no-swipe の中（名前の入力欄の form）で始めた触りは拾わない。入力中のずれた指で削除の確認を出さないため。
+// data-no-swipe の中（名前の入力欄の form と ⋯ のメニュー）で始めた触りは拾わない。入力中や項目を選ぶときのずれた指で削除の確認を出さないため。
 export default class extends Controller {
   static targets = ["delete"]
   static values = { ratio: Number }

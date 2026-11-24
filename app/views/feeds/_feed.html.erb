@@ -1,19 +1,33 @@
 <li id="<%= dom_id(feed) %>" class="touch-pan-y rounded-2xl bg-white p-4 shadow-sm" data-feed data-controller="feed-swipe"
     data-feed-swipe-ratio-value="<%= Dopamine.settings.dig(:swipe, :dismiss_threshold_ratio) %>"
     data-action="pointerdown->feed-swipe#start pointermove->feed-swipe#move pointerup->feed-swipe#end pointercancel->feed-swipe#cancel lostpointercapture->feed-swipe#cancel">
-  <%= render "feeds/title", feed: feed %>
+  <div class="group/head flex items-start justify-between gap-2">
+    <%= render "feeds/title", feed: feed %>
+    <%# 削除のボタンは隠すだけで DOM に残す。編集中も左スワイプが押す先が要る %>
+    <details class="relative -mt-2 -mr-2 shrink-0 group-has-[turbo-frame_form]/head:hidden" data-no-swipe data-controller="row-menu"
+             data-action="pointerdown@document->row-menu#closeOutside keydown.esc@document->row-menu#escape turbo:before-cache@document->row-menu#close">
+      <summary class="flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center rounded-full text-xl text-gray-500 [&::-webkit-details-marker]:hidden"
+               aria-label="「<%= feed.title %>」の操作" data-row-menu-target="summary">⋯</summary>
+      <div class="absolute top-full right-0 z-10 w-40 overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-gray-200" role="menu">
+        <%= link_to "名前を変更", edit_feed_path(feed), role: "menuitem", class: "flex min-h-11 items-center px-4 text-sm",
+                    data: { turbo_frame: dom_id(feed, :title), action: "row-menu#close" } %>
+        <%= button_to "削除", feed_path(feed), method: :delete, role: "menuitem", class: "flex min-h-11 w-full items-center px-4 text-sm text-red-600",
+                      data: { feed_swipe_target: "delete", action: "row-menu#close" },
+                      form: { data: { turbo_confirm: "「#{feed.title}」を削除しますか？記事・保存・読了記録も削除され、図鑑のカード・読了数・連続日数が変わります。達成済みの宝箱は残ります。" } } %>
+      </div>
+    </details>
+  </div>
   <p class="break-all text-xs text-gray-500"><%= feed.url %></p>
-  <p class="mt-2 text-sm"><%= article_count %>件・未読 <%= unread_count %></p>
-  <div class="flex items-center justify-between gap-3">
-    <p class="text-xs text-gray-500">
+  <div class="mt-2 flex items-baseline justify-between gap-3">
+    <p class="min-w-0 text-xs text-gray-500">
+      <span class="text-sm text-gray-900"><%= article_count %>件</span> ·
       <% if feed.last_fetched_at %>
         最終取得 <time datetime="<%= feed.last_fetched_at.iso8601 %>"><%= time_ago_in_words(feed.last_fetched_at, locale: :ja) %>前</time>
       <% else %>
         未取得
       <% end %>
     </p>
-    <%= button_to "削除", feed_path(feed), method: :delete, class: "min-h-11 min-w-11 text-sm text-red-600",
-                  data: { feed_swipe_target: "delete" }, form: { data: { turbo_confirm: "「#{feed.title}」を削除しますか？記事・保存・読了記録も削除され、図鑑のカード・読了数・連続日数が変わります。達成済みの宝箱は残ります。" } } %>
+    <p class="shrink-0 text-sm tabular-nums <%= unread_count.positive? ? "font-bold text-orange-600" : "text-gray-400" %>" data-unread>未読 <%= unread_count %></p>
   </div>
   <% if feed.last_error.present? %>
     <p class="break-all text-sm text-red-600"><%= feed.last_error %></p>
