@@ -2,7 +2,7 @@
   <h1 class="text-2xl font-bold">購読 (<%= @feeds.size %>)</h1>
   <%= link_to "フィードを追加", new_feed_path, class: "flex min-h-11 items-center rounded-full bg-white px-4 text-sm text-orange-600", data: { turbo_frame: "turbo_add_feed" } %>
 </header>
-<ul class="mt-4 space-y-3 overflow-hidden" aria-label="購読中のフィード">
+<ul class="mt-4 space-y-3 overflow-x-clip" aria-label="購読中のフィード">
   <% @feeds.each do |feed| %>
     <%= render "feeds/feed", feed: feed, article_count: @article_counts.fetch(feed.id, 0), unread_count: @unread_counts.fetch(feed.id, 0) %>
   <% end %>
@@ -10,5 +10,5 @@
 <% if @feeds.empty? %>
   <p class="mt-8 text-center text-gray-500">購読中のフィードはありません</p>
 <% end %>
-<p class="mt-4 text-xs text-gray-500">左にスワイプ、または削除ボタンで削除します。「名前を変更」で表示名を変えられます。取得に失敗したフィードは赤字でエラーが出ます。</p>
+<p class="mt-4 text-xs text-gray-500">左にスワイプ、または ⋯ の「削除」で削除します。⋯ の「名前を変更」で表示名を変えられます。取得に失敗したフィードは赤字でエラーが出ます。</p>
 <%= render "main/tab_bar" %>
