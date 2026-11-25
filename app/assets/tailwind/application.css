@@ -428,3 +428,8 @@ main:has(#toast > *) {
   .reel-pending { display: none; }
   .coins, .fireworks { display: none; }
 }
+
+/* 0 になったフィードを消すと、押そうとした切り替えが指の下で横にずれる。開き直すまで残す */
+.feed-chip:has([data-count="0"]) {
+  opacity: 0.5;
+}

@@ -172,6 +172,77 @@ RSpec.describe "Main", type: :request do
       expect(Time.zone.iso8601(form.find("input[name='rendered_at']", visible: :all).value)).to be_within(1.minute).of(Time.current)
     end
 
+    describe "フィードの切り替え" do
+      let!(:zenn) { create(:feed, title: "Zenn") }
+      let!(:qiita) { create(:feed, title: "Qiita") }
+
+      before do
+        create_list(:article, 2, feed: zenn)
+        create(:article, feed: qiita)
+        create(:article, :dismissed, feed: create(:feed, title: "片付いた"))
+      end
+
+      def chips
+        page.find("nav[aria-label='フィード']").all("a").map { |a| a.text.squish }
+      end
+
+      it "未読のあるフィードを未読の多い順に並べ、「すべて」が今の場所" do
+        get root_path
+
+        expect(chips).to eq([ "すべて 3", "Zenn 2", "Qiita 1" ])
+        expect(page.find("nav[aria-label='フィード'] a[aria-current='page']")).to have_text("すべて")
+        expect(page.find("nav[aria-label='フィード']")).to have_link("Zenn", href: root_path(feed: zenn.id))
+        expect(page).to have_css("article", count: 3)
+      end
+
+      it "フィードで絞ると、そのフィードの未読だけを並べ、一覧の下は「<名前> の残り n 件を片付ける」でその id だけを送る。バッジは全体の未読数" do
+        get root_path(feed: zenn.id)
+
+        expect(page.find("nav[aria-label='フィード'] a[aria-current='page']")).to have_text("Zenn")
+        expect(page.all("article").size).to eq(2)
+        form = page.find("form[action='/sweep']")
+        expect(form).to have_button("Zenn の残り 2 件を片付ける")
+        expect(form.all("input[name='article_ids[]']", visible: :all).map(&:value)).to match_array(zenn.articles.ids.map(&:to_s))
+        expect(page.find("nav[aria-label='タブバー']")).to have_css("[data-unread-badge]", text: "3")
+      end
+
+      it "未読の無い・無いフィードで絞ると、そのフィードは片付いたという空状態と「すべて」への道を出す" do
+        get root_path(feed: Feed.find_by!(title: "片付いた").id)
+
+        expect(page).to have_no_css("article")
+        expect(page).to have_text("「片付いた」は全部片付いた。")
+        expect(page).to have_link("すべてを見る", href: root_path)
+        expect(page.find("nav[aria-label='フィード'] a[aria-current='page']", visible: :all)).to be_present
+
+        get root_path(feed: 0)
+
+        expect(page).to have_no_css("article")
+        expect(page).to have_link("すべてを見る", href: root_path)
+      end
+
+      it "feed に配列を渡されたら、どのフィードにも絞らず空にする（表示と片付ける範囲を食い違わせない）" do
+        get root_path, params: { feed: [ zenn.id, qiita.id ] }
+
+        expect(page).to have_no_css("article")
+        expect(page).to have_no_css("form[action='/sweep']")
+        expect(page).to have_link("すべてを見る", href: root_path)
+      end
+
+      it "切り替えは履歴に積まない" do
+        get root_path
+
+        expect(page.all("nav[aria-label='フィード'] a").map { |a| a["data-turbo-action"] }.uniq).to eq([ "replace" ])
+      end
+
+      it "未読のあるフィードが 1 つだけなら切り替えを出さない" do
+        qiita.articles.each(&:dismiss!)
+
+        get root_path
+
+        expect(page).to have_no_css("nav[aria-label='フィード']")
+      end
+    end
+
     it "未読が 0 本ならバッジが出ず「全部読んだ」の空状態" do
       create(:article, :read)
 
