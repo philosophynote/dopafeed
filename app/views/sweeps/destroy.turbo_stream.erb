@@ -1,0 +1,11 @@
+<% @articles.each do |article| %>
+  <% if @unread_ids.include?(article.id) %>
+    <%= turbo_stream.replace dom_id(article) do %>
+      <%= render "main/article_card", article: article %>
+    <% end %>
+  <% else %>
+    <%= turbo_stream.remove dom_id(article) %>
+  <% end %>
+<% end %>
+<%= turbo_stream.update "toast", "" %>
+<%= render "shared/unread_count_streams", unread_count: @unread_count %>

@@ -46,13 +46,25 @@
   <% if @articles.empty? %>
     <%= render "empty" %>
   <% else %>
-    <ul class="swipe-list divide-y divide-gray-100 overflow-hidden rounded-2xl bg-white shadow-sm" data-process-mode-target="list"
+    <div data-controller="sweep" data-sweep-submit-timeout-seconds-value="<%= Dopamine.settings.dig(:swipe, :submit_timeout_seconds) %>">
+    <ul class="swipe-list divide-y divide-gray-100 overflow-hidden rounded-2xl bg-white shadow-sm" data-process-mode-target="list" data-sweep-target="list"
         data-controller="accordion" data-accordion-swipe-outlet="[data-controller~='swipe']" data-action="swipe:expanded->accordion#collapseOthers">
       <% @articles.each do |article| %>
         <%= render "article_card", article: article %>
       <% end %>
     </ul>
     <div class="swipe-list-empty"><%= render "empty" %></div>
+    <%# 確かめの dialog は挟まない。押す手が一つ増えるより、トーストの「元に戻す」で戻せる方を選ぶ %>
+    <%= form_with url: sweep_path, class: "sweep mt-3", data: { sweep_target: "form", action: "submit->sweep#submit" } do %>
+      <% @articles.each do |article| %>
+        <%= hidden_field_tag "article_ids[]", article.id, id: nil %>
+      <% end %>
+      <%= hidden_field_tag :swipe, 0, id: nil %>
+      <button class="h-11 w-full rounded-2xl bg-white text-sm font-bold text-gray-600 shadow-sm active:bg-gray-100 focus-visible:outline-2 focus-visible:outline-orange-500">
+        残り <span data-sweep-target="count"><%= @articles.size %></span> 件を片付ける
+      </button>
+    <% end %>
+    </div>
   <% end %>
 </section>
 

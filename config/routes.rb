@@ -19,6 +19,7 @@ Rails.application.routes.draw do
   # 手に入れたカードの図鑑。描くだけで書き込まない
   resource :collection, only: :show, controller: :collection
   resources :cards, only: :show
+  resource :sweep, only: %i[create destroy]
   resources :articles, only: [] do
     resource :reading, only: :create
     get :read, on: :member
