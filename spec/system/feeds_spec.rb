@@ -49,7 +49,7 @@ RSpec.describe "Feeds", type: :system do
     expect(visible_targets_are_44px).to be(true)
     expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true)
     last_row_items_on_top = page.evaluate_script(<<~JS)
-      Array.from(document.querySelectorAll('[data-feed]:last-of-type details[open] [role=menu] a, [data-feed]:last-of-type details[open] [role=menu] button')).map(e => {
+      Array.from(document.querySelectorAll('[data-feed]:last-of-type details[open] :is(a, button)')).map(e => {
         const r = e.getBoundingClientRect()
         return e.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2))
       })

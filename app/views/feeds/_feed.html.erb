@@ -8,10 +8,10 @@
              data-action="pointerdown@document->row-menu#closeOutside focusout->row-menu#closeOnBlur keydown.esc@document->row-menu#escape turbo:before-cache@document->row-menu#close">
       <summary class="flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center rounded-full text-xl text-gray-500 [&::-webkit-details-marker]:hidden"
                aria-label="「<%= feed.title %>」の操作" data-row-menu-target="summary">⋯</summary>
-      <div class="absolute top-full right-0 z-10 w-40 overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-gray-200" role="menu">
-        <%= link_to "名前を変更", edit_feed_path(feed), role: "menuitem", class: "flex min-h-11 items-center px-4 text-sm",
+      <div class="absolute top-full right-0 z-10 w-40 overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-gray-200">
+        <%= link_to "名前を変更", edit_feed_path(feed), class: "flex min-h-11 items-center px-4 text-sm",
                     data: { turbo_frame: dom_id(feed, :title), action: "row-menu#choose" } %>
-        <%= button_to "削除", feed_path(feed), method: :delete, role: "menuitem", class: "flex min-h-11 w-full items-center px-4 text-sm text-red-600",
+        <%= button_to "削除", feed_path(feed), method: :delete, class: "flex min-h-11 w-full items-center px-4 text-sm text-red-600",
                       data: { feed_swipe_target: "delete", action: "row-menu#choose" },
                       form: { data: { turbo_confirm: "「#{feed.title}」を削除しますか？記事・保存・読了記録も削除され、図鑑のカード・読了数・連続日数が変わります。達成済みの宝箱は残ります。" } } %>
       </div>
