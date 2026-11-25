@@ -169,6 +169,7 @@ RSpec.describe "Main", type: :request do
       form = page.find("form[action='/sweep'][method='post']")
       expect(form).to have_button("残り 2 件を片付ける")
       expect(form.all("input[name='article_ids[]']", visible: :all).map(&:value)).to match_array(shown.map { |article| article.id.to_s })
+      expect(Time.zone.iso8601(form.find("input[name='rendered_at']", visible: :all).value)).to be_within(1.minute).of(Time.current)
     end
 
     it "未読が 0 本ならバッジが出ず「全部読んだ」の空状態" do

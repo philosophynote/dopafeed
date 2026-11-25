@@ -3,7 +3,6 @@ import { enqueue, noteSwipeFailed, noteSwipeSent } from "controllers/submission_
 
 const SETTLE_POLL_MS = 50
 
-// 送る id はサーバーが描いた全行のまま。払った・保存した・読み終えた行はサーバーが未読で絞り直して外すので、ここで減らさない
 export default class extends Controller {
   static targets = ["list", "count", "form"]
   static values = { submitTimeoutSeconds: Number }
@@ -47,6 +46,15 @@ export default class extends Controller {
     this.settleTimer = setTimeout(() => this.whenSettled(run, waited + SETTLE_POLL_MS), SETTLE_POLL_MS)
   }
 
+  // サーバーは表示の後に消えた記事を「届かなかった片付けの分」として戻す側に入れる。払って隠した行の id を送ると、
+  // 片付けを元に戻したときに 1 本ずつ払った行まで戻ってしまう
+  sendOnlyVisible(form) {
+    form.querySelectorAll("input[name='article_ids[]']").forEach((input) => {
+      const row = this.listTarget.querySelector(`:scope > li#article_${CSS.escape(input.value)}`)
+      input.disabled = !row || row.hidden
+    })
+  }
+
   // 送った回数を付けるのは、前の行のトーストの「元に戻す」を、このトーストに置き換わった後で送らせないため
   send() {
     const form = this.formTarget
@@ -69,6 +77,7 @@ export default class extends Controller {
       const timer = setTimeout(() => finish(false), this.submitTimeoutSecondsValue * 1000)
       document.addEventListener("turbo:submit-end", ended)
       this.submitCleanup = () => finish(true)
+      this.sendOnlyVisible(form)
       form.elements.namedItem("swipe").value = noteSwipeSent()
       this.releasing = true
       form.requestSubmit()

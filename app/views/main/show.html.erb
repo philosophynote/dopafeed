@@ -59,6 +59,7 @@
       <% @articles.each do |article| %>
         <%= hidden_field_tag "article_ids[]", article.id, id: nil %>
       <% end %>
+      <%= hidden_field_tag :rendered_at, Time.current.iso8601(6), id: nil %>
       <%= hidden_field_tag :swipe, 0, id: nil %>
       <button class="h-11 w-full rounded-2xl bg-white text-sm font-bold text-gray-600 shadow-sm active:bg-gray-100 focus-visible:outline-2 focus-visible:outline-orange-500">
         残り <span data-sweep-target="count"><%= @articles.size %></span> 件を片付ける

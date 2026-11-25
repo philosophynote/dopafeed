@@ -66,6 +66,29 @@ RSpec.describe "Sweeps", type: :request do
         expect(page).to have_no_css("turbo-stream[target='#{dom_id(read)}']")
       end
 
+      it "初めの片付けの応答が失われて押し直したら、表示の後に消えていた記事も行を隠して元に戻すに入れる。表示の前に消した記事は入れない" do
+        first.update!(dismissed_at: noon)
+        before_render = create(:article, dismissed_at: noon - 2.minutes)
+
+        travel_to(noon + 1.minute) do
+          post sweep_path, params: { article_ids: [ first.id, second.id, before_render.id ], rendered_at: (noon - 1.minute).iso8601(6) }, headers: turbo
+        end
+
+        expect(first.reload.dismissed_at).to eq(noon)
+        expect(page).to have_css("turbo-stream[action='replace'][target='#{dom_id(first)}'] li[hidden]", visible: :all)
+        expect(page.find("turbo-stream[target='toast']")).to have_css("[data-controller='toast']", text: "2 件を片付けました")
+        expect(page.all("turbo-stream[target='toast'] input[name='article_ids[]']", visible: :all).map(&:value)).to contain_exactly(first.id.to_s, second.id.to_s)
+        expect(page).to have_no_css("turbo-stream[target='#{dom_id(before_render)}']")
+      end
+
+      it "表示した時刻が読めなければ、消えていた記事は入れない" do
+        first.dismiss!
+
+        post sweep_path, params: { article_ids: [ first.id, second.id ], rendered_at: "壊れた時刻" }, headers: turbo
+
+        expect(page.all("turbo-stream[target='toast'] input[name='article_ids[]']", visible: :all).map(&:value)).to eq([ second.id.to_s ])
+      end
+
       it "開いたが未完の記事も消し、Reading は残す" do
         opened = create(:article, :opened)
 
