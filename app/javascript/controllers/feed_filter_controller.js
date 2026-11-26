@@ -1,7 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 
-// 切り替えは Turbo の遷移で body ごと描き直すので、何もしないと段が「すべて」の先頭へ戻る。
-// 描き替わる前の段はまだ DOM に付いていないため scrollLeft を置いても 0 に戻される。値で渡して connect で置く
+// before-render の時点の新しい段は DOM に付いておらず、scrollLeft を直に置いても 0 に戻される
 export default class extends Controller {
   static values = { scrollLeft: Number }
 

@@ -573,23 +573,33 @@ RSpec.describe "Main", type: :system do
       find("nav[aria-label='フィード']").evaluate_script(<<~JS, title)
         (title => {
           const nav = this.getBoundingClientRect()
+          const style = getComputedStyle(this)
           const chip = Array.from(this.querySelectorAll("a")).find(a => a.textContent.includes(title)).getBoundingClientRect()
-          return chip.left >= nav.left && chip.right <= nav.right
+          // 段の右端は小数の位置に止まることがある
+          return Math.round(chip.left) >= Math.round(nav.left + parseFloat(style.paddingLeft)) && Math.round(chip.right) <= Math.round(nav.right - parseFloat(style.paddingRight))
         })(arguments[0])
       JS
     end
 
-    it "段は押したときの横位置のまま、押したフィードの未読だけが並ぶ" do
+    it "段を途中まで流して見えているチップを押すと、段は押したときの横位置のまま、押したフィードの未読だけが並ぶ" do
       sign_in
       filter = find("nav[aria-label='フィード']")
-      before = filter.evaluate_script("(this.scrollLeft = this.scrollWidth, this.scrollLeft)")
+      # 右端まで流して末尾を押すと、選んだチップを見せる動きだけでも同じ位置に着き、横位置を持ち越さなくても通ってしまう
+      before = filter.evaluate_script(<<~JS)
+        (() => {
+          const chip = Array.from(this.querySelectorAll("a")).find(a => a.textContent.includes("テクノロジー"))
+          this.scrollLeft = Math.round(chip.offsetLeft - this.offsetLeft - (this.clientWidth - chip.offsetWidth) / 2)
+          return this.scrollLeft
+        })()
+      JS
       expect(before).to be_positive, "チップが段からはみ出していない（例の前提が崩れた）"
+      expect(chip_within_filter?("テクノロジー")).to be(true), "押すチップが段の見える所に無い（例の前提が崩れた）"
 
-      filter.click_on("ブログ")
-      expect(page).to have_css("nav[aria-label='フィード'] a[aria-current='page']", text: "ブログ")
-      expect(all("article h2").map(&:text)).to eq([ "ブログ の 1 本目" ])
+      # Capybara の click は押す前に要素を中央へ寄せて段を動かすので、位置を変えずに押す
+      filter.find_link("テクノロジー").execute_script("this.click()")
+      expect(page).to have_css("nav[aria-label='フィード'] a[aria-current='page']", text: "テクノロジー")
+      expect(all("article h2").map(&:text)).to eq((1..4).map { |n| "テクノロジー の #{n} 本目" })
       expect(find("nav[aria-label='フィード']").evaluate_script("this.scrollLeft")).to eq(before)
-      expect(chip_within_filter?("ブログ")).to be(true), "押したチップが段の外へ消えた"
       screenshot!
     end
 
