@@ -560,6 +560,59 @@ RSpec.describe "Main", type: :system do
     screenshot!
   end
 
+  describe "フィードの切り替えの段を流した先でチップを押す（#196）" do
+    let!(:feeds) do
+      %w[Zenn Qiita はてなブックマーク テクノロジー Publickey GitHub ブログ].each_with_index.map do |title, i|
+        create(:feed, title: title).tap do |feed|
+          (7 - i).times { |n| create(:article, feed: feed, title: "#{title} の #{n + 1} 本目", published_at: 1.hour.ago - n.minutes) }
+        end
+      end
+    end
+
+    def chip_within_filter?(title)
+      find("nav[aria-label='フィード']").evaluate_script(<<~JS, title)
+        (title => {
+          const nav = this.getBoundingClientRect()
+          const style = getComputedStyle(this)
+          const chip = Array.from(this.querySelectorAll("a")).find(a => a.textContent.includes(title)).getBoundingClientRect()
+          // 段の右端は小数の位置に止まることがある
+          return Math.round(chip.left) >= Math.round(nav.left + parseFloat(style.paddingLeft)) && Math.round(chip.right) <= Math.round(nav.right - parseFloat(style.paddingRight))
+        })(arguments[0])
+      JS
+    end
+
+    it "段を途中まで流して見えているチップを押すと、段は押したときの横位置のまま、押したフィードの未読だけが並ぶ" do
+      sign_in
+      filter = find("nav[aria-label='フィード']")
+      # 右端まで流して末尾を押すと、選んだチップを見せる動きだけでも同じ位置に着き、横位置を持ち越さなくても通ってしまう
+      before = filter.evaluate_script(<<~JS)
+        (() => {
+          const chip = Array.from(this.querySelectorAll("a")).find(a => a.textContent.includes("テクノロジー"))
+          this.scrollLeft = Math.round(chip.offsetLeft - this.offsetLeft - (this.clientWidth - chip.offsetWidth) / 2)
+          return this.scrollLeft
+        })()
+      JS
+      expect(before).to be_positive, "チップが段からはみ出していない（例の前提が崩れた）"
+      expect(chip_within_filter?("テクノロジー")).to be(true), "押すチップが段の見える所に無い（例の前提が崩れた）"
+
+      # Capybara の click は押す前に要素を中央へ寄せて段を動かすので、位置を変えずに押す
+      filter.find_link("テクノロジー").execute_script("this.click()")
+      expect(page).to have_css("nav[aria-label='フィード'] a[aria-current='page']", text: "テクノロジー")
+      expect(all("article h2").map(&:text)).to eq((1..4).map { |n| "テクノロジー の #{n} 本目" })
+      expect(find("nav[aria-label='フィード']").evaluate_script("this.scrollLeft")).to eq(before)
+      screenshot!
+    end
+
+    it "選んだフィードを直に開いても、選んだチップが段の見える所にある" do
+      sign_in
+      visit root_path(feed: feeds.last.id)
+
+      expect(page).to have_css("nav[aria-label='フィード'] a[aria-current='page']", text: "ブログ")
+      expect(chip_within_filter?("ブログ")).to be(true), "選んだチップが段の外にある"
+      expect(page.evaluate_script("window.scrollY")).to eq(0)
+    end
+  end
+
   it "ストリーク 3 桁・ゴール超え・枚数 6 桁でもステータスは 1 行のまま横にはみ出さない（枚数の末尾を省く）" do
     allow(ReadingStreak).to receive(:days).and_return(365)
     travel_to noon do
