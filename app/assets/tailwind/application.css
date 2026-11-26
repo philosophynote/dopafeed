@@ -213,6 +213,23 @@ main:has(#toast > *) {
   display: none;
 }
 
+.swipe-list > li[data-flowed] > :not(.flow-restore) {
+  opacity: 0.35;
+}
+.flow-spacer {
+  display: none;
+  min-height: 100dvh;
+}
+[data-flow-mode] .flow-spacer {
+  display: block;
+}
+.flow-done {
+  display: none;
+}
+.swipe-list:has(> li[data-flowed]):not(:has(> li:not([hidden]):not([data-flowed]))) ~ .flow-spacer .flow-done {
+  display: block;
+}
+
 .highlight-banner {
   background: rgb(255 255 255 / 0.18);
   animation: highlight-pop 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.3) both;

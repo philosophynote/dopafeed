@@ -131,6 +131,43 @@ RSpec.describe "Sweeps", type: :request do
         expect(page).to have_no_css("turbo-stream[target='toast']")
       end
 
+      it "流す（flow）なら行を差し替えず、「n 件を流しました」のトーストと未読数だけを返す" do
+        travel_to(noon) { post sweep_path, params: { article_ids: [ first.id, second.id ], flow: 1, swipe: 2 }, headers: turbo }
+
+        expect([ first.reload.dismissed_at, second.reload.dismissed_at ]).to eq([ noon, noon ])
+        expect(page).to have_no_css("turbo-stream[target='#{dom_id(first)}']")
+        expect(page).to have_no_css("turbo-stream[target='#{dom_id(second)}']")
+        toast = page.find("turbo-stream[action='update'][target='toast']")
+        expect(toast).to have_css("[data-controller='toast'][data-toast-swipe-value='2']", text: "2 件を流しました")
+        expect(toast.all("form[action='#{sweep_path}'] input[name='article_ids[]']", visible: :all).map(&:value)).to contain_exactly(first.id.to_s, second.id.to_s)
+        expect(toast).to have_css("form[action='#{sweep_path}'] input[name='flow'][value='1']", visible: :all)
+        expect(page).to have_css("turbo-stream[action='replace'][target='app-badge'] #app-badge[data-badge-count-value='0']", visible: :all)
+      end
+
+      it "流す（flow）なら、送った id と実際に消した id を返す。ほかで先に消えていた記事は消した側に入れない" do
+        elsewhere = create(:article, :dismissed)
+
+        post sweep_path, params: { article_ids: [ first.id, elsewhere.id ], flow: 1 }, headers: turbo
+
+        result = page.find("turbo-stream[action='append'][target='flow-results'] [data-flow-target='result']", visible: :all)
+        expect(result["data-requested"].split).to contain_exactly(first.id.to_s, elsewhere.id.to_s)
+        expect(result["data-flowed"].split).to eq([ first.id.to_s ])
+      end
+
+      it "片付け（flow なし）では、流しの結果を返さない" do
+        post sweep_path, params: { article_ids: [ first.id ] }, headers: turbo
+
+        expect(page).to have_no_css("turbo-stream[target='flow-results']", visible: :all)
+      end
+
+      it "流すときに払った行のトーストが出ていれば（keep_toast）、消すがトーストは出さない" do
+        post sweep_path, params: { article_ids: [ first.id ], flow: 1, keep_toast: 1 }, headers: turbo
+
+        expect(first.reload).to be_dismissed
+        expect(page).to have_no_css("turbo-stream[target='toast']", visible: :all)
+        expect(page).to have_css("turbo-stream[action='replace'][target='unread-badge']")
+      end
+
       it "JS が無ければ Main へ戻る" do
         post sweep_path, params: { article_ids: [ first.id, second.id ] }
 
@@ -158,6 +195,25 @@ RSpec.describe "Sweeps", type: :request do
         end
         expect(page.find("turbo-stream[action='update'][target='toast']", visible: :all).text(:all)).to be_blank
         expect(page.find("turbo-stream[action='replace'][target='unread-badge']")).to have_css("[data-unread-badge]", text: "2")
+      end
+
+      it "流した 1 行だけを戻すとき（keep_toast）は、出ているトーストを消さない" do
+        delete sweep_path, params: { article_ids: [ first.id ], keep_toast: 1 }, headers: turbo
+
+        expect(first.reload).not_to be_dismissed
+        expect(second.reload).to be_dismissed
+        expect(page).to have_css("turbo-stream[action='replace'][target='#{dom_id(first)}']")
+        expect(page).to have_no_css("turbo-stream[target='toast']", visible: :all)
+      end
+
+      it "先に 1 本ずつ戻していた記事は、行を差し替えない（広げた欄や読み終えた行を壊さない）" do
+        first.update!(dismissed_at: nil)
+
+        delete sweep_path, params: { article_ids: [ first.id, second.id ] }, headers: turbo
+
+        expect(second.reload).not_to be_dismissed
+        expect(page).to have_no_css("turbo-stream[target='#{dom_id(first)}']", visible: :all)
+        expect(page).to have_css("turbo-stream[action='replace'][target='#{dom_id(second)}']")
       end
 
       it "片付けた後に保存も入った記事は、行を戻さず跡を消す（未読ではない）" do
