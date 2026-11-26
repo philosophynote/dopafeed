@@ -31,7 +31,7 @@ RSpec.describe "Main", type: :system do
     feed = create(:feed, title: "Zenn")
     6.times do |i|
       create(:article, feed: feed, title: "見出しが三行に折り返されるくらいに長い記事の題名をここに書いておく、その #{i + 1} 本目の記事",
-                       image_url: "/icon.png", published_at: 1.hour.ago - i.minutes)
+                       image_url: sample_image_path, published_at: 1.hour.ago - i.minutes)
     end
     sign_in
 
@@ -72,7 +72,7 @@ RSpec.describe "Main", type: :system do
 
     it "画面を移らずに枠の帯・3 行要約・「記事に遷移」が出て、もう一度タップで畳む。別の行を広げると前の行は畳む" do
       allow(Reading).to receive(:tier_at_open).and_return(common)
-      first = create(:article, title: "最初の記事", url: "https://example.com/first", summary: "・一行目\n・二行目\n・三行目", image_url: "/icon.png", published_at: 1.hour.ago)
+      first = create(:article, title: "最初の記事", url: "https://example.com/first", summary: "・一行目\n・二行目\n・三行目", image_url: sample_image_path, published_at: 1.hour.ago)
       create(:article, title: "次の記事", summary: "・次の要約", published_at: 2.hours.ago)
       create(:article, title: "三本目の記事", published_at: 3.hours.ago)
       sign_in
@@ -520,7 +520,7 @@ RSpec.describe "Main", type: :system do
     feed = create(:feed, title: "Zenn")
     6.times do |i|
       create(:article, feed: feed, title: "見出しが三行に折り返されるくらいに長い記事の題名をここに書いておく、その #{i + 1} 本目の記事",
-                       image_url: "/icon.png", published_at: 1.hour.ago - i.minutes)
+                       image_url: sample_image_path, published_at: 1.hour.ago - i.minutes)
     end
     travel_to noon do
       goal_articles.times { |i| create(:reading, :completed, opened_at: noon - (i + 1).hours) }
@@ -547,7 +547,7 @@ RSpec.describe "Main", type: :system do
     feeds = %w[Zenn Qiita はてなブックマーク テクノロジー Publickey].map { |title| create(:feed, title: title) }
     6.times do |i|
       create(:article, feed: feeds[i % feeds.size], title: "見出しが三行に折り返されるくらいに長い記事の題名をここに書いておく、その #{i + 1} 本目の記事",
-                       image_url: "/icon.png", published_at: 1.hour.ago - i.minutes)
+                       image_url: sample_image_path, published_at: 1.hour.ago - i.minutes)
     end
     sign_in
 
@@ -585,14 +585,14 @@ RSpec.describe "Main", type: :system do
   end
 
   it "OGP 画像のある記事は行の右に横長のサムネイルで出し、無い記事・読めない画像は枠ごと出さない" do
-    create(:article, title: "画像のある記事", image_url: "/icon.png", published_at: 1.hour.ago)
+    create(:article, title: "画像のある記事", image_url: sample_image_path, published_at: 1.hour.ago)
     create(:article, title: "画像の無い記事", published_at: 2.hours.ago)
     create(:article, title: "画像が消えた記事", image_url: "/missing-og.png", published_at: 3.hours.ago)
     sign_in
 
     within("article", text: "画像のある記事") do
       image = find("figure img", visible: :all)
-      expect(image[:src]).to end_with("/icon.png")
+      expect(image[:src]).to end_with(sample_image_path)
       expect(image[:referrerpolicy]).to eq("no-referrer")
       expect(image[:loading]).to eq("lazy")
       expect(image[:draggable]).to eq("false")
@@ -626,7 +626,7 @@ RSpec.describe "Main", type: :system do
   it "画面の外の行の画像は、読みに行く前に枠を外さず、スクロールして見えたら読む" do
     feed = create(:feed)
     12.times { |i| create(:article, feed: feed, title: "上の記事 #{i}", published_at: 1.hour.ago - i.minutes) }
-    create(:article, feed: feed, title: "下の画像の記事", image_url: "/icon.png", published_at: 1.day.ago)
+    create(:article, feed: feed, title: "下の画像の記事", image_url: sample_image_path, published_at: 1.day.ago)
     sign_in
 
     card = find("article", text: "下の画像の記事")

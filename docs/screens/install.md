@@ -57,6 +57,7 @@ personas.yml: なし
     → **決定（#63、nao 承認）**: 新着の未読 3 本の見出しで代替し、タップ先は Main。Claude の選定は ForYou の Unit で差し替える
 5. アプリアイコンの画像（180×180 / 512×512）を誰が作るか
     → **決定（Unit 10a、#63）**: 橙（#f97316）に白の「D」の仮アイコンを置いた（public/icon.png 512、public/icon-180.png、public/icon.svg）。本物は nao が同じファイル名で差し替える
+    → **改め（Unit 43、#199）**: 三枚を app/assets/images/ に移し、Propshaft の指紋付きの URL（`image_path`）で配る。public/ の固定 URL は 1 年キャッシュされ、差し替えても favicon と iOS のホーム画面に届かなかったため。差し替えは app/assets/images/ の同じファイル名で行い、ホーム画面のアイコンは iPhone で一度消して追加し直す
 6. standalone 判定のテスト方法。iOS Safari の `navigator.standalone` と標準の `matchMedia('(display-mode: standalone)')` の両方を見る。Selenium では CDP の `Emulation.setEmulatedMedia` が使えなければ execute_script でスタブ
     → **決定（Unit 10a、#63）**: CDP の `Page.addScriptToEvaluateOnNewDocument` で、文書ごとに `navigator.standalone = true` と `setAppBadge` / `clearAppBadge` の記録用スタブを先回りで入れる（spec/system/install_spec.rb）。ページの JS より先に走るので execute_script の後追いより確実。例の後に外す
 7. ストリーク警告の時刻。reset_hour（4 時）の 3 時間前は 01:00 で、深夜に通知が鳴る。モックの 21:00 を採るなら文言を「今日中に 1 本読めば継続」に変え、「H 時間後に消えます」は出さない。どちらにするかは nao が決める

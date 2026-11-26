@@ -16,7 +16,7 @@ RSpec.describe "Collection", type: :system do
     30.times do |i|
       tier = if i == 1 then gold elsif (i % 7).zero? then rare else Dopamine.base_rarity[:name] end
       card(title: "#{i + 1} 枚目の、390 幅の 3 列で 3 行に折り返されるくらい長い見出し", completed_at: noon - (i * 2).hours - 1.minute,
-           tier: tier, feed: feeds[i % 3], image_url: i.even? ? "/icon.png" : nil)
+           tier: tier, feed: feeds[i % 3], image_url: i.even? ? sample_image_path : nil)
     end
     create(:article, title: "Main の未読")
     travel_to(noon) do

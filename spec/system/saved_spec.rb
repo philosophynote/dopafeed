@@ -2,7 +2,7 @@ RSpec.describe "Saved", type: :system do
   it "タブバーの「保存」から開き、保存した新しい順に並ぶ。横スクロールが無く、タップ領域は 44px 以上" do
     feed = create(:feed, title: "Ruby Weekly")
     create(:article, feed: feed, title: "先に保存した、390 幅で折り返されるくらいに長い見出しの記事",
-                     image_url: "/icon.png", bookmarked_at: 2.days.ago, published_at: 3.days.ago)
+                     image_url: sample_image_path, bookmarked_at: 2.days.ago, published_at: 3.days.ago)
     create(:article, :read, feed: feed, title: "後に保存して読み終えた記事", bookmarked_at: 1.day.ago, published_at: 2.days.ago)
     create(:article, title: "Main に残る記事")
     sign_in

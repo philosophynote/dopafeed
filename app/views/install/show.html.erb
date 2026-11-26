@@ -8,7 +8,7 @@
 <div data-controller="install" data-install-vapid-public-key-value="<%= Push::Vapid.public_key %>" data-install-subscribe-url-value="<%= push_subscription_path %>">
   <section class="mt-4 flex items-center gap-4 rounded-2xl bg-white p-4 shadow-sm" aria-label="アイコン">
     <span class="relative shrink-0">
-      <%= image_tag "/icon-180.png", alt: "Dopafeed のアイコン", class: "h-16 w-16 rounded-2xl", size: "64x64" %>
+      <%= image_tag "icon-180.png", alt: "Dopafeed のアイコン", class: "h-16 w-16 rounded-2xl", size: "64x64" %>
       <% if unread_count.positive? %>
         <span class="absolute -right-2 -top-2 min-w-6 rounded-full bg-red-500 px-1.5 text-center text-xs font-bold leading-6 text-white" data-unread-badge><%= unread_count %></span>
       <% end %>

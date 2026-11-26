@@ -139,13 +139,13 @@ RSpec.describe "Reader", type: :system do
   end
 
   it "OGP 画像のある記事は Reader のカードの上端に出し、無い記事には枠を出さない" do
-    article = create(:article, title: "画像のある記事", url: source_url("image"), image_url: "/icon.png", published_at: now - 1.hour)
+    article = create(:article, title: "画像のある記事", url: source_url("image"), image_url: sample_image_path, published_at: now - 1.hour)
     plain = create(:article, title: "画像の無い記事", url: source_url("plain"), published_at: now - 2.hours)
     sign_in
 
     read_from_saved(article)
     card = find("##{ActionView::RecordIdentifier.dom_id(article, :reader)}")
-    expect(card).to have_css("figure:first-child img[src='/icon.png'][referrerpolicy='no-referrer']", visible: :all)
+    expect(card).to have_css("figure:first-child img[src='#{sample_image_path}'][referrerpolicy='no-referrer']", visible: :all)
     expect(no_horizontal_scroll?).to be(true), "カードが横にはみ出している"
     screenshot!
 
