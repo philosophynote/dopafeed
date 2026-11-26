@@ -6,6 +6,10 @@ module SystemScreen
   CHROMEDRIVER_LOG = Rails.root.join("log/chromedriver.log")
   IPHONE_USER_AGENT = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1".freeze
 
+  def sample_image_path
+    ActionController::Base.helpers.image_path("icon.png")
+  end
+
   def screenshot!(suffix = nil)
     SCREENSHOT_DIR.mkpath
     path = screenshot_path(suffix)

@@ -16,9 +16,10 @@
 
     <%= tag.link rel: "manifest", href: pwa_manifest_path(format: :json) %>
 
-    <link rel="icon" href="/icon.png" type="image/png">
-    <link rel="icon" href="/icon.svg" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="/icon-180.png">
+    <%# public/ の固定 URL だと 1 年キャッシュで差し替えが届かず、iOS は追加し直しても古い画像を拾う %>
+    <%= tag.link rel: "icon", href: image_path("icon.png"), type: "image/png" %>
+    <%= tag.link rel: "icon", href: image_path("icon.svg"), type: "image/svg+xml" %>
+    <%= tag.link rel: "apple-touch-icon", href: image_path("icon-180.png") %>
 
     <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
     <%= javascript_importmap_tags %>
