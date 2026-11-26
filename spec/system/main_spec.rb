@@ -560,6 +560,49 @@ RSpec.describe "Main", type: :system do
     screenshot!
   end
 
+  describe "フィードの切り替えの段を流した先でチップを押す（#196）" do
+    let!(:feeds) do
+      %w[Zenn Qiita はてなブックマーク テクノロジー Publickey GitHub ブログ].each_with_index.map do |title, i|
+        create(:feed, title: title).tap do |feed|
+          (7 - i).times { |n| create(:article, feed: feed, title: "#{title} の #{n + 1} 本目", published_at: 1.hour.ago - n.minutes) }
+        end
+      end
+    end
+
+    def chip_within_filter?(title)
+      find("nav[aria-label='フィード']").evaluate_script(<<~JS, title)
+        (title => {
+          const nav = this.getBoundingClientRect()
+          const chip = Array.from(this.querySelectorAll("a")).find(a => a.textContent.includes(title)).getBoundingClientRect()
+          return chip.left >= nav.left && chip.right <= nav.right
+        })(arguments[0])
+      JS
+    end
+
+    it "段は押したときの横位置のまま、押したフィードの未読だけが並ぶ" do
+      sign_in
+      filter = find("nav[aria-label='フィード']")
+      before = filter.evaluate_script("(this.scrollLeft = this.scrollWidth, this.scrollLeft)")
+      expect(before).to be_positive, "チップが段からはみ出していない（例の前提が崩れた）"
+
+      filter.click_on("ブログ")
+      expect(page).to have_css("nav[aria-label='フィード'] a[aria-current='page']", text: "ブログ")
+      expect(all("article h2").map(&:text)).to eq([ "ブログ の 1 本目" ])
+      expect(find("nav[aria-label='フィード']").evaluate_script("this.scrollLeft")).to eq(before)
+      expect(chip_within_filter?("ブログ")).to be(true), "押したチップが段の外へ消えた"
+      screenshot!
+    end
+
+    it "選んだフィードを直に開いても、選んだチップが段の見える所にある" do
+      sign_in
+      visit root_path(feed: feeds.last.id)
+
+      expect(page).to have_css("nav[aria-label='フィード'] a[aria-current='page']", text: "ブログ")
+      expect(chip_within_filter?("ブログ")).to be(true), "選んだチップが段の外にある"
+      expect(page.evaluate_script("window.scrollY")).to eq(0)
+    end
+  end
+
   it "ストリーク 3 桁・ゴール超え・枚数 6 桁でもステータスは 1 行のまま横にはみ出さない（枚数の末尾を省く）" do
     allow(ReadingStreak).to receive(:days).and_return(365)
     travel_to noon do
