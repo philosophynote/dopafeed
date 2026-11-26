@@ -209,6 +209,9 @@ main:has(#toast > *) {
 .swipe-list:not(:has(> li:not([hidden]))) + .swipe-list-empty {
   display: block;
 }
+.swipe-list:not(:has(> li:not([hidden]))) ~ .sweep {
+  display: none;
+}
 
 .highlight-banner {
   background: rgb(255 255 255 / 0.18);

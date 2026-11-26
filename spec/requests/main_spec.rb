@@ -160,10 +160,24 @@ RSpec.describe "Main", type: :request do
       expect(page.find("nav[aria-label='タブバー']")).to have_css("[data-unread-badge]", text: "48")
     end
 
+    it "一覧の下に「残り n 件を片付ける」があり、並べた未読の id をすべて送る" do
+      shown = create_list(:article, 2)
+      create(:article, :dismissed)
+
+      get root_path
+
+      form = page.find("form[action='/sweep'][method='post']")
+      expect(form).to have_button("残り 2 件を片付ける")
+      expect(form.all("input[name='article_ids[]']", visible: :all).map(&:value)).to match_array(shown.map { |article| article.id.to_s })
+      expect(Time.zone.iso8601(form.find("input[name='rendered_at']", visible: :all).value)).to be_within(1.minute).of(Time.current)
+    end
+
     it "未読が 0 本ならバッジが出ず「全部読んだ」の空状態" do
       create(:article, :read)
 
       get root_path
+
+      expect(page).to have_no_button("片付ける")
 
       expect(page.find("nav[aria-label='タブバー']")).to have_no_css("[data-unread-badge]")
       expect(page).to have_text("全部読んだ。")
