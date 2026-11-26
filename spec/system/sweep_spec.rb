@@ -99,4 +99,37 @@ RSpec.describe "Sweep", type: :system do
     expect(all("article h2").map(&:text)).to eq(%w[二本目 三本目])
     expect(Article.find_by!(title: "一本目")).to be_dismissed
   end
+
+  it "フィードで絞って片付けると、そのフィードの見えている未読だけが消え、切り替えの件数も変わる" do
+    zenn = create(:feed, title: "Zenn")
+    qiita = create(:feed, title: "Qiita")
+    create(:article, title: "Zenn 一本目", feed: zenn, published_at: now - 1.hour)
+    create(:article, title: "Zenn 二本目", feed: zenn, published_at: now - 2.hours)
+    create(:article, title: "Qiita の記事", feed: qiita, published_at: now - 3.hours)
+    sign_in
+
+    filter = find("nav[aria-label='フィード']")
+    expect(filter.all("a").map { |a| a.text.squish }).to eq([ "すべて 3", "Zenn 2", "Qiita 1" ])
+    history = page.evaluate_script("history.length")
+    filter.click_on("Zenn")
+    expect(page).to have_css("nav[aria-label='フィード'] a[aria-current='page']", text: "Zenn")
+    expect(page.evaluate_script("history.length")).to eq(history)
+    expect(all("article h2").map(&:text)).to eq([ "Zenn 一本目", "Zenn 二本目" ])
+    expect(sweep_button).to have_text("Zenn の残り 2 件を片付ける")
+    screenshot!("filtered")
+
+    sweep_button.click
+    expect(page).to have_css("#toast [data-controller='toast']", text: "2 件を片付けました")
+    expect(page).to have_text("「Zenn」は全部片付いた。")
+    expect(find("nav[aria-label='フィード']").all("a").map { |a| a.text.squish }).to eq([ "すべて 1", "Zenn 0", "Qiita 1" ])
+    expect(Article.find_by!(title: "Qiita の記事")).not_to be_dismissed
+    screenshot!("filtered-swept")
+
+    find("#toast").click_on("元に戻す")
+    expect(all("article h2").map(&:text)).to eq([ "Zenn 一本目", "Zenn 二本目" ])
+    expect(find("nav[aria-label='フィード']").all("a").map { |a| a.text.squish }).to eq([ "すべて 3", "Zenn 2", "Qiita 1" ])
+
+    find("nav[aria-label='フィード']").click_on("すべて")
+    expect(page).to have_css("article", count: 3)
+  end
 end

@@ -4,3 +4,8 @@
 <%= turbo_stream.replace "app-badge" do %>
   <%= render "shared/app_badge", unread_count: unread_count %>
 <% end %>
+<% feed_counts = Article.unread.group(:feed_id).count %>
+<% Feed.ids.each do |feed_id| %>
+  <%= turbo_stream.replace "feed-unread-#{feed_id}", partial: "main/feed_unread", locals: { id: "feed-unread-#{feed_id}", count: feed_counts.fetch(feed_id, 0) } %>
+<% end %>
+<%= turbo_stream.replace "feed-unread-all", partial: "main/feed_unread", locals: { id: "feed-unread-all", count: unread_count } %>

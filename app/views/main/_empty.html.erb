@@ -1,5 +1,10 @@
 <div class="rounded-2xl bg-white px-4 py-10 text-center shadow-sm">
   <p class="text-3xl" aria-hidden="true">🎉</p>
-  <p class="mt-2 text-lg font-bold">全部読んだ。</p>
-  <p class="mt-1 text-sm text-gray-500">次の記事が届くまで、今日はここまで。</p>
+  <% if local_assigns[:filtering] %>
+    <p class="mt-2 text-lg font-bold"><%= feed ? "「#{feed.title}」は全部片付いた。" : "このフィードに未読はない。" %></p>
+    <%= link_to "すべてを見る", root_path, class: "mt-3 inline-flex min-h-11 items-center rounded-full bg-orange-500 px-5 text-sm font-bold text-white" %>
+  <% else %>
+    <p class="mt-2 text-lg font-bold">全部読んだ。</p>
+    <p class="mt-1 text-sm text-gray-500">次の記事が届くまで、今日はここまで。</p>
+  <% end %>
 </div>

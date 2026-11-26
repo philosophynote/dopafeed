@@ -26,6 +26,10 @@
   </div>
 </header>
 
+<% if @filter_feeds.size > 1 || @filtering %>
+  <%= render "feed_filter", feeds: @filter_feeds, counts: @feed_unread_counts, unread_count: @unread_count, current_feed: @current_feed, filtering: @filtering %>
+<% end %>
+
 <%# 処理モードの間はステータスの行にコンボを重ねる。別の行を足すと、一画面に入る記事の行が減る %>
 <div class="relative">
   <div data-process-mode-target="status"><%= render "status_card" %></div>
@@ -44,7 +48,7 @@
 
 <section class="mt-3" aria-label="記事">
   <% if @articles.empty? %>
-    <%= render "empty" %>
+    <%= render "empty", feed: @current_feed, filtering: @filtering %>
   <% else %>
     <div data-controller="sweep" data-sweep-submit-timeout-seconds-value="<%= Dopamine.settings.dig(:swipe, :submit_timeout_seconds) %>">
     <ul class="swipe-list divide-y divide-gray-100 overflow-hidden rounded-2xl bg-white shadow-sm" data-process-mode-target="list" data-sweep-target="list"
@@ -53,7 +57,7 @@
         <%= render "article_card", article: article %>
       <% end %>
     </ul>
-    <div class="swipe-list-empty"><%= render "empty" %></div>
+    <div class="swipe-list-empty"><%= render "empty", feed: @current_feed, filtering: @filtering %></div>
     <%# 確かめの dialog は挟まない。押す手が一つ増えるより、トーストの「元に戻す」で戻せる方を選ぶ %>
     <%= form_with url: sweep_path, class: "sweep mt-3", data: { sweep_target: "form", action: "submit->sweep#submit" } do %>
       <% @articles.each do |article| %>
@@ -62,7 +66,7 @@
       <%= hidden_field_tag :rendered_at, Time.current.iso8601(6), id: nil %>
       <%= hidden_field_tag :swipe, 0, id: nil %>
       <button class="h-11 w-full rounded-2xl bg-white text-sm font-bold text-gray-600 shadow-sm active:bg-gray-100 focus-visible:outline-2 focus-visible:outline-orange-500">
-        残り <span data-sweep-target="count"><%= @articles.size %></span> 件を片付ける
+        <%= "#{@current_feed.title} の" if @current_feed %>残り <span data-sweep-target="count"><%= @articles.size %></span> 件を片付ける
       </button>
     <% end %>
     </div>
