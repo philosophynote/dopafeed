@@ -140,6 +140,7 @@ RSpec.describe "Sweeps", type: :request do
         toast = page.find("turbo-stream[action='update'][target='toast']")
         expect(toast).to have_css("[data-controller='toast'][data-toast-swipe-value='2']", text: "2 件を流しました")
         expect(toast.all("form[action='#{sweep_path}'] input[name='article_ids[]']", visible: :all).map(&:value)).to contain_exactly(first.id.to_s, second.id.to_s)
+        expect(toast).to have_css("form[action='#{sweep_path}'] input[name='flow'][value='1']", visible: :all)
         expect(page).to have_css("turbo-stream[action='replace'][target='app-badge'] #app-badge[data-badge-count-value='0']", visible: :all)
       end
 

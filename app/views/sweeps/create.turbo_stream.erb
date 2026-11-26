@@ -9,7 +9,7 @@
 <% if @articles.any? && !params[:keep_toast] %>
   <%= turbo_stream.update "toast" do %>
     <%= render "shared/undo_toast", message: "#{@articles.size} 件を#{flow? ? "流しました" : "片付けました"}",
-          undo: { path: sweep_path, method: :delete, params: { article_ids: @articles.map(&:id) } }, swipe: params[:swipe].to_i %>
+          undo: { path: sweep_path, method: :delete, params: { article_ids: @articles.map(&:id), flow: (1 if flow?) }.compact }, swipe: params[:swipe].to_i %>
   <% end %>
 <% end %>
 <%= render "shared/unread_count_streams", unread_count: @unread_count %>

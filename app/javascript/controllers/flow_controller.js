@@ -12,10 +12,17 @@ export default class extends Controller {
   connect() {
     this.kept = new Set()
     this.reset()
+    // 払い・片付けのトーストは送信が終わってから描かれる。描かれる前に流しを送ると、DOM を見ただけでは置き換えてしまう
+    const toast = document.getElementById("toast")
+    if (toast) {
+      this.toastObserver = new MutationObserver(() => { this.otherToastAwaited = false })
+      this.toastObserver.observe(toast, { childList: true })
+    }
   }
 
   disconnect() {
     this.stopWatching()
+    this.toastObserver?.disconnect()
     this.submitCleanup?.()
   }
 
@@ -61,9 +68,11 @@ export default class extends Controller {
     if (this.flowable(row)) this.flow(row)
   }
 
+  // 写しから戻ると kept は空になるが、広げた欄は中身ごと戻る。欄の中身で広げた行を見分ける
   flowable(row) {
+    const detail = row.querySelector("[data-swipe-target~='detail']")
     return !row.hidden && !row.hasAttribute("data-flowed") && !row.classList.contains("swipe-active") &&
-      !this.kept.has(row.id) && !row.querySelector("[data-completed='true']")
+      !this.kept.has(row.id) && !(detail?.childElementCount > 0) && !row.querySelector("[data-completed='true']")
   }
 
   // 薄い行の「読む」に Tab や VoiceOver で届くと、消した記事を読み始めてしまう
@@ -99,7 +108,7 @@ export default class extends Controller {
       form.querySelectorAll("input[name='article_ids[]']").forEach((input) => input.remove())
       ids.forEach((id) => form.append(this.idField(id)))
       // トーストを出さない送信で回数を進めると、残したトーストが自分は置き換わったと見て「元に戻す」を送らなくなる
-      const keepToast = this.rowToastShown()
+      const keepToast = this.otherToastAwaited || this.otherToastShown()
       form.elements.namedItem("keep_toast").disabled = !keepToast
       stamped = !keepToast
       if (stamped) form.elements.namedItem("swipe").value = noteSwipeSent()
@@ -114,10 +123,10 @@ export default class extends Controller {
     })
   }
 
-  // 払った行の「元に戻す」は、その行が跡になってトーストでしか戻せない。押していない流しのトーストで置き換えない（流した行は薄い行のタップで戻せる）
-  rowToastShown() {
+  // 払った行・片付けた行は跡に替わり、トーストの「元に戻す」でしか戻せない。押していない流しのトーストで置き換えない（流した行は薄い行のタップで戻せる）
+  otherToastShown() {
     const undo = document.querySelector("#toast [data-controller='toast'] form")
-    return Boolean(undo) && new URL(undo.action).pathname !== new URL(this.formTarget.action).pathname
+    return Boolean(undo) && !undo.querySelector("input[name='flow']")
   }
 
   restore(event) {
@@ -131,15 +140,34 @@ export default class extends Controller {
     })
   }
 
+  // 読むの送信は前の送信の応答を待って列で遅れて始まる。始まるまでに流れて溜まらないよう、押した時点で外す
+  noteTap(event) {
+    const row = event.target.closest?.("[data-swipe-target~='read']")?.closest("li")
+    if (!row || !this.listTarget?.contains(row)) return
+
+    this.kept.add(row.id)
+    if (this.pending.delete(row.id)) this.unflow(row.id)
+  }
+
   noteSubmit({ target: form }) {
     if (!(form instanceof HTMLFormElement)) return
 
     const path = new URL(form.action).pathname
+    if (this.makesOtherToast(form)) this.otherToastAwaited = true
     const reading = path.match(/\/articles\/(\d+)\/reading$/)
     if (reading) this.kept.add(`${ROW_ID_PREFIX}${reading[1]}`)
     if (path === new URL(this.formTarget.action).pathname && form.querySelector("input[name='_method'][value='delete']")) {
       form.querySelectorAll("input[name='article_ids[]']").forEach((input) => this.kept.add(`${ROW_ID_PREFIX}${input.value}`))
     }
+  }
+
+  noteSubmitEnd({ target: form, detail: { success } }) {
+    if (!success && this.makesOtherToast(form)) this.otherToastAwaited = false
+  }
+
+  // 送った回数を付ける送信（払い・片付け）は応答でトーストを置き換える
+  makesOtherToast(form) {
+    return form instanceof HTMLFormElement && form !== this.formTarget && Boolean(form.elements.namedItem("swipe"))
   }
 
   idField(rowId) {
@@ -156,18 +184,24 @@ export default class extends Controller {
 
       const finish = (success, options) => {
         clearTimeout(timer)
+        document.removeEventListener("turbo:submit-start", started)
         document.removeEventListener("turbo:submit-end", ended)
         this.submitCleanup = null
         resolve()
         done(success, options)
       }
-      const ended = (event) => { if (event.target === form) finish(event.detail.success) }
+      // 待ちの上限を越えた前の送信は止めていないので、同じ form から遅れて終わりが届く。今回の送信の終わりだけを拾う
+      let submission
+      const started = (event) => { if (event.target === form) submission ??= event.detail.formSubmission }
+      const ended = (event) => { if (event.target === form && event.detail.formSubmission === submission) finish(event.detail.success) }
       // 応答が来なくても列は止めない（届いていれば後から Turbo が差し替える）
       const timer = setTimeout(() => finish(false, { timedOut: true }), this.submitTimeoutSecondsValue * 1000)
+      document.addEventListener("turbo:submit-start", started)
       document.addEventListener("turbo:submit-end", ended)
       // 外されたときは列を解くだけ。応答を待たずに送り直さない
       this.submitCleanup = () => {
         clearTimeout(timer)
+        document.removeEventListener("turbo:submit-start", started)
         document.removeEventListener("turbo:submit-end", ended)
         this.submitCleanup = null
         resolve()

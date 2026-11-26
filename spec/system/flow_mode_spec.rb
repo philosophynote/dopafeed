@@ -134,6 +134,32 @@ RSpec.describe "FlowMode", type: :system do
     expect(page).to have_no_css("#toast [data-controller='toast']")
   end
 
+  it "広げたまま別の画面へ移って戻っても、広げた行は流さない" do
+    create_articles(8)
+    sign_in
+    expand("記事 1")
+    find("nav", text: "保存").click_on("保存")
+    expect(page).to have_current_path(saved_path)
+    page.go_back
+    expect(find("li[id^='article_']", text: "記事 1")).to have_link("記事に遷移")
+    enter_flow_mode
+
+    scroll_past("記事 2")
+    expect(page).to have_css("#toast [data-controller='toast']", text: "1 件を流しました")
+    expect(dismissed_titles).to eq([ "記事 2" ])
+  end
+
+  it "処理モードで払ってから「流す」に切り替えると、処理のリザルトが出る" do
+    create_articles(3)
+    sign_in
+    enter_process_mode
+    delete_row("記事 1")
+    expect(page).to have_css("#toast [data-controller='toast']", text: "1 件を削除しました")
+
+    enter_flow_mode
+    expect(find("dialog[open]", text: "リザルト")).to have_text("1 件 処理した", normalize_ws: true)
+  end
+
   it "広げた行は流れても消さない" do
     create_articles(8)
     sign_in
