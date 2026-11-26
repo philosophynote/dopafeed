@@ -3,7 +3,7 @@
   <h1 class="text-xl font-bold">コメントの人物</h1>
 </header>
 <%= render "personas/summary" %>
-<ul class="mt-3 space-y-3" aria-label="コメントの人物" data-controller="focus-return" data-action="turbo:submit-end->focus-return#restore">
+<ul class="mt-3 space-y-3" aria-label="コメントの人物">
   <%= render @personas %>
 </ul>
 <%= link_to "＋ 人物を足す", new_persona_path, class: "mt-3 flex min-h-11 items-center justify-center rounded-2xl border border-dashed border-orange-300 bg-white text-sm font-semibold text-orange-600" %>

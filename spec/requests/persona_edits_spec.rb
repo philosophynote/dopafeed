@@ -18,10 +18,10 @@ RSpec.describe "Persona の書き換え", type: :request do
   context "ログイン済み" do
     before { sign_in_as(create(:user)) }
 
-    it "一覧の行から開ける。今の値入りの入力欄と、保存済みのコメントは作り直さない旨の注記を出す" do
+    it "一覧の行の ⋯ から開ける。今の値入りの入力欄と、保存済みのコメントは作り直さない旨の注記を出す" do
       persona
       get personas_path
-      expect(page).to have_link("書き換える", href: edit_persona_path(persona))
+      expect(page.find("[data-persona] details")).to have_link("変更", href: edit_persona_path(persona), visible: :all)
 
       get edit_persona_path(persona)
 
