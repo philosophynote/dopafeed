@@ -11,7 +11,7 @@ export default class extends Controller {
   connect() {
     this.sync()
     this.observer = new MutationObserver(() => this.sync())
-    this.observer.observe(this.listTarget, { childList: true, subtree: true, attributeFilter: ["hidden", "data-completed"] })
+    this.observer.observe(this.listTarget, { childList: true, subtree: true, attributeFilter: ["hidden", "data-completed", "data-flowed"] })
   }
 
   disconnect() {
@@ -20,9 +20,9 @@ export default class extends Controller {
     this.submitCleanup?.()
   }
 
-  // 一覧の中で読み終えた行は li が残るが、未読ではないので数えない
+  // 一覧の中で読み終えた行と流した行は li が残るが、未読ではないので数えない
   sync() {
-    const count = this.listTarget.querySelectorAll(":scope > li:not([hidden]):not(:has([data-completed='true']))").length
+    const count = this.listTarget.querySelectorAll(":scope > li:not([hidden]):not([data-flowed]):not(:has([data-completed='true']))").length
     this.countTarget.textContent = count
     this.formTarget.hidden = count === 0
   }
@@ -46,12 +46,12 @@ export default class extends Controller {
     this.settleTimer = setTimeout(() => this.whenSettled(run, waited + SETTLE_POLL_MS), SETTLE_POLL_MS)
   }
 
-  // サーバーは表示の後に消えた記事を「届かなかった片付けの分」として戻す側に入れる。払って隠した行の id を送ると、
-  // 片付けを元に戻したときに 1 本ずつ払った行まで戻ってしまう
+  // サーバーは表示の後に消えた記事を「届かなかった片付けの分」として戻す側に入れる。払って隠した行や流した行の id を送ると、
+  // 片付けを元に戻したときにそれらの行まで戻ってしまう
   sendOnlyVisible(form) {
     form.querySelectorAll("input[name='article_ids[]']").forEach((input) => {
       const row = this.listTarget.querySelector(`:scope > li#article_${CSS.escape(input.value)}`)
-      input.disabled = !row || row.hidden
+      input.disabled = !row || row.hidden || row.hasAttribute("data-flowed")
     })
   }
 

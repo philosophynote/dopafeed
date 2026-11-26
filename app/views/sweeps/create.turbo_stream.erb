@@ -1,11 +1,13 @@
-<% @articles.each do |article| %>
-  <%= turbo_stream.replace dom_id(article) do %>
-    <%= render "shared/hidden_row", article: article %>
+<% unless flow? %>
+  <% @articles.each do |article| %>
+    <%= turbo_stream.replace dom_id(article) do %>
+      <%= render "shared/hidden_row", article: article %>
+    <% end %>
   <% end %>
 <% end %>
 <% if @articles.any? %>
   <%= turbo_stream.update "toast" do %>
-    <%= render "shared/undo_toast", message: "#{@articles.size} 件を片付けました",
+    <%= render "shared/undo_toast", message: "#{@articles.size} 件を#{flow? ? "流しました" : "片付けました"}",
           undo: { path: sweep_path, method: :delete, params: { article_ids: @articles.map(&:id) } }, swipe: params[:swipe].to_i %>
   <% end %>
 <% end %>

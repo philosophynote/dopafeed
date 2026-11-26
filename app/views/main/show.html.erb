@@ -1,15 +1,16 @@
-<div data-controller="process-mode" data-process-mode-small-every-value="<%= Dopamine.settings.dig(:delete_mode, :combo_small_every).to_i %>" data-process-mode-large-every-value="<%= Dopamine.settings.dig(:delete_mode, :combo_large_every).to_i %>" data-process-mode-swipe-outlet="[data-controller~='swipe']" data-action="turbo:before-cache@document->process-mode#reset pageshow@window->process-mode#reset swipe:processed->process-mode#processed swipe:process-failed->process-mode#processFailed turbo:submit-end@document->process-mode#submitted">
+<div data-controller="process-mode flow" data-flow-submit-timeout-seconds-value="<%= Dopamine.settings.dig(:swipe, :submit_timeout_seconds) %>" data-process-mode-small-every-value="<%= Dopamine.settings.dig(:delete_mode, :combo_small_every).to_i %>" data-process-mode-large-every-value="<%= Dopamine.settings.dig(:delete_mode, :combo_large_every).to_i %>" data-process-mode-swipe-outlet="[data-controller~='swipe']" data-action="turbo:before-cache@document->process-mode#reset pageshow@window->process-mode#reset swipe:processed->process-mode#processed swipe:process-failed->process-mode#processFailed turbo:submit-end@document->process-mode#submitted turbo:before-cache@document->flow#reset pageshow@window->flow#reset turbo:submit-start@document->flow#noteSubmit scrollend@window->flow#settled">
 <%# 切り替えを別の行に置くと、一画面に入る記事の行が 1 本減る %>
 <header class="flex items-center justify-between gap-2">
   <h1 class="text-2xl font-black tracking-tight">
     <span class="text-orange-500">Dopa</span>Feed
   </h1>
   <% unless @articles.empty? %>
-    <fieldset class="process-mode-switch ml-auto flex rounded-xl bg-gray-200/70 p-0.5 text-sm font-bold text-gray-600 [&[hidden]]:hidden" data-process-mode-target="switch" data-action="change->process-mode#toggle">
+    <fieldset class="process-mode-switch ml-auto flex rounded-xl bg-gray-200/70 p-0.5 text-sm font-bold text-gray-600 [&[hidden]]:hidden" data-process-mode-target="switch" data-action="change->process-mode#toggle change->flow#toggle">
       <legend class="sr-only">モード</legend>
-      <% [ %w[read 読む], %w[process 処理] ].each do |value, label| %>
-        <label class="flex h-11 w-14 cursor-pointer items-center justify-center rounded-[10px] has-checked:bg-white has-checked:text-gray-900 has-checked:shadow-sm has-focus-visible:outline-2 has-focus-visible:outline-orange-500">
-          <input type="radio" name="mode" value="<%= value %>" class="sr-only" autocomplete="off" <%= "checked" if value == "read" %>><%= label %>
+      <%# 「無限スクロール」はヘッダに入らないので、見える字は 2 文字に揃えて読み上げにだけ残す %>
+      <% [ %w[read 読む], %w[process 処理], [ "flow", "流す", "無限スクロール" ] ].each do |value, label, spoken| %>
+        <label class="flex h-11 w-12 cursor-pointer items-center justify-center rounded-[10px] has-checked:bg-white has-checked:text-gray-900 has-checked:shadow-sm has-focus-visible:outline-2 has-focus-visible:outline-orange-500">
+          <input type="radio" name="mode" value="<%= value %>" class="sr-only" autocomplete="off" <%= "checked" if value == "read" %>><% if spoken %><span aria-hidden="true"><%= label %></span><span class="sr-only"><%= spoken %></span><% else %><%= label %><% end %>
         </label>
       <% end %>
     </fieldset>
@@ -51,7 +52,7 @@
     <%= render "empty", feed: @current_feed, filtering: @filtering %>
   <% else %>
     <div data-controller="sweep" data-sweep-submit-timeout-seconds-value="<%= Dopamine.settings.dig(:swipe, :submit_timeout_seconds) %>">
-    <ul class="swipe-list divide-y divide-gray-100 overflow-hidden rounded-2xl bg-white shadow-sm" data-process-mode-target="list" data-sweep-target="list"
+    <ul class="swipe-list divide-y divide-gray-100 overflow-hidden rounded-2xl bg-white shadow-sm" data-process-mode-target="list" data-sweep-target="list" data-flow-target="list"
         data-controller="accordion" data-accordion-swipe-outlet="[data-controller~='swipe']" data-action="swipe:expanded->accordion#collapseOthers">
       <% @articles.each do |article| %>
         <%= render "article_card", article: article %>
@@ -69,7 +70,28 @@
         <%= "#{@current_feed.title} の" if @current_feed %>残り <span data-sweep-target="count"><%= @articles.size %></span> 件を片付ける
       </button>
     <% end %>
+    <%# 最後の行まで画面の上へ流し切れるよう、流すモードの間だけ一画面ぶんの余白を足す %>
+    <div class="flow-spacer">
+      <%# 余白の底までスクロールしても見えるよう、余白の上に貼りつける %>
+      <div class="flow-done sticky top-4 mt-3 rounded-2xl bg-white px-4 py-10 text-center shadow-sm">
+        <p class="text-3xl" aria-hidden="true">🌊</p>
+        <p class="mt-2 text-lg font-bold">全部流した。</p>
+        <p class="mt-1 text-sm text-gray-500">上へ戻って薄い行をタップすれば戻る。</p>
+      </div>
     </div>
+    </div>
+    <%= form_with url: sweep_path, hidden: true, data: { flow_target: "form" } do %>
+      <%= hidden_field_tag :flow, 1, id: nil %>
+      <%= hidden_field_tag :swipe, 0, id: nil %>
+    <% end %>
+    <%= form_with url: sweep_path, method: :delete, hidden: true, data: { flow_target: "restoreForm" } do %>
+      <%= hidden_field_tag :keep_toast, 1, id: nil %>
+    <% end %>
+    <template data-flow-target="restoreTemplate">
+      <button type="button" class="flow-restore absolute inset-0 z-10 flex w-full items-center justify-center focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-orange-500" data-action="flow#restore">
+        <span class="rounded-full bg-gray-800/80 px-3 py-1 text-xs font-bold text-white">流した ・ タップで戻す</span>
+      </button>
+    </template>
   <% end %>
 </section>
 

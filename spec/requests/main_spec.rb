@@ -166,7 +166,7 @@ RSpec.describe "Main", type: :request do
 
       get root_path
 
-      form = page.find("form[action='/sweep'][method='post']")
+      form = page.find("form.sweep[action='/sweep'][method='post']")
       expect(form).to have_button("残り 2 件を片付ける")
       expect(form.all("input[name='article_ids[]']", visible: :all).map(&:value)).to match_array(shown.map { |article| article.id.to_s })
       expect(Time.zone.iso8601(form.find("input[name='rendered_at']", visible: :all).value)).to be_within(1.minute).of(Time.current)
@@ -200,7 +200,7 @@ RSpec.describe "Main", type: :request do
 
         expect(page.find("nav[aria-label='フィード'] a[aria-current='page']")).to have_text("Zenn")
         expect(page.all("article").size).to eq(2)
-        form = page.find("form[action='/sweep']")
+        form = page.find("form.sweep[action='/sweep']")
         expect(form).to have_button("Zenn の残り 2 件を片付ける")
         expect(form.all("input[name='article_ids[]']", visible: :all).map(&:value)).to match_array(zenn.articles.ids.map(&:to_s))
         expect(page.find("nav[aria-label='タブバー']")).to have_css("[data-unread-badge]", text: "3")
