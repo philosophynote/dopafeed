@@ -19,7 +19,6 @@ class SweepsController < ApplicationController
 
   private
 
-  # 流した行は画面の上にある。行を差し替えて抜くと、その分だけ一覧が詰まって見ている行が跳ねる
   def flow?
     params[:flow].present?
   end

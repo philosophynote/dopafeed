@@ -143,6 +143,14 @@ RSpec.describe "Sweeps", type: :request do
         expect(page).to have_css("turbo-stream[action='replace'][target='app-badge'] #app-badge[data-badge-count-value='0']", visible: :all)
       end
 
+      it "流すときに払った行のトーストが出ていれば（keep_toast）、消すがトーストは出さない" do
+        post sweep_path, params: { article_ids: [ first.id ], flow: 1, keep_toast: 1 }, headers: turbo
+
+        expect(first.reload).to be_dismissed
+        expect(page).to have_no_css("turbo-stream[target='toast']", visible: :all)
+        expect(page).to have_css("turbo-stream[action='replace'][target='unread-badge']")
+      end
+
       it "JS が無ければ Main へ戻る" do
         post sweep_path, params: { article_ids: [ first.id, second.id ] }
 

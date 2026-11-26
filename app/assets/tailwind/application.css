@@ -213,7 +213,6 @@ main:has(#toast > *) {
   display: none;
 }
 
-/* 流した行は画面の上で抜かずに薄く残す（抜くと見ている行が跳ねる）。余白は流すモードの間だけ */
 .swipe-list > li[data-flowed] > :not(.flow-restore) {
   opacity: 0.35;
 }

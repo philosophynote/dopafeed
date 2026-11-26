@@ -4,8 +4,7 @@ import { enqueue, noteSwipeFailed, noteSwipeSent } from "controllers/submission_
 const ROW_ID_PREFIX = "article_"
 
 // 流れた行は DOM から抜かずに薄くして残す。iOS 27 より前の Safari は overflow-anchor を持たず、画面の上の行を抜くと見ている行が跳ねる。
-// 流れるたびには送らず、スクロールが止まったときにまとめて送る。行ごとに送ると、速く払い上げる間に送信が列に積み上がる。
-// モードは写し・bfcache に持ち越さない。開いただけで消え始めないように
+// 行ごとには送らない。速く払い上げる間に送信が列に積み上がる。モードは写し・bfcache に持ち越さない（開いただけで消え始めないように）
 export default class extends Controller {
   static targets = ["list", "form", "restoreForm", "restoreTemplate"]
   static values = { submitTimeoutSeconds: Number }
@@ -62,23 +61,26 @@ export default class extends Controller {
     if (this.flowable(row)) this.flow(row)
   }
 
-  // 広げた行は読むつもりで触った行なので流さない。払っている行・読み終えた行・隠れた跡も外す
   flowable(row) {
-    const detail = row.querySelector("[data-swipe-target~='detail']")
     return !row.hidden && !row.hasAttribute("data-flowed") && !row.classList.contains("swipe-active") &&
-      !this.kept.has(row.id) && !(detail?.childElementCount > 0) && !row.querySelector("[data-completed='true']")
+      !this.kept.has(row.id) && !row.querySelector("[data-completed='true']")
   }
 
+  // 薄い行の「読む」に Tab や VoiceOver で届くと、消した記事を読み始めてしまう
   flow(row) {
     row.setAttribute("data-flowed", "")
+    row.querySelector(":scope article").inert = true
     row.append(this.restoreTemplateTarget.content.cloneNode(true))
     this.pending.add(row.id)
   }
 
   unflow(id) {
     const row = document.getElementById(id)
-    row?.removeAttribute("data-flowed")
-    row?.querySelector(":scope > .flow-restore")?.remove()
+    if (!row?.hasAttribute("data-flowed")) return
+
+    row.removeAttribute("data-flowed")
+    row.querySelector(":scope article").inert = false
+    row.querySelector(":scope > .flow-restore")?.remove()
   }
 
   // 止まった合図は、最後に流れた行の IntersectionObserver の通知より先に来ることがある。2 フレーム待って拾い切ってから送る
@@ -92,20 +94,32 @@ export default class extends Controller {
     const ids = [...this.pending]
     this.pending.clear()
     this.sending = true
+    let stamped = false
     this.submit(this.formTarget, (form) => {
       form.querySelectorAll("input[name='article_ids[]']").forEach((input) => input.remove())
       ids.forEach((id) => form.append(this.idField(id)))
-      form.elements.namedItem("swipe").value = noteSwipeSent()
-    }, (success, { timedOut = false } = {}) => {
+      // トーストを出さない送信で回数を進めると、残したトーストが自分は置き換わったと見て「元に戻す」を送らなくなる
+      const keepToast = this.rowToastShown()
+      form.elements.namedItem("keep_toast").disabled = !keepToast
+      stamped = !keepToast
+      if (stamped) form.elements.namedItem("swipe").value = noteSwipeSent()
+    }, (success, { timedOut = false, unsent = false } = {}) => {
       this.sending = false
-      if (!success) noteSwipeFailed()
+      if (unsent) return
+      if (!success && stamped) noteSwipeFailed()
+      if (success) ids.forEach((id) => document.getElementById(id)?.setAttribute("data-flowed", "sent"))
       // 待ちの上限を越えただけなら届いているかもしれない。行は薄いまま残す
       if (!success && !timedOut) ids.forEach((id) => this.unflow(id))
       this.flush()
     })
   }
 
-  // 送る前の行は手元で戻すだけ。送った行は 1 本だけ戻し、まとまりのトーストは残す（keep_toast）
+  // 払った行の「元に戻す」は、その行が跡になってトーストでしか戻せない。押していない流しのトーストで置き換えない（流した行は薄い行のタップで戻せる）
+  rowToastShown() {
+    const undo = document.querySelector("#toast [data-controller='toast'] form")
+    return Boolean(undo) && new URL(undo.action).pathname !== new URL(this.formTarget.action).pathname
+  }
+
   restore(event) {
     const row = event.currentTarget.closest("li")
     this.kept.add(row.id)
@@ -117,7 +131,6 @@ export default class extends Controller {
     })
   }
 
-  // トーストの「元に戻す」で戻った行と、読むために押した行は、このページにいる間は流さない
   noteSubmit({ target: form }) {
     if (!(form instanceof HTMLFormElement)) return
 
@@ -138,7 +151,7 @@ export default class extends Controller {
     enqueue(() => new Promise((resolve) => {
       if (!form.isConnected) {
         resolve()
-        return done(false)
+        return done(false, { unsent: true })
       }
 
       const finish = (success, options) => {
@@ -152,16 +165,23 @@ export default class extends Controller {
       // 応答が来なくても列は止めない（届いていれば後から Turbo が差し替える）
       const timer = setTimeout(() => finish(false, { timedOut: true }), this.submitTimeoutSecondsValue * 1000)
       document.addEventListener("turbo:submit-end", ended)
-      this.submitCleanup = () => finish(true)
+      // 外されたときは列を解くだけ。応答を待たずに送り直さない
+      this.submitCleanup = () => {
+        clearTimeout(timer)
+        document.removeEventListener("turbo:submit-end", ended)
+        this.submitCleanup = null
+        resolve()
+      }
       prepare(form)
       form.requestSubmit()
     }))
   }
 
-  // 写しに薄い行を残すと、戻ったときに消えた記事が並んで見える
+  // 写しと bfcache に薄い行を残すと、戻ったときに消えた記事が並んで見える。届いたか分からない行は未読のまま戻す
   reset(event) {
-    if (event?.type === "turbo:before-cache" && this.hasListTarget) {
-      this.listTarget.querySelectorAll(":scope > li[data-flowed]").forEach((row) => { row.hidden = true })
+    if (event && this.hasListTarget) {
+      this.listTarget.querySelectorAll(":scope > li[data-flowed='sent']").forEach((row) => { row.hidden = true })
+      this.listTarget.querySelectorAll(":scope > li[data-flowed]:not([hidden])").forEach((row) => this.unflow(row.id))
     }
     this.flowing = false
     this.pending = new Set()

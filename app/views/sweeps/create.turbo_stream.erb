@@ -1,3 +1,4 @@
+<%# 流した行は画面の上にあり、跡に差し替えて抜くとその分だけ一覧が詰まって見ている行が跳ねる %>
 <% unless flow? %>
   <% @articles.each do |article| %>
     <%= turbo_stream.replace dom_id(article) do %>
@@ -5,7 +6,7 @@
     <% end %>
   <% end %>
 <% end %>
-<% if @articles.any? %>
+<% if @articles.any? && !params[:keep_toast] %>
   <%= turbo_stream.update "toast" do %>
     <%= render "shared/undo_toast", message: "#{@articles.size} 件を#{flow? ? "流しました" : "片付けました"}",
           undo: { path: sweep_path, method: :delete, params: { article_ids: @articles.map(&:id) } }, swipe: params[:swipe].to_i %>

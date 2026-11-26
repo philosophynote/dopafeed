@@ -10,7 +10,6 @@ RSpec.describe "FlowMode", type: :system do
     expect(page).to have_css("[data-flow-mode]")
   end
 
-  # 行の下端を画面の上端より上へ送る
   def scroll_past(title)
     page.execute_script(<<~JS, title)
       const row = [...document.querySelectorAll(".swipe-list > li")].find((li) => li.textContent.includes(arguments[0]))
@@ -27,7 +26,9 @@ RSpec.describe "FlowMode", type: :system do
     switch = find("fieldset.process-mode-switch")
     expect(switch.all("label").map { |label| label.text.lines.first.strip }).to eq(%w[読む 処理 流す])
     expect(switch).to have_field("無限スクロール", visible: :all)
-    expect(switch.evaluate_script("this.getBoundingClientRect().right")).to be <= SystemScreen::SCREEN_SIZE[0]
+    header = find("header")
+    expect(header.evaluate_script("this.scrollWidth <= this.clientWidth")).to be(true)
+    expect(header.find_link("設定").evaluate_script("this.getBoundingClientRect().right")).to be <= header.evaluate_script("this.getBoundingClientRect().right")
     expect(page.evaluate_script("document.documentElement.scrollWidth")).to eq(SystemScreen::SCREEN_SIZE[0])
     enter_flow_mode
     screenshot!("header")
@@ -80,11 +81,57 @@ RSpec.describe "FlowMode", type: :system do
     expect(page).to have_css("#toast [data-controller='toast']", text: "1 件を流しました")
     expect(dismissed_titles).to eq([ "記事 3" ])
 
+    find("nav", text: "保存").click_on("保存")
+    expect(page).to have_current_path(saved_path)
+    page.go_back
+    expect(page).to have_css("article h2", text: "記事 4")
+    expect(page).to have_no_css("article h2", text: "記事 3")
+    expect(page).to have_no_css("[data-flow-mode]")
+
     visit root_path
     expect(page).to have_checked_field("読む", visible: :all)
     expect(page).to have_no_css("[data-flow-mode]")
     expect(page).to have_css("article h2", text: "記事 2")
     expect(page).to have_no_css("article h2", text: "記事 3")
+  end
+
+  it "払った行のトーストが出ている間に流しても、払った行のトーストが残って元に戻せる。流した行は薄い行のタップで戻せる" do
+    create_articles(8)
+    sign_in
+    enter_flow_mode
+    delete_row("記事 1")
+    expect(page).to have_css("#toast [data-controller='toast']", text: "1 件を削除しました")
+
+    scroll_past("記事 3")
+    Timeout.timeout(Capybara.default_max_wait_time) { sleep 0.05 until dismissed_titles.size == 3 }
+    expect(flowed_titles).to eq([ "記事 2", "記事 3" ])
+    expect(page).to have_css("#toast [data-controller='toast']", text: "1 件を削除しました")
+
+    find("#toast").click_on("元に戻す")
+    expect(page).to have_css("article h2", text: "記事 1")
+    expect(dismissed_titles).to eq([ "記事 2", "記事 3" ])
+  end
+
+  it "流した分を送れなかったら、行は薄さが取れて未読のまま残る" do
+    create_articles(8)
+    sign_in
+    enter_flow_mode
+    page.execute_script(<<~JS)
+      const form = document.querySelector("[data-flow-target=form]")
+      document.addEventListener("turbo:submit-end", (event) => { if (event.target === form) window.flowEnded = true })
+    JS
+
+    page.driver.browser.network_conditions = { offline: true, latency: 0, throughput: 0 }
+    begin
+      scroll_past("記事 2")
+      Timeout.timeout(Capybara.default_max_wait_time) { sleep 0.05 until page.evaluate_script("window.flowEnded") }
+      expect(page).to have_no_css("li[data-flowed]", visible: :all)
+    ensure
+      # 同じブラウザを次の例も使うので、圏外のまま残さない
+      page.driver.browser.network_conditions = { offline: false, latency: 0, throughput: -1 }
+    end
+    expect(dismissed_titles).to be_empty
+    expect(page).to have_no_css("#toast [data-controller='toast']")
   end
 
   it "広げた行は流れても消さない" do
