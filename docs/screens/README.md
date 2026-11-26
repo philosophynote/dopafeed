@@ -16,7 +16,7 @@
 | 1 | Comments | comments.md | Comments.dc.html | 未定（案: 9） | 浅 |
 | 2 個人最適化 | ForYou | for_you.md | ForYou.dc.html | 未定（案: 11） | 浅 |
 | 2 | Learning | learning.md | Learning.dc.html | 未定（案: 12） | 浅 |
-| 2 | Weekly | weekly.md | Weekly.dc.html | 未定（案: 13） | 浅 |
+| 2 | Weekly | weekly.md | Weekly.dc.html | 34（#173） | 浅 |
 | 2 | Install | install.md | Install.dc.html | 10 | 深 |
 | 2 | Similar | similar.md | Similar.dc.html | 未定（案: 14） | 浅 |
 | 3 管理 | AddFeed | add_feed.md | AddFeed.dc.html | 16b（#77、直接登録）、16c（#81、自動検出、ADR 0017） | 深 |

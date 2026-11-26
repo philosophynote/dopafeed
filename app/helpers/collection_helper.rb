@@ -18,6 +18,14 @@ module CollectionHelper
     end
   end
 
+  # 判定中は、あるときだけ出す（いつもは 0 で、段の並びを長くするだけ）
+  #
+  # @param counts [Hash{String, nil => Integer}] 段の名前（判定中は nil）ごとの枚数
+  # @return [String] 例: ノーマル 3 ・ レア 1 ・ S レア 0 ・ SS レア 1 ・ 判定中 1
+  def rarity_breakdown(counts)
+    (Dopamine.rarity_names.map { |name| "#{rarity_label(name)} #{counts.fetch(name, 0)}" } + [ ("判定中 #{counts[nil]}" if counts[nil]) ]).compact.join(" ・ ")
+  end
+
   # 束の見出し。今日・昨日はその名で、それより前は月日と曜日（年は出さない。年をまたいだら考える）
   #
   # @return [String] 例: 今日 / 昨日 / 11月6日（木）
