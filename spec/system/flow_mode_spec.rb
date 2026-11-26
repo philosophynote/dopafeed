@@ -1,8 +1,8 @@
 RSpec.describe "FlowMode", type: :system do
   let(:now) { Time.current }
 
-  def create_articles(count)
-    (1..count).map { |n| create(:article, title: "記事 #{n}", published_at: now - n.hours) }
+  def create_articles(count, feed: nil)
+    (1..count).map { |n| create(:article, title: "記事 #{n}", published_at: now - n.hours, **{ feed: }.compact) }
   end
 
   def enter_flow_mode
@@ -182,5 +182,106 @@ RSpec.describe "FlowMode", type: :system do
     expect(page.evaluate_script("document.querySelector('.flow-done').getBoundingClientRect().top")).to be_between(0, SystemScreen::SCREEN_SIZE[1])
     expect(dismissed_titles).to eq([ "記事 1", "記事 2", "記事 3" ])
     screenshot!("all_flowed")
+  end
+
+  def flow_submits_after_settling
+    page.evaluate_async_script(<<~JS)
+      const done = arguments[0]
+      setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(() => done(window.flowSubmits || 0))), 200)
+    JS
+  end
+
+  def count_flow_submits
+    page.execute_script(<<~JS)
+      const form = document.querySelector("[data-flow-target=form]")
+      document.addEventListener("turbo:submit-start", (event) => { if (event.target === form) window.flowSubmits = (window.flowSubmits || 0) + 1 })
+    JS
+  end
+
+  it "流すモードで片付けて元に戻した行は、「読む」に切り替えても消えない" do
+    create_articles(3)
+    sign_in
+    enter_flow_mode
+    count_flow_submits
+
+    find("button", text: /片付ける/).click
+    expect(page).to have_css("#toast [data-controller='toast']", text: "3 件を片付けました")
+    find("#toast").click_on("元に戻す")
+    expect(page).to have_css("article h2", text: "記事 3")
+    choose "読む", allow_label_click: true
+
+    expect(flow_submits_after_settling).to eq(0)
+    expect(dismissed_titles).to be_empty
+  end
+
+  it "ほかで先に消えていた記事は、流しても薄い行にならない（戻すで、ほかの削除を外さない）" do
+    create_articles(8)
+    sign_in
+    enter_flow_mode
+    Article.find_by!(title: "記事 2").dismiss!
+
+    scroll_past("記事 3")
+    expect(page).to have_css("#toast [data-controller='toast']", text: "2 件を流しました")
+    expect(flowed_titles).to eq([ "記事 1", "記事 3" ])
+    expect(page).to have_no_css("li[data-flowed]", text: "記事 2", visible: :all)
+  end
+
+  it "1 本だけタップで戻して広げた後にトーストで残りを戻しても、広げた欄は畳まれない" do
+    create(:article, title: "記事 1", summary: "・要約", published_at: now - 1.hour)
+    (2..8).each { |n| create(:article, title: "記事 #{n}", published_at: now - n.hours) }
+    sign_in
+    enter_flow_mode
+    scroll_past("記事 2")
+    expect(page).to have_css("#toast [data-controller='toast']", text: "2 件を流しました")
+    page.execute_script("window.scrollTo(0, 0)")
+    find("li[data-flowed]", text: "記事 1").click_on("タップで戻す")
+    expect(page).to have_no_css("li[data-flowed]", text: "記事 1")
+    expand("記事 1")
+
+    find("#toast").click_on("元に戻す")
+    expect(page).to have_no_css("li[data-flowed]", visible: :all)
+    expect(find("li[id^='article_']", text: "記事 1")).to have_link("記事に遷移")
+    expect(dismissed_titles).to be_empty
+  end
+
+  it "scrollend の無いブラウザでも、流れた分は送られる" do
+    page.driver.browser.execute_cdp("Page.addScriptToEvaluateOnNewDocument", source: <<~JS)
+      delete window.onscrollend
+      delete Window.prototype.onscrollend
+      window.addEventListener("scrollend", (event) => event.stopImmediatePropagation(), true)
+    JS
+    create_articles(8)
+    sign_in
+    expect(page.evaluate_script("'onscrollend' in window")).to be(false)
+    enter_flow_mode
+
+    scroll_past("記事 3")
+    expect(page).to have_css("#toast [data-controller='toast']", text: /件を流しました/)
+    Timeout.timeout(Capybara.default_max_wait_time) { sleep 0.05 until dismissed_titles.size == 3 }
+    expect(dismissed_titles).to eq([ "記事 1", "記事 2", "記事 3" ])
+  end
+
+  it "薄い行の「戻す」は、読み上げで記事の見出しが分かる" do
+    create_articles(8)
+    sign_in
+    enter_flow_mode
+    scroll_past("記事 2")
+    expect(page).to have_css("#toast [data-controller='toast']", text: "2 件を流しました")
+
+    names = all(".flow-restore", visible: :all).map { |button| button.text(:all).squish }
+    expect(names).to eq([ "「記事 1」を流した ・ タップで戻す", "「記事 2」を流した ・ タップで戻す" ])
+  end
+
+  it "Tab で行をたどって画面がスクロールしても、流さない" do
+    create_articles(20, feed: create(:feed))
+    sign_in
+    enter_flow_mode
+    count_flow_submits
+
+    find("body").send_keys(*Array.new(20, :tab))
+    expect(page.evaluate_script("window.scrollY")).to be > 0
+    expect(flow_submits_after_settling).to eq(0)
+    expect(page).to have_no_css("li[data-flowed]", visible: :all)
+    expect(dismissed_titles).to be_empty
   end
 end

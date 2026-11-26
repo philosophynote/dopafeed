@@ -2,11 +2,13 @@ import { Controller } from "@hotwired/stimulus"
 import { enqueue, noteSwipeFailed, noteSwipeSent } from "controllers/submission_queue"
 
 const ROW_ID_PREFIX = "article_"
+// Safari 26.2 より前は scrollend が無い。止まりを測る秒数を足す代わりに、流れた分をすぐ送り、応答を待つ間に流れた分を次にまとめる
+const SCROLLEND_SUPPORTED = "onscrollend" in window
 
 // 流れた行は DOM から抜かずに薄くして残す。iOS 27 より前の Safari は overflow-anchor を持たず、画面の上の行を抜くと見ている行が跳ねる。
 // 行ごとには送らない。速く払い上げる間に送信が列に積み上がる。モードは写し・bfcache に持ち越さない（開いただけで消え始めないように）
 export default class extends Controller {
-  static targets = ["list", "form", "restoreForm", "restoreTemplate"]
+  static targets = ["list", "form", "restoreForm", "restoreTemplate", "result"]
   static values = { submitTimeoutSeconds: Number }
 
   connect() {
@@ -36,7 +38,7 @@ export default class extends Controller {
       this.watch()
     } else {
       this.stopWatching()
-      this.flush()
+      this.seal()
     }
   }
 
@@ -45,12 +47,16 @@ export default class extends Controller {
     if (!this.hasListTarget) return
 
     this.seen = new WeakSet()
-    this.intersections = new IntersectionObserver((entries) => entries.forEach((entry) => this.observed(entry)))
+    this.intersections = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => this.observed(entry))
+      if (!SCROLLEND_SUPPORTED) this.seal()
+    })
     this.listTarget.querySelectorAll(":scope > li").forEach((row) => this.intersections.observe(row))
-    // 払った跡や取り消しで戻った行は Turbo Stream が差し替えた別の要素なので、差し込まれたら見張り直す
-    this.additions = new MutationObserver((records) => records.forEach(({ addedNodes }) => addedNodes.forEach((node) => {
-      if (node instanceof HTMLLIElement) this.intersections.observe(node)
-    })))
+    // 払った跡や取り消しで戻った行は Turbo Stream が差し替えた別の要素なので、差し込まれたら見張り直し、外された行は見張りをやめる
+    this.additions = new MutationObserver((records) => records.forEach(({ addedNodes, removedNodes }) => {
+      addedNodes.forEach((node) => { if (node instanceof HTMLLIElement) this.intersections.observe(node) })
+      removedNodes.forEach((node) => { if (node instanceof HTMLLIElement) this.intersections.unobserve(node) })
+    }))
     this.additions.observe(this.listTarget, { childList: true })
   }
 
@@ -61,11 +67,22 @@ export default class extends Controller {
     this.additions = null
   }
 
+  // 差し替えで外された古い行にも「画面の外へ出た」通知が届く。一覧に残っている行だけを見る。
+  // Tab で送った行はフォーカスに合わせてブラウザがスクロールするので、キーボードで動かした分は流さない
   observed({ target: row, isIntersecting, boundingClientRect, rootBounds }) {
+    if (row.parentElement !== this.listTarget) return
     if (isIntersecting) return this.seen.add(row)
-    if (!this.seen.has(row) || boundingClientRect.bottom > (rootBounds?.top ?? 0)) return
+    if (this.keyboard || !this.seen.has(row) || boundingClientRect.bottom > (rootBounds?.top ?? 0)) return
 
     if (this.flowable(row)) this.flow(row)
+  }
+
+  noteKeyboard() {
+    this.keyboard = true
+  }
+
+  notePointer() {
+    this.keyboard = false
   }
 
   // 写しから戻ると kept は空になるが、広げた欄は中身ごと戻る。欄の中身で広げた行を見分ける
@@ -75,11 +92,13 @@ export default class extends Controller {
       !this.kept.has(row.id) && !(detail?.childElementCount > 0) && !row.querySelector("[data-completed='true']")
   }
 
-  // 薄い行の「読む」に Tab や VoiceOver で届くと、消した記事を読み始めてしまう
+  // 薄い行の「読む」に Tab や VoiceOver で届くと、消した記事を読み始めてしまう。戻すボタンは見出しで読み分けられるようにする
   flow(row) {
     row.setAttribute("data-flowed", "")
     row.querySelector(":scope article").inert = true
-    row.append(this.restoreTemplateTarget.content.cloneNode(true))
+    const restore = this.restoreTemplateTarget.content.cloneNode(true)
+    restore.querySelector("[data-flow-title]").textContent = `「${row.querySelector("h2")?.textContent.trim() ?? ""}」を`
+    row.append(restore)
     this.pending.add(row.id)
   }
 
@@ -92,16 +111,31 @@ export default class extends Controller {
     row.querySelector(":scope > .flow-restore")?.remove()
   }
 
-  // 止まった合図は、最後に流れた行の IntersectionObserver の通知より先に来ることがある。2 フレーム待って拾い切ってから送る
+  // 止まった合図は、最後に流れた行の IntersectionObserver の通知より先に来ることがある。2 フレーム待って拾い切ってから締める
   settled() {
-    requestAnimationFrame(() => requestAnimationFrame(() => this.flush()))
+    requestAnimationFrame(() => requestAnimationFrame(() => this.seal()))
+  }
+
+  // 送るまとまりは止まった時点（またはモードを抜けた時点）で締める。応答を待つ間に流れ始めた分を前のまとまりに混ぜない
+  seal() {
+    if (this.pending.size > 0) this.batches.push(this.pending)
+    this.pending = new Set()
+    this.flush()
+  }
+
+  forget(id) {
+    this.pending.delete(id)
+    this.batches.forEach((batch) => batch.delete(id))
   }
 
   flush() {
-    if (this.sending || this.pending.size === 0) return
+    if (this.sending) return
 
-    const ids = [...this.pending]
-    this.pending.clear()
+    const batch = this.batches.shift()
+    if (!batch) return
+    if (batch.size === 0) return this.flush()
+
+    const ids = [...batch]
     this.sending = true
     let stamped = false
     this.submit(this.formTarget, (form) => {
@@ -112,15 +146,35 @@ export default class extends Controller {
       form.elements.namedItem("keep_toast").disabled = !keepToast
       stamped = !keepToast
       if (stamped) form.elements.namedItem("swipe").value = noteSwipeSent()
-    }, (success, { timedOut = false, unsent = false } = {}) => {
-      this.sending = false
-      if (unsent) return
-      if (!success && stamped) noteSwipeFailed()
-      if (success) ids.forEach((id) => document.getElementById(id)?.setAttribute("data-flowed", "sent"))
-      // 待ちの上限を越えただけなら届いているかもしれない。行は薄いまま残す
-      if (!success && !timedOut) ids.forEach((id) => this.unflow(id))
-      this.flush()
+    }, {
+      released: ({ timedOut = false, unsent = false } = {}) => {
+        this.sending = false
+        if (unsent) return ids.forEach((id) => this.unflow(id))
+        if (timedOut && stamped) noteSwipeFailed()
+        this.flush()
+      },
+      // 待ちの上限を越えた後に届いた終わりも拾う。成功は応答の result が行に反映する
+      ended: (success, { late }) => {
+        if (success) return
+        if (!late && stamped) noteSwipeFailed()
+        ids.forEach((id) => { if (document.getElementById(id)?.dataset.flowed !== "sent") this.unflow(id) })
+      }
     })
+  }
+
+  // 送った id のうち、サーバーが実際に消した記事だけを「送った」にする。別のタブで先に消えていた記事などは薄さを取る
+  // （その行の「戻す」で、ほかで付いた削除まで外さないため）
+  resultTargetConnected(result) {
+    const flowed = new Set(result.dataset.flowed.split(" ").filter(Boolean).map((id) => `${ROW_ID_PREFIX}${id}`))
+    result.dataset.requested.split(" ").filter(Boolean).forEach((id) => {
+      const rowId = `${ROW_ID_PREFIX}${id}`
+      if (flowed.has(rowId)) {
+        document.getElementById(rowId)?.setAttribute("data-flowed", "sent")
+      } else {
+        this.unflow(rowId)
+      }
+    })
+    result.remove()
   }
 
   // 払った行・片付けた行は跡に替わり、トーストの「元に戻す」でしか戻せない。押していない流しのトーストで置き換えない（流した行は薄い行のタップで戻せる）
@@ -132,7 +186,10 @@ export default class extends Controller {
   restore(event) {
     const row = event.currentTarget.closest("li")
     this.kept.add(row.id)
-    if (this.pending.delete(row.id)) return this.unflow(row.id)
+    if (row.dataset.flowed !== "sent") {
+      this.forget(row.id)
+      return this.unflow(row.id)
+    }
 
     this.submit(this.restoreFormTarget, (form) => {
       form.querySelector("input[name='article_ids[]']")?.remove()
@@ -146,9 +203,13 @@ export default class extends Controller {
     if (!row || !this.listTarget?.contains(row)) return
 
     this.kept.add(row.id)
-    if (this.pending.delete(row.id)) this.unflow(row.id)
+    if (row.dataset.flowed !== "sent") {
+      this.forget(row.id)
+      this.unflow(row.id)
+    }
   }
 
+  // 戻した記事は、まだ送っていないまとまりからも外す。外さないと「読む」に切り替えたときに戻した記事をまた消す
   noteSubmit({ target: form }) {
     if (!(form instanceof HTMLFormElement)) return
 
@@ -157,7 +218,11 @@ export default class extends Controller {
     const reading = path.match(/\/articles\/(\d+)\/reading$/)
     if (reading) this.kept.add(`${ROW_ID_PREFIX}${reading[1]}`)
     if (path === new URL(this.formTarget.action).pathname && form.querySelector("input[name='_method'][value='delete']")) {
-      form.querySelectorAll("input[name='article_ids[]']").forEach((input) => this.kept.add(`${ROW_ID_PREFIX}${input.value}`))
+      form.querySelectorAll("input[name='article_ids[]']").forEach((input) => {
+        const rowId = `${ROW_ID_PREFIX}${input.value}`
+        this.kept.add(rowId)
+        this.forget(rowId)
+      })
     }
   }
 
@@ -174,35 +239,46 @@ export default class extends Controller {
     return Object.assign(document.createElement("input"), { type: "hidden", name: "article_ids[]", value: rowId.slice(ROW_ID_PREFIX.length) })
   }
 
-  // 行の送信と同じ列に並べる。並べずに送ると、応答待ちのスワイプの送信を Turbo が止める
-  submit(form, prepare, done = () => {}) {
+  // 行の送信と同じ列に並べる。並べずに送ると、応答待ちのスワイプの送信を Turbo が止める。
+  // 応答が来なくても列は止めない（released）。今回の送信の終わり（ended）は、待ちの上限を越えた後に届いても渡す
+  submit(form, prepare, { released = () => {}, ended = () => {} } = {}) {
     enqueue(() => new Promise((resolve) => {
       if (!form.isConnected) {
         resolve()
-        return done(false, { unsent: true })
+        return released({ unsent: true })
       }
 
-      const finish = (success, options) => {
+      let late = false
+      let submission
+      const release = (options) => {
         clearTimeout(timer)
-        document.removeEventListener("turbo:submit-start", started)
-        document.removeEventListener("turbo:submit-end", ended)
         this.submitCleanup = null
         resolve()
-        done(success, options)
+        released(options)
       }
-      // 待ちの上限を越えた前の送信は止めていないので、同じ form から遅れて終わりが届く。今回の送信の終わりだけを拾う
-      let submission
+      const stopListening = () => {
+        document.removeEventListener("turbo:submit-start", started)
+        document.removeEventListener("turbo:submit-end", onEnd)
+      }
+      // 同じ form から前の送信の終わりが遅れて届くことがあるので、今回の送信の終わりだけを拾う
       const started = (event) => { if (event.target === form) submission ??= event.detail.formSubmission }
-      const ended = (event) => { if (event.target === form && event.detail.formSubmission === submission) finish(event.detail.success) }
-      // 応答が来なくても列は止めない（届いていれば後から Turbo が差し替える）
-      const timer = setTimeout(() => finish(false, { timedOut: true }), this.submitTimeoutSecondsValue * 1000)
+      const onEnd = (event) => {
+        if (event.target !== form || event.detail.formSubmission !== submission) return
+
+        stopListening()
+        if (!late) release()
+        ended(event.detail.success, { late })
+      }
+      const timer = setTimeout(() => {
+        late = true
+        release({ timedOut: true })
+      }, this.submitTimeoutSecondsValue * 1000)
       document.addEventListener("turbo:submit-start", started)
-      document.addEventListener("turbo:submit-end", ended)
+      document.addEventListener("turbo:submit-end", onEnd)
       // 外されたときは列を解くだけ。応答を待たずに送り直さない
       this.submitCleanup = () => {
         clearTimeout(timer)
-        document.removeEventListener("turbo:submit-start", started)
-        document.removeEventListener("turbo:submit-end", ended)
+        stopListening()
         this.submitCleanup = null
         resolve()
       }
@@ -218,7 +294,9 @@ export default class extends Controller {
       this.listTarget.querySelectorAll(":scope > li[data-flowed]:not([hidden])").forEach((row) => this.unflow(row.id))
     }
     this.flowing = false
+    this.keyboard = false
     this.pending = new Set()
+    this.batches = []
     this.element.removeAttribute("data-flow-mode")
     this.stopWatching()
   }

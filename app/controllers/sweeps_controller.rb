@@ -10,10 +10,11 @@ class SweepsController < ApplicationController
     respond
   end
 
+  # 先に 1 本ずつ戻した記事まで行を差し替えると、その後に広げた欄が畳まれ、読み終えた行は消える。まだ消えている記事だけを戻す
   def destroy
-    Article.where(id: article_ids).update_all(dismissed_at: nil, updated_at: Time.current)
-    @articles = Article.where(id: article_ids).includes(:feed)
-    @unread_ids = Article.unread.where(id: article_ids).ids.to_set
+    @articles = Article.where(id: article_ids).where.not(dismissed_at: nil).includes(:feed).to_a
+    Article.where(id: @articles.map(&:id)).update_all(dismissed_at: nil, updated_at: Time.current)
+    @unread_ids = Article.unread.where(id: @articles.map(&:id)).ids.to_set
     respond
   end
 

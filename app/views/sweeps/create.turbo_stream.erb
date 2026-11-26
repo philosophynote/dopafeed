@@ -12,4 +12,10 @@
           undo: { path: sweep_path, method: :delete, params: { article_ids: @articles.map(&:id), flow: (1 if flow?) }.compact }, swipe: params[:swipe].to_i %>
   <% end %>
 <% end %>
+<% if flow? %>
+  <%# 送った id のうちサーバーが実際に消したものを返す。別のタブで先に消えていた記事を、流した行として戻させないため %>
+  <%= turbo_stream.append "flow-results" do %>
+    <div data-flow-target="result" data-requested="<%= Array(params[:article_ids]).join(" ") %>" data-flowed="<%= @articles.map(&:id).join(" ") %>"></div>
+  <% end %>
+<% end %>
 <%= render "shared/unread_count_streams", unread_count: @unread_count %>

@@ -1,4 +1,4 @@
-<div data-controller="process-mode flow" data-flow-submit-timeout-seconds-value="<%= Dopamine.settings.dig(:swipe, :submit_timeout_seconds) %>" data-process-mode-small-every-value="<%= Dopamine.settings.dig(:delete_mode, :combo_small_every).to_i %>" data-process-mode-large-every-value="<%= Dopamine.settings.dig(:delete_mode, :combo_large_every).to_i %>" data-process-mode-swipe-outlet="[data-controller~='swipe']" data-action="turbo:before-cache@document->process-mode#reset pageshow@window->process-mode#reset swipe:processed->process-mode#processed swipe:process-failed->process-mode#processFailed turbo:submit-end@document->process-mode#submitted turbo:before-cache@document->flow#reset pageshow@window->flow#reset turbo:submit-start@document->flow#noteSubmit turbo:submit-end@document->flow#noteSubmitEnd click->flow#noteTap scrollend@window->flow#settled">
+<div data-controller="process-mode flow" data-flow-submit-timeout-seconds-value="<%= Dopamine.settings.dig(:swipe, :submit_timeout_seconds) %>" data-process-mode-small-every-value="<%= Dopamine.settings.dig(:delete_mode, :combo_small_every).to_i %>" data-process-mode-large-every-value="<%= Dopamine.settings.dig(:delete_mode, :combo_large_every).to_i %>" data-process-mode-swipe-outlet="[data-controller~='swipe']" data-action="turbo:before-cache@document->process-mode#reset pageshow@window->process-mode#reset swipe:processed->process-mode#processed swipe:process-failed->process-mode#processFailed turbo:submit-end@document->process-mode#submitted turbo:before-cache@document->flow#reset pageshow@window->flow#reset turbo:submit-start@document->flow#noteSubmit turbo:submit-end@document->flow#noteSubmitEnd click->flow#noteTap scrollend@window->flow#settled keydown@window->flow#noteKeyboard pointerdown@window->flow#notePointer touchstart@window->flow#notePointer:passive wheel@window->flow#notePointer:passive">
 <%# 切り替えを別の行に置くと、一画面に入る記事の行が 1 本減る %>
 <header class="flex items-center justify-between gap-1">
   <h1 class="text-2xl font-black tracking-tight">
@@ -90,9 +90,10 @@
     <% end %>
     <template data-flow-target="restoreTemplate">
       <button type="button" class="flow-restore absolute inset-0 z-10 flex w-full items-center justify-center focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-orange-500" data-action="flow#restore">
-        <span class="rounded-full bg-gray-800/80 px-3 py-1 text-xs font-bold text-white">流した ・ タップで戻す</span>
+        <span class="rounded-full bg-gray-800/80 px-3 py-1 text-xs font-bold text-white"><span class="sr-only" data-flow-title></span>流した ・ タップで戻す</span>
       </button>
     </template>
+    <div id="flow-results" hidden></div>
   <% end %>
 </section>
 
