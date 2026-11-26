@@ -9,6 +9,9 @@ Rails.application.routes.draw do
   root "main#show"
   resources :feeds, only: %i[index new create edit update destroy]
   resource :learning, only: :show, controller: :learning
+  resources :personas, only: %i[index new create edit update] do
+    resource :enablement, only: :update, module: :personas
+  end
   resource :install, only: :show, controller: :install
   resource :push_subscription, only: [ :create, :destroy ]
   resource :daily_goal, only: :show
@@ -17,13 +20,16 @@ Rails.application.routes.draw do
   resource :collection, only: :show, controller: :collection
   resources :cards, only: :show
   resource :weekly, only: :show, controller: :weekly
+  resource :sweep, only: %i[create destroy]
   resources :articles, only: [] do
     resource :reading, only: :create
     get :read, on: :member
     get :summary, on: :member
     resource :dismissal, only: %i[create destroy]
     resource :bookmark, only: %i[create destroy]
-    resource :comments, only: %i[show create]
+    resource :comments, only: %i[show create] do
+      post :retry
+    end
   end
   resources :readings, only: [] do
     post :start, on: :member

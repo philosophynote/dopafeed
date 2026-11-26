@@ -39,7 +39,9 @@ RSpec.describe "Feeds", type: :request do
       page = Capybara.string(response.body)
       expect(page).to have_css("[data-feed]", count: 4)
       row = page.find("[data-feed]", text: "Ruby Weekly")
-      expect(row).to have_text("4件・未読 2")
+      expect(row).to have_text("4件")
+      expect(row).to have_css("[data-unread].font-bold", exact_text: "未読 2")
+      expect(page).to have_css("[data-unread]:not(.font-bold)", exact_text: "未読 0", count: 3)
       expect(row).to have_text("最終取得 3分前")
       expect(row).to have_text(feed.url)
       expect(page).to have_css(".text-red-600", text: "サーバーエラー (HTTP 503)")
@@ -81,12 +83,17 @@ RSpec.describe "Feeds", type: :request do
         Capybara.string(response.body.gsub(%r{</?template>}, ""))
       end
 
-      it "一覧の行のタイトルと「名前を変更」は行ごとの Frame の中にある" do
+      it "タイトルは行ごとの Frame に、「名前を変更」と削除は Frame の外の ⋯ のメニューに置き、名前の変更はその Frame を狙う" do
         feed
         get feeds_path
-        frame = page.find("[data-feed] turbo-frame##{dom_id(feed, :title)}")
+        row = page.find("[data-feed]")
+        frame = row.find("turbo-frame##{dom_id(feed, :title)}")
         expect(frame).to have_css("h2", text: "元の名前")
-        expect(frame).to have_link("名前を変更", href: edit_feed_path(feed))
+        expect(frame).to have_no_link("名前を変更")
+        menu = row.find("details", visible: :all)
+        expect(menu).to have_css("summary[aria-label='「元の名前」の操作']")
+        expect(menu).to have_link("名前を変更", href: edit_feed_path(feed), visible: :all) { |link| link["data-turbo-frame"] == dom_id(feed, :title) }
+        expect(menu).to have_css("form[action='#{feed_path(feed)}'] button", text: "削除", visible: :all)
       end
 
       it "入力欄は今の名前入りで、同じ Frame に描く" do
@@ -123,8 +130,10 @@ RSpec.describe "Feeds", type: :request do
 
         row = page.find("turbo-stream[action='replace'][target='#{dom_id(feed)}'] li[data-feed]")
         expect(row).to have_css("h2", text: "新しい名前")
-        expect(row).to have_text("2件・未読 1")
-        expect(row).to have_css("form[data-turbo-confirm^='「新しい名前」を削除しますか？']")
+        expect(row).to have_text("2件")
+        expect(row).to have_css("[data-unread]", exact_text: "未読 1")
+        expect(row).to have_css("summary[aria-label='「新しい名前」の操作']")
+        expect(row).to have_css("form[data-turbo-confirm^='「新しい名前」を削除しますか？']", visible: :all)
       end
 
       it "空なら 422 で入力欄に赤字を出し、名前は元のまま" do

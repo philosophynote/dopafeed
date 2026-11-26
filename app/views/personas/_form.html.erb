@@ -1,0 +1,33 @@
+<% field_class = "min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-base" %>
+<%= form_with model: persona, class: "mt-4 space-y-4" do |form| %>
+  <div class="space-y-1">
+    <%= form.label :name, "名前", class: "block text-sm font-semibold" %>
+    <%= form.text_field :name, required: true, class: field_class, aria: { invalid: persona.errors.include?(:name) } %>
+    <%= persona_error(persona, :name) %>
+  </div>
+  <div class="space-y-1">
+    <%= form.label :title, "肩書き", class: "block text-sm font-semibold" %>
+    <%= form.text_field :title, required: true, class: field_class, aria: { invalid: persona.errors.include?(:title) } %>
+    <%= persona_error(persona, :title) %>
+  </div>
+  <div class="space-y-1">
+    <%= form.label :color, "色", class: "block text-sm font-semibold" %>
+    <%= form.color_field :color, class: "block h-11 w-full cursor-pointer rounded-xl border border-gray-300 bg-white p-1 text-base",
+                                 aria: { invalid: persona.errors.include?(:color) } %>
+    <%= persona_error(persona, :color) %>
+  </div>
+  <div class="space-y-1">
+    <%= form.label :description, "ひとこと紹介", class: "block text-sm font-semibold" %>
+    <%= form.text_field :description, required: true, class: field_class, aria: { invalid: persona.errors.include?(:description) } %>
+    <%= persona_error(persona, :description) %>
+  </div>
+  <div class="space-y-1">
+    <%= form.label :system_prompt, "口調の指示（system_prompt）", class: "block text-sm font-semibold" %>
+    <%= form.text_area :system_prompt, required: true, rows: 14, class: "#{field_class} py-2 leading-relaxed", aria: { invalid: persona.errors.include?(:system_prompt) } %>
+    <%= persona_error(persona, :system_prompt) %>
+  </div>
+  <div class="flex gap-2">
+    <%= form.submit "保存", class: "min-h-11 flex-1 rounded-xl bg-orange-500 px-4 font-bold text-white disabled:opacity-50" %>
+    <%= link_to "やめる", personas_path, class: "flex min-h-11 flex-1 items-center justify-center rounded-xl bg-gray-100 px-4 text-sm" %>
+  </div>
+<% end %>

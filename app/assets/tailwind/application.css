@@ -209,6 +209,26 @@ main:has(#toast > *) {
 .swipe-list:not(:has(> li:not([hidden]))) + .swipe-list-empty {
   display: block;
 }
+.swipe-list:not(:has(> li:not([hidden]))) ~ .sweep {
+  display: none;
+}
+
+.swipe-list > li[data-flowed] > :not(.flow-restore) {
+  opacity: 0.35;
+}
+.flow-spacer {
+  display: none;
+  min-height: 100dvh;
+}
+[data-flow-mode] .flow-spacer {
+  display: block;
+}
+.flow-done {
+  display: none;
+}
+.swipe-list:has(> li[data-flowed]):not(:has(> li:not([hidden]):not([data-flowed]))) ~ .flow-spacer .flow-done {
+  display: block;
+}
 
 .highlight-banner {
   background: rgb(255 255 255 / 0.18);
@@ -424,4 +444,9 @@ main:has(#toast > *) {
   .reel-inner, .reel-gold, .finale-drop { animation: none !important; }
   .reel-pending { display: none; }
   .coins, .fireworks { display: none; }
+}
+
+/* 0 になったフィードを消すと、押そうとした切り替えが指の下で横にずれる。開き直すまで残す */
+.feed-chip:has([data-count="0"]) {
+  opacity: 0.5;
 }

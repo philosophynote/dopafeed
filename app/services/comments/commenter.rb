@@ -1,25 +1,28 @@
 module Comments
-  # 組を替えるたびに払わないよう、1 回で全員分を作る。1 人でも欠けた応答は返さず失敗にする。
+  # 全員分を 1 本の応答で書かせると、書き終えるまで誰のコメントも出せないため、1 人分ずつ作る。
   class Commenter
     class Error < StandardError; end
     class EmptyContent < Error; end
     class MalformedResponse < Error; end
     class TransientError < Error; end
+    # Timeout::Error を継ぐと Faraday が自分のタイムアウトに包み直し、流れの期限と区別できなくなる
+    class StreamTimeout < StandardError; end
 
     PURPOSE = "comments".freeze
     TRANSIENT_STATUSES = [ 408, 429 ].freeze
-    # ひとことに深い思考は要らず、思考のトークンも出力の上限に数えられるので、一番浅くする。
-    THINKING_EFFORT = :low
+    # 思考の間は 1 文字も流れてこず、感想の口調は思考なしでも保てるので、思考させない。
+    THINKING_EFFORT = :none
     PROMPTS = Rails.root.join("app/services/comments/prompts")
 
-    def initialize(article, personas: Persona.all, budget: Claude::Budget.new, client: nil)
+    def initialize(article, persona, budget: Claude::Budget.new, client: nil)
       @article = article
-      @personas = personas
+      @persona = persona
       @budget = budget
       @client = client
     end
 
-    def call
+    # 常にストリーミングで受ける。ブロックを渡すと、書けた分を頭から積み上げた文字列で yml の間隔ごとに渡す
+    def call(&on_text)
       text = article.plain_content.first(input_chars)
       raise EmptyContent, "本文が空" if text.blank?
 
@@ -27,27 +30,30 @@ module Comments
       client
       model = settings.fetch(:model)
       max_tokens = settings.fetch(:max_tokens)
+      interval_ms = settings.fetch(:stream_interval_ms)
       budget.record!(purpose: PURPOSE, model: model)
-      parse(request(text, model:, max_tokens:))
+      parse(request(text, model:, max_tokens:, interval_ms:, &on_text))
     end
 
     private
 
-    attr_reader :article, :personas, :budget
+    attr_reader :article, :persona, :budget
 
     def client
       @client ||= Client.build
     end
 
     # ask はツールを求める応答に答えて呼び直し続け、台帳の 1 行を超えて払うので、1 回だけ生成する generate を使う。
-    def request(text, model:, max_tokens:)
-      client.chat(model: model, provider: Client::PROVIDER, assume_model_exists: true)
-            .with_instructions(system_prompt)
-            .with_max_output_tokens(max_tokens)
-            .with_thinking(effort: THINKING_EFFORT)
-            .with_schema(schema)
-            .ask_later(user_prompt(text))
-            .generate
+    def request(text, model:, max_tokens:, interval_ms:, &on_text)
+      chat = client.chat(model: model, provider: Client::PROVIDER, assume_model_exists: true)
+                   .with_instructions(system_prompt)
+                   .with_max_output_tokens(max_tokens)
+                   .with_thinking(effort: THINKING_EFFORT)
+                   .ask_later(user_prompt(text))
+      # 読み取りごとの待ちは生存確認が届くたびに延びるので、流れ全体にも同じ秒数の期限を置く
+      Timeout.timeout(settings.fetch(:timeout_seconds), StreamTimeout) { stream(chat, interval_ms, &on_text) }
+    rescue StreamTimeout
+      raise TransientError, "接続エラー (時間切れ)"
     rescue RubyLLM::Error => e
       raise classify(e)
     rescue StandardError => e
@@ -58,55 +64,46 @@ module Comments
     def classify(error)
       status = error.response&.status
       return TransientError.new(error.try(:timeout?) ? "接続エラー (タイムアウト)" : "接続エラー") if status.nil?
-      return Error.new("応答の形式が不正 (HTTP #{status})") if status < 400
+      # 流れは 200 で始まるので、断片が届く前に閉じた流れもここに来る。断片の後に閉じたときと同じく待てば通る
+      return TransientError.new("接続エラー (途中で切れた)") if status < 400
 
       (status >= 500 || TRANSIENT_STATUSES.include?(status) ? TransientError : Error).new("API エラー (HTTP #{status})")
     end
 
-    # スキーマを渡しても、守られなかった応答を保存して表示を崩さないよう、こちらでも確かめる。
+    # 断片ごとに配ると、配るたびに Solid Cable が SQLite へ 1 行書くので、間隔ごとにまとめる
+    def stream(chat, interval_ms)
+      written = +""
+      sent_at = monotonic_ms
+      chat.generate do |chunk|
+        next unless block_given? && chunk.content.is_a?(String) && !chunk.content.empty?
+
+        written << chunk.content
+        next if monotonic_ms - sent_at < interval_ms
+
+        sent_at = monotonic_ms
+        # 配る途中で期限の例外を受けると、Solid Cable への書き込みが半端に止まるので、配り終えてから受ける
+        Thread.handle_interrupt(StreamTimeout => :never) { yield written.strip }
+      end
+    end
+
+    def monotonic_ms
+      Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond)
+    end
+
+    # 終わりの知らせが無いまま閉じた流れや、上限で切れた文は途中で終わっているので、本文があっても残さない
     def parse(message)
+      raise TransientError, "接続エラー (途中で切れた)" if message.finish_reason.nil?
       raise MalformedResponse, "応答の形式が不正 (max_tokens で切れた)" if message.finish_reason == :max_tokens
+      raise MalformedResponse, "応答の形式が不正 (#{message.finish_reason})" unless message.finish_reason == :stop
 
-      entries = decode(message.content)
-      bodies = entries.to_h { |entry| [ entry["persona_id"], entry["body"].to_s.strip ] }
-      complete = entries.size == personas.size && bodies.keys.sort == personas.map(&:id).sort && bodies.values.all?(&:present?)
-      raise MalformedResponse, "応答の形式が不正" unless complete
+      body = message.content.to_s.strip
+      raise MalformedResponse, "応答の形式が不正" if body.blank?
 
-      bodies
-    end
-
-    def decode(content)
-      data = content.is_a?(String) ? JSON.parse(content) : content
-      entries = data.is_a?(Hash) && data["comments"]
-      raise MalformedResponse, "応答の形式が不正" unless entries.is_a?(Array) && entries.all?(Hash)
-
-      entries
-    rescue JSON::ParserError
-      raise MalformedResponse, "応答の形式が不正"
-    end
-
-    def schema
-      {
-        type: "object",
-        properties: {
-          comments: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: { persona_id: { type: "string", enum: personas.map(&:id) }, body: { type: "string" } },
-              required: %w[persona_id body],
-              additionalProperties: false
-            }
-          }
-        },
-        required: %w[comments],
-        additionalProperties: false
-      }
+      body
     end
 
     def system_prompt
-      sections = personas.map { |persona| "## #{persona.id}: #{persona.name}（#{persona.title}）\n#{persona.system_prompt.strip}" }
-      [ PROMPTS.join("comments_system.txt").read.strip, *sections ].join("\n\n")
+      [ PROMPTS.join("comments_system.txt").read.strip, "#{persona.name}（#{persona.title}）\n#{persona.system_prompt.strip}" ].join("\n\n")
     end
 
     # 記事の文字列はタグで囲んで渡すので、中の < > を実体にして境界を偽装できなくする
