@@ -131,6 +131,7 @@ RSpec.describe ArticleRetention do
       dismissed = create(:article, guid: "g-1", dismissed_at: now - 2.days)
       unread = create(:article, created_at: now - 4.days)
       create(:article_judgment, article: dismissed)
+      create(:persona, slug: "oda-nobunaga")
       unread.persona_comments.create!(persona_id: "oda-nobunaga", body: "x")
 
       purge

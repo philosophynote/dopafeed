@@ -1,0 +1,21 @@
+<%# 流した行は画面の上にあり、跡に差し替えて抜くとその分だけ一覧が詰まって見ている行が跳ねる %>
+<% unless flow? %>
+  <% @articles.each do |article| %>
+    <%= turbo_stream.replace dom_id(article) do %>
+      <%= render "shared/hidden_row", article: article %>
+    <% end %>
+  <% end %>
+<% end %>
+<% if @articles.any? && !params[:keep_toast] %>
+  <%= turbo_stream.update "toast" do %>
+    <%= render "shared/undo_toast", message: "#{@articles.size} 件を#{flow? ? "流しました" : "片付けました"}",
+          undo: { path: sweep_path, method: :delete, params: { article_ids: @articles.map(&:id), flow: (1 if flow?) }.compact }, swipe: params[:swipe].to_i %>
+  <% end %>
+<% end %>
+<% if flow? %>
+  <%# 送った id のうちサーバーが実際に消したものを返す。別のタブで先に消えていた記事を、流した行として戻させないため %>
+  <%= turbo_stream.append "flow-results" do %>
+    <div data-flow-target="result" data-requested="<%= Array(params[:article_ids]).join(" ") %>" data-flowed="<%= @articles.map(&:id).join(" ") %>"></div>
+  <% end %>
+<% end %>
+<%= render "shared/unread_count_streams", unread_count: @unread_count %>

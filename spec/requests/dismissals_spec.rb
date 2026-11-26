@@ -50,6 +50,14 @@ RSpec.describe "Dismissals", type: :request do
         expect(page).to have_css("turbo-stream[action='replace'][target='app-badge'] #app-badge[data-badge-count-value='1']", visible: :all)
       end
 
+      it "フィードの切り替えの件数を書き直す（0 になったフィードは 0 と印を付ける）" do
+        post article_dismissal_path(article), headers: turbo
+
+        expect(page.find("turbo-stream[action='replace'][target='feed-unread-#{article.feed_id}']")).to have_css("[data-count='0']", text: "0")
+        expect(page.find("turbo-stream[action='replace'][target='feed-unread-#{other.feed_id}']")).to have_css("[data-count='1']", text: "1")
+        expect(page.find("turbo-stream[action='replace'][target='feed-unread-all']")).to have_css("[data-count='1']", text: "1")
+      end
+
       it "Reading を作らず、読了（カード）・今日のゴール・コンボ・ストリークを変えない" do
         create(:reading, :completed, opened_at: noon - 1.hour)
         before = travel_to(noon) { [ Reading.on(ReadingDay.of).count, Combo.new.count, ReadingStreak.days ] }

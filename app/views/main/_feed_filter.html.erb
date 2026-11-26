@@ -1,0 +1,12 @@
+<%# 段を 1 つ足すと一画面の行が減るので、低く 1 行に収め、はみ出す分は横に流す。
+    切り替えは履歴に積まない。積むと、絞った先で片付けてから戻ったときに Turbo が去る前の写しを出し、消した行が未読のまま並ぶ %>
+<nav class="feed-filter -mx-4 mt-2 flex gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="フィード">
+  <% [ [ nil, "すべて", unread_count ], *feeds.map { |feed| [ feed, feed.title, counts.fetch(feed.id, 0) ] } ].each do |feed, label, count| %>
+    <% current = feed ? current_feed == feed : !filtering %>
+    <%= link_to feed ? root_path(feed: feed.id) : root_path, aria: { current: ("page" if current) }, data: { turbo_action: "replace" },
+          class: "feed-chip flex h-11 shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-3 text-sm font-semibold #{current ? "bg-gray-900 text-white" : "bg-white text-gray-700 shadow-sm"}" do %>
+      <span class="max-w-40 truncate"><%= label %></span>
+      <%= render "main/feed_unread", id: feed ? "feed-unread-#{feed.id}" : "feed-unread-all", count: count %>
+    <% end %>
+  <% end %>
+</nav>

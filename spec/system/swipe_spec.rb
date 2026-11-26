@@ -2,18 +2,37 @@ RSpec.describe "Swipe", type: :system do
   let(:now) { Time.current }
   let(:dismiss_ratio) { Dopamine.settings.dig(:swipe, :dismiss_threshold_ratio) }
 
-  it "読むモードの行は左へ引いても動かず、削除の背景も出ない（削除は処理モードの左スワイプ）" do
-    create(:article, title: "引く記事", published_at: now - 1.hour)
+  it "読むモードでも行を左へ閾値の先まで引いて離すと、行が消えてトーストが出て未読数が減る。コンボには数えず、「元に戻す」で戻る" do
+    create(:article, title: "上の記事", published_at: now - 1.hour)
+    create(:article, title: "引く記事", published_at: now - 2.hours)
     sign_in
     width = card_width("引く記事")
 
-    drag_card("引く記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 1.3, 40 ], release: false)
-    expect(card_shift("引く記事")).to eq(0)
-    expect(rail_opacity("引く記事")).to eq(0)
-    drag_card("引く記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 1.5, 40 ], down: false)
-
+    drag_card("引く記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 0.5, 40 ])
     expect(settled_shift("引く記事")).to eq(0)
     expect(page).to have_no_css("#toast [data-controller='toast']")
+    expect(Article.find_by!(title: "引く記事")).not_to be_dismissed
+    expect(Reading.count).to eq(0)
+
+    drag_card("引く記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 1.3, 40 ], release: false)
+    expect(card_shift("引く記事")).to be < 0
+    expect(rail_opacity("引く記事")).to eq(1)
+    expect(swipe_rail("引く記事")[:class]).to include("swipe-armed")
+    expect(page.evaluate_script('JSON.parse(sessionStorage.getItem("sfx-log") || "[]")')).to eq([ "swipe" ])
+    screenshot!("read-mode-delete-armed")
+    drag_card("引く記事", from: [ width / 2, 40 ], to: [ width / 2 - width * dismiss_ratio * 1.5, 40 ], down: false)
+
+    expect(page).to have_css("#toast [data-controller='toast']", text: "1 件を削除しました")
+    expect(page).to have_no_css("article", text: "引く記事")
+    expect(page).to have_css("[data-unread-badge]", text: "1")
+    expect(page).to have_no_css("[data-process-mode-target='combo']", visible: true)
+    expect(Article.find_by!(title: "引く記事")).to be_dismissed
+    expect(Reading.count).to eq(0)
+    screenshot!("read-mode-deleted")
+
+    find("#toast").click_on("元に戻す")
+    expect(page).to have_css("article", count: 2)
+    expect(all("article h2").map(&:text)).to eq(%w[上の記事 引く記事])
     expect(Article.find_by!(title: "引く記事")).not_to be_dismissed
   end
 

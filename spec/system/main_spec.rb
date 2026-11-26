@@ -392,7 +392,7 @@ RSpec.describe "Main", type: :system do
       expand("最初の記事")
       first = open_link("最初の記事") # 隠れる合図が来ないまま戻った
       expand("次の記事")
-      expect(expanded?("最初の記事")).to be(false)
+      expect(find("article", text: "最初の記事")).to have_css("button[aria-expanded='false']")
       second = open_link("次の記事")
       leave_and_return(dwell: threshold + 5, reading: second)
 
@@ -541,6 +541,23 @@ RSpec.describe "Main", type: :system do
       expect(sixth + 47).to be < tab_top - 34, "セーフエリアを引くと 6 本目の見出しが隠れる"
       screenshot!
     end
+  end
+
+  it "フィードの切り替えが出ていても、切り替えは 1 段で横にだけ流れ、画像つきの行が 5 本目まで画面に入る" do
+    feeds = %w[Zenn Qiita はてなブックマーク テクノロジー Publickey].map { |title| create(:feed, title: title) }
+    6.times do |i|
+      create(:article, feed: feeds[i % feeds.size], title: "見出しが三行に折り返されるくらいに長い記事の題名をここに書いておく、その #{i + 1} 本目の記事",
+                       image_url: "/icon.png", published_at: 1.hour.ago - i.minutes)
+    end
+    sign_in
+
+    expect(page).to have_css("nav[aria-label='フィード']")
+    expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "横スクロールが出ている"
+    tab_top = page.evaluate_script("document.querySelector(\"nav[aria-label='タブバー']\").getBoundingClientRect().top")
+    expect(find("nav[aria-label='フィード']").evaluate_script("this.getBoundingClientRect().height")).to be <= 44
+    fifth = page.evaluate_script("document.querySelectorAll('article')[4].querySelector('h2').getBoundingClientRect().bottom")
+    expect(fifth + 47).to be < tab_top - 34, "セーフエリアを引くと 5 本目の見出しが隠れる"
+    screenshot!
   end
 
   it "ストリーク 3 桁・ゴール超え・枚数 6 桁でもステータスは 1 行のまま横にはみ出さない（枚数の末尾を省く）" do

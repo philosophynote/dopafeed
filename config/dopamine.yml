@@ -39,6 +39,7 @@ shared:
     model: grok-4.3
     max_tokens: 8000
     timeout_seconds: 60
+    stream_interval_ms: 250
   push:
     digest_at: "07:30"
     streak_warning_at: "21:00"
