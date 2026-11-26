@@ -178,5 +178,57 @@ RSpec.describe "Articles", type: :request do
         expect(response).to have_http_status(:not_found)
       end
     end
+
+    describe "Reader のコメント欄" do
+      let(:comments) { { personas_shown: 3, model: "grok-4.3", max_tokens: 4000, timeout_seconds: 60, stream_interval_ms: 250 } }
+      let(:article) { create(:article, :bookmarked, :opened, summary: "・一\n・二\n・三") }
+
+      before do
+        seed_personas
+        allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.merge(comments: comments))
+      end
+
+      def card
+        page.find("#reader [data-controller='sheet']")
+      end
+
+      it "要約の下、「記事を開く」の上に「? ? ?」と「コメントを見る」の欄を出す" do
+        get read_article_path(article)
+
+        box = card.find("##{ActionView::RecordIdentifier.dom_id(article, :comments_box)} section[aria-label='コメント']")
+        expect(box).to have_text("? ? ?")
+        expect(box).to have_button("コメントを見る")
+        expect(box.find("form")[:action]).to eq(article_comments_path(article))
+        expect(box).to have_text("人物は AI による架空のキャラクターです。本人の発言ではありません")
+        order = card.all("turbo-frame#summary_article_#{article.id}, section[aria-label='コメント'], a[data-action='sheet#open']")
+        expect(order.map { |node| node[:id] || node[:"aria-label"] || node.text }).to eq([ "summary_article_#{article.id}", "コメント", "記事を開く" ])
+      end
+
+      it "作成済みの記事は、その組のカードと「別の 3 人を見る」を出す" do
+        Persona.enabled.first(3).each { |persona| article.persona_comments.create!(persona_id: persona.slug, body: "#{persona.name}のひとこと") }
+
+        get read_article_path(article)
+
+        expect(card).to have_css("section[aria-label='コメント'] [data-persona-id]", count: 3)
+        expect(card).to have_text("#{Persona.enabled.first.name}のひとこと")
+        expect(card).to have_button("別の 3 人を見る")
+      end
+
+      it "鍵が欠けていれば欄を出さない" do
+        comments.delete(:model)
+
+        get read_article_path(article)
+
+        expect(page).to have_no_css("section[aria-label='コメント']")
+      end
+
+      it "有効な人物が 0 人なら欄を出さない" do
+        Persona.update_all(enabled: false)
+
+        get read_article_path(article)
+
+        expect(page).to have_no_css("section[aria-label='コメント']")
+      end
+    end
   end
 end

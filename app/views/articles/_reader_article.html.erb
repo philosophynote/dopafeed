@@ -13,6 +13,7 @@
     <div class="mt-2"><%= render "readings/rarity_band", reading: reading %></div>
 
     <%= render "articles/summary", article: article %>
+    <%= render "comments/box", article: article if comments_enabled? %>
 
     <%= link_to "記事を開く", article.url, target: "_blank", rel: "noopener noreferrer", data: { action: "sheet#open" },
                 class: "mt-4 flex h-12 w-full items-center justify-center rounded-full bg-orange-500 text-base font-bold text-white active:bg-orange-600" %>
