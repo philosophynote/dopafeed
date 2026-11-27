@@ -31,7 +31,7 @@ RSpec.describe "Main", type: :system do
     feed = create(:feed, title: "Zenn")
     6.times do |i|
       create(:article, feed: feed, title: "見出しが三行に折り返されるくらいに長い記事の題名をここに書いておく、その #{i + 1} 本目の記事",
-                       image_url: "/icon.png", published_at: 1.hour.ago - i.minutes)
+                       image_url: sample_image_path, published_at: 1.hour.ago - i.minutes)
     end
     sign_in
 
@@ -72,7 +72,7 @@ RSpec.describe "Main", type: :system do
 
     it "画面を移らずに枠の帯・3 行要約・「記事に遷移」が出て、もう一度タップで畳む。別の行を広げると前の行は畳む" do
       allow(Reading).to receive(:tier_at_open).and_return(common)
-      first = create(:article, title: "最初の記事", url: "https://example.com/first", summary: "・一行目\n・二行目\n・三行目", image_url: "/icon.png", published_at: 1.hour.ago)
+      first = create(:article, title: "最初の記事", url: "https://example.com/first", summary: "・一行目\n・二行目\n・三行目", image_url: sample_image_path, published_at: 1.hour.ago)
       create(:article, title: "次の記事", summary: "・次の要約", published_at: 2.hours.ago)
       create(:article, title: "三本目の記事", published_at: 3.hours.ago)
       sign_in
@@ -520,7 +520,7 @@ RSpec.describe "Main", type: :system do
     feed = create(:feed, title: "Zenn")
     6.times do |i|
       create(:article, feed: feed, title: "見出しが三行に折り返されるくらいに長い記事の題名をここに書いておく、その #{i + 1} 本目の記事",
-                       image_url: "/icon.png", published_at: 1.hour.ago - i.minutes)
+                       image_url: sample_image_path, published_at: 1.hour.ago - i.minutes)
     end
     travel_to noon do
       goal_articles.times { |i| create(:reading, :completed, opened_at: noon - (i + 1).hours) }
@@ -547,7 +547,7 @@ RSpec.describe "Main", type: :system do
     feeds = %w[Zenn Qiita はてなブックマーク テクノロジー Publickey].map { |title| create(:feed, title: title) }
     6.times do |i|
       create(:article, feed: feeds[i % feeds.size], title: "見出しが三行に折り返されるくらいに長い記事の題名をここに書いておく、その #{i + 1} 本目の記事",
-                       image_url: "/icon.png", published_at: 1.hour.ago - i.minutes)
+                       image_url: sample_image_path, published_at: 1.hour.ago - i.minutes)
     end
     sign_in
 
@@ -558,6 +558,59 @@ RSpec.describe "Main", type: :system do
     fifth = page.evaluate_script("document.querySelectorAll('article')[4].querySelector('h2').getBoundingClientRect().bottom")
     expect(fifth + 47).to be < tab_top - 34, "セーフエリアを引くと 5 本目の見出しが隠れる"
     screenshot!
+  end
+
+  describe "フィードの切り替えの段を流した先でチップを押す（#196）" do
+    let!(:feeds) do
+      %w[Zenn Qiita はてなブックマーク テクノロジー Publickey GitHub ブログ].each_with_index.map do |title, i|
+        create(:feed, title: title).tap do |feed|
+          (7 - i).times { |n| create(:article, feed: feed, title: "#{title} の #{n + 1} 本目", published_at: 1.hour.ago - n.minutes) }
+        end
+      end
+    end
+
+    def chip_within_filter?(title)
+      find("nav[aria-label='フィード']").evaluate_script(<<~JS, title)
+        (title => {
+          const nav = this.getBoundingClientRect()
+          const style = getComputedStyle(this)
+          const chip = Array.from(this.querySelectorAll("a")).find(a => a.textContent.includes(title)).getBoundingClientRect()
+          // 段の右端は小数の位置に止まることがある
+          return Math.round(chip.left) >= Math.round(nav.left + parseFloat(style.paddingLeft)) && Math.round(chip.right) <= Math.round(nav.right - parseFloat(style.paddingRight))
+        })(arguments[0])
+      JS
+    end
+
+    it "段を途中まで流して見えているチップを押すと、段は押したときの横位置のまま、押したフィードの未読だけが並ぶ" do
+      sign_in
+      filter = find("nav[aria-label='フィード']")
+      # 右端まで流して末尾を押すと、選んだチップを見せる動きだけでも同じ位置に着き、横位置を持ち越さなくても通ってしまう
+      before = filter.evaluate_script(<<~JS)
+        (() => {
+          const chip = Array.from(this.querySelectorAll("a")).find(a => a.textContent.includes("テクノロジー"))
+          this.scrollLeft = Math.round(chip.offsetLeft - this.offsetLeft - (this.clientWidth - chip.offsetWidth) / 2)
+          return this.scrollLeft
+        })()
+      JS
+      expect(before).to be_positive, "チップが段からはみ出していない（例の前提が崩れた）"
+      expect(chip_within_filter?("テクノロジー")).to be(true), "押すチップが段の見える所に無い（例の前提が崩れた）"
+
+      # Capybara の click は押す前に要素を中央へ寄せて段を動かすので、位置を変えずに押す
+      filter.find_link("テクノロジー").execute_script("this.click()")
+      expect(page).to have_css("nav[aria-label='フィード'] a[aria-current='page']", text: "テクノロジー")
+      expect(all("article h2").map(&:text)).to eq((1..4).map { |n| "テクノロジー の #{n} 本目" })
+      expect(find("nav[aria-label='フィード']").evaluate_script("this.scrollLeft")).to eq(before)
+      screenshot!
+    end
+
+    it "選んだフィードを直に開いても、選んだチップが段の見える所にある" do
+      sign_in
+      visit root_path(feed: feeds.last.id)
+
+      expect(page).to have_css("nav[aria-label='フィード'] a[aria-current='page']", text: "ブログ")
+      expect(chip_within_filter?("ブログ")).to be(true), "選んだチップが段の外にある"
+      expect(page.evaluate_script("window.scrollY")).to eq(0)
+    end
   end
 
   it "ストリーク 3 桁・ゴール超え・枚数 6 桁でもステータスは 1 行のまま横にはみ出さない（枚数の末尾を省く）" do
@@ -585,14 +638,14 @@ RSpec.describe "Main", type: :system do
   end
 
   it "OGP 画像のある記事は行の右に横長のサムネイルで出し、無い記事・読めない画像は枠ごと出さない" do
-    create(:article, title: "画像のある記事", image_url: "/icon.png", published_at: 1.hour.ago)
+    create(:article, title: "画像のある記事", image_url: sample_image_path, published_at: 1.hour.ago)
     create(:article, title: "画像の無い記事", published_at: 2.hours.ago)
     create(:article, title: "画像が消えた記事", image_url: "/missing-og.png", published_at: 3.hours.ago)
     sign_in
 
     within("article", text: "画像のある記事") do
       image = find("figure img", visible: :all)
-      expect(image[:src]).to end_with("/icon.png")
+      expect(image[:src]).to end_with(sample_image_path)
       expect(image[:referrerpolicy]).to eq("no-referrer")
       expect(image[:loading]).to eq("lazy")
       expect(image[:draggable]).to eq("false")
@@ -626,7 +679,7 @@ RSpec.describe "Main", type: :system do
   it "画面の外の行の画像は、読みに行く前に枠を外さず、スクロールして見えたら読む" do
     feed = create(:feed)
     12.times { |i| create(:article, feed: feed, title: "上の記事 #{i}", published_at: 1.hour.ago - i.minutes) }
-    create(:article, feed: feed, title: "下の画像の記事", image_url: "/icon.png", published_at: 1.day.ago)
+    create(:article, feed: feed, title: "下の画像の記事", image_url: sample_image_path, published_at: 1.day.ago)
     sign_in
 
     card = find("article", text: "下の画像の記事")

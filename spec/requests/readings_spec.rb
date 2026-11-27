@@ -549,6 +549,20 @@ RSpec.describe "Readings", type: :request do
         expect(appended).to have_css("form#end_reading_#{next_reading.id}")
       end
 
+      it "コメントの鍵が揃っていれば、継ぎ足した次の記事のカードにもその記事のコメント欄を出す" do
+        seed_personas
+        comments = { personas_shown: 3, model: "grok-4.3", max_tokens: 4000, timeout_seconds: 60, stream_interval_ms: 250 }
+        allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.merge(comments: comments))
+        following = create(:article, title: "次の記事", published_at: noon - 1.hour)
+
+        travel_to(noon + threshold) { post_turbo(reading) }
+
+        appended = page.find("turbo-stream[action='append'][target='reader']")
+        box = appended.find("##{dom_id(following, :comments_box)} section[aria-label='コメント']")
+        expect(box).to have_button("コメントを見る")
+        expect(box.find("form")[:action]).to eq(article_comments_path(following))
+      end
+
       it "連続完読していれば区切りに「n 本連続」。レアの枠なら「レアカードを手に入れた！」" do
         rare = Dopamine.rarity_names.second
         2.times { |i| create(:reading, :completed, opened_at: noon - (i + 1).hours, returned_at: noon - (i + 1).hours + 5.minutes, completed_at: noon - (i + 1).hours + 5.minutes) }

@@ -234,6 +234,31 @@ RSpec.describe "Comments", type: :system do
     screenshot!("exhausted")
   end
 
+  it "Saved から開いた Reader でも、要約の下にコメントの欄が出て、画面を移らずに口を出させられる" do
+    comments[:personas_shown] = 2
+    article = create(:article, :awaiting_summary, summary: "・要約", title: "保存から読む記事")
+    sign_in
+
+    read_from_saved(article)
+    card = find("#reader [data-controller='sheet']")
+    box = card.find("section[aria-label='コメント']")
+    expect(box).to have_text("? ? ?")
+    expect(box.find("p", text: "この記事に、誰が口を出すか").native.location.y).to be < card.find_link("記事を開く").native.location.y
+    expect(card.find("#summary_article_#{article.id}").native.location.y).to be < box.native.location.y
+    expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true), "横スクロールが出ている"
+    screenshot!("reader-closed")
+
+    box.click_button("コメントを見る")
+    expect(page).to have_css("li[data-state='writing']", count: 2, text: "書いています")
+    wait_for_subscription(article)
+    article.persona_comments.order(:id).each { |comment| write(comment) }
+
+    expect(page).to have_css("li[data-state='written']", count: 2)
+    expect(page).to have_css("section[aria-label='コメント'][data-state='ready']")
+    expect(page).to have_current_path(read_article_path(article))
+    screenshot!("reader-opened")
+  end
+
   it "yml にコメントの鍵が無ければ、広げた欄にコメントの欄を出さない" do
     comments.delete(:model)
     create(:article, :awaiting_summary, summary: "・要約", title: "鍵の無い日の記事")
