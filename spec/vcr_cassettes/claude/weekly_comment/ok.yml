@@ -1,0 +1,28 @@
+# 手書きのカセット（Messages API の応答の形）。本物に置き換えるには spec/support/vcr.rb の冒頭を見よ
+---
+http_interactions:
+- request:
+    method: post
+    uri: https://api.anthropic.com/v1/messages
+    body:
+      encoding: UTF-8
+      string: '{"model":"claude-sonnet-5-5","messages":[{"role":"user","content":[{"type":"text","text":"(weekly_comment.erb)"}]}],"stream":false,"max_tokens":300,"thinking":{"type":"between_tools"},"system":[{"type":"text","text":"(weekly_comment_system.txt)"}]}'
+    headers:
+      Content-Type:
+      - application/json
+      X-Api-Key:
+      - "<ANTHROPIC_API_KEY>"
+      Anthropic-Version:
+      - '2023-06-01'
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+    body:
+      encoding: UTF-8
+      string: '{"id":"msg_01Fixture0000000000000001","type":"message","role":"assistant","model":"claude-sonnet-5-5","content":[{"type":"text","text":"Solid Queue と Turbo Streams、Rails の裏側を続けて読んだ週でした。先週の 1 本から 3 本へ増えています。来週は障害報告をもう 1 本読み、運用の目線も足してみましょう。"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":356,"output_tokens":74}}'
+  recorded_at: Mon, 23 Nov 2026 05:00:00 GMT
+recorded_with: VCR 6.4.0

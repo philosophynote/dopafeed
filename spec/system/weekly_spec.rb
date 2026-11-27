@@ -21,12 +21,14 @@ RSpec.describe "Weekly", type: :system do
     JS
   end
 
-  it "図鑑の 1 行から開き、本数・先週比・曜日別の棒・フィード別が出る。一番多い日の棒が一番高く、横スクロールが無く、タップ領域は 44px 以上" do
+  it "図鑑の 1 行から開き、本数・先週比・曜日別の棒・フィード別・先週のひとことが出る。一番多い日の棒が一番高く、横スクロールが無く、タップ領域は 44px 以上" do
     feeds = [ "Zenn", "Publickey", "とても長い名前のフィードで 390 幅に収まらないかもしれないもの" ].map { |title| create(:feed, title: title) }
     { 0 => 3, 1 => 6, 2 => 1, 4 => 4 }.each do |offset, n|
       n.times { |i| complete(noon - (4 - offset).days - i.minutes, feed: feeds[i % 3], tier: i.zero? ? Dopamine.top_rarity[:name] : Dopamine.base_rarity[:name]) }
     end
     10.times { complete(noon - 7.days) }
+    WeeklyComment.create!(week_start: Date.new(2026, 11, 9),
+                          body: "Solid Queue と Turbo Streams、Rails の裏側を続けて読んだ週でした。先週の 1 本から 10 本へ増えています。来週は障害報告をもう 1 本読み、運用の目線も足してみましょう。")
 
     travel_to(noon) do
       sign_in
@@ -36,6 +38,7 @@ RSpec.describe "Weekly", type: :system do
       expect(page).to have_css("h1", text: "今週のレポート")
       expect(find("[aria-label='今週の本数']")).to have_text("14 本 読了 先週比 +40%（10 本）", normalize_ws: true)
       expect(find("nav").find_link("図鑑")["aria-current"]).to eq("page")
+      expect(find("[aria-label='Claude のひとこと']")).to have_text("11/9 – 11/15 の週", normalize_ws: true)
       heights = page.evaluate_script("Array.from(document.querySelectorAll('[aria-label=\"曜日別\"] li > span:nth-child(2)')).map(el => el.getBoundingClientRect().height)")
       expect(heights.size).to eq(7)
       expect(heights.index(heights.max)).to eq(1)

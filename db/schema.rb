@@ -169,6 +169,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_080000) do
     t.index ["email_address"], name: "index_users_on_email_address", unique: true
   end
 
+  create_table "weekly_comments", force: :cascade do |t|
+    t.date "week_start", null: false
+    t.text "body"
+    t.string "model"
+    t.datetime "failed_at"
+    t.string "error"
+    t.string "job_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["week_start"], name: "index_weekly_comments_on_week_start", unique: true
+  end
+
   add_foreign_key "article_judgments", "articles", on_delete: :cascade
   add_foreign_key "articles", "feeds"
   add_foreign_key "persona_comments", "articles", on_delete: :cascade

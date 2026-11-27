@@ -1,0 +1,7 @@
+<week>
+<count>3</count>
+<previous_count>1</previous_count>
+<article><title>Solid Queue の再試行を読み解く</title><feed>Zenn</feed><rarity>レア</rarity></article>
+<article><title>Turbo Streams で一覧を差し替える</title><feed>Zenn</feed><rarity>ノーマル</rarity></article>
+<article><title>クラウドの障害報告を読む</title><feed>Publickey</feed><rarity>判定中</rarity></article>
+</week>

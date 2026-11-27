@@ -92,5 +92,26 @@ RSpec.describe "Weekly", type: :request do
       expect(page.find("nav").find_link("図鑑")["aria-current"]).to eq("page")
       expect(page).to have_link("図鑑へ戻る", href: collection_path)
     end
+
+    it "先週のひとことがあれば「Claude のひとこと」と先週の範囲を添えて出す。失敗の行・先週より前の行は出さない" do
+      WeeklyComment.create!(week_start: Date.new(2026, 11, 2), body: "先々週のひとこと")
+      WeeklyComment.create!(week_start: Date.new(2026, 11, 9), body: "先週は Rails を 3 本。来週は設計を 1 本。")
+
+      travel_to(noon) { get weekly_path }
+
+      section = page.find("[aria-label='Claude のひとこと']")
+      expect(section).to have_text("11/9 – 11/15 の週", normalize_ws: true)
+      expect(section).to have_text("先週は Rails を 3 本。来週は設計を 1 本。")
+      expect(page).to have_no_text("先々週のひとこと")
+    end
+
+    it "先週のひとことが無い・失敗したなら欄ごと出さない" do
+      travel_to(noon) { get weekly_path }
+      expect(page).to have_no_css("[aria-label='Claude のひとこと']")
+
+      WeeklyComment.create!(week_start: Date.new(2026, 11, 9), failed_at: noon, error: "接続エラー")
+      travel_to(noon) { get weekly_path }
+      expect(page).to have_no_css("[aria-label='Claude のひとこと']")
+    end
   end
 end
