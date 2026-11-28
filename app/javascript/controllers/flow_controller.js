@@ -1,9 +1,13 @@
 import { Controller } from "@hotwired/stimulus"
+import { Turbo } from "@hotwired/turbo-rails"
 import { enqueue, noteSwipeFailed, noteSwipeSent } from "controllers/submission_queue"
 
 const ROW_ID_PREFIX = "article_"
 // Safari 26.2 より前は scrollend が無い。止まりを測る秒数を足す代わりに、流れた分をすぐ送り、応答を待つ間に流れた分を次にまとめる
 const SCROLLEND_SUPPORTED = "onscrollend" in window
+// 「次は」で開く先だけを流すのまま始める。URL や sessionStorage に持たせると再読込でも流すで始まり、開いただけで消え始める。
+// モジュールの変数なら再読込で消え、戻る・チップでは立たない
+let carriedTo = null
 
 // 流れた行は DOM から抜かずに薄くして残す。iOS 27 より前の Safari は overflow-anchor を持たず、画面の上の行を抜くと見ている行が跳ねる。
 // 行ごとには送らない。速く払い上げる間に送信が列に積み上がる。モードは写し・bfcache に持ち越さない（開いただけで消え始めないように）
@@ -20,6 +24,49 @@ export default class extends Controller {
       this.toastObserver = new MutationObserver(() => { this.otherToastAwaited = false })
       this.toastObserver.observe(toast, { childList: true })
     }
+    this.resumeCarried()
+  }
+
+  // 写しの下見でも connect は呼ばれる。下見で使い切ると、本当の描画が読むで始まる
+  resumeCarried() {
+    if (!carriedTo || document.documentElement.hasAttribute("data-turbo-preview")) return
+
+    const carried = carriedTo === window.location.href
+    carriedTo = null
+    const radio = this.element.querySelector("input[name=mode][value=flow]")
+    if (!carried || !radio) return
+
+    radio.checked = true
+    radio.dispatchEvent(new Event("change", { bubbles: true }))
+  }
+
+  // 先頭へ戻る間、行は画面の下へ動くだけなので流れない
+  toTop() {
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    window.scrollTo({ top: 0, behavior: reduced ? "instant" : "smooth" })
+    const current = this.element.querySelector("nav.feed-filter [aria-current='page']") ?? this.element.querySelector("input[name=mode]:checked")
+    current?.focus({ preventScroll: true })
+  }
+
+  // 流した分を送り切ってから移る。送信中に移ると Turbo が送信を止め、流した記事が未読のまま残る。
+  // 待つ間に流れた分は送らないので、見張りもやめる
+  next(event) {
+    event.preventDefault()
+    if (this.leavingTo) return
+
+    this.leavingTo = event.currentTarget.href
+    this.stopWatching()
+    this.seal()
+  }
+
+  // 送信の終わりのたびに flush からも呼ばれるので、移るのは 1 度だけ
+  leave() {
+    if (!this.leavingTo || this.left) return
+
+    this.left = true
+    carriedTo = this.leavingTo
+    const href = this.leavingTo
+    enqueue(() => Turbo.visit(href, { action: "replace" }))
   }
 
   disconnect() {
@@ -132,7 +179,7 @@ export default class extends Controller {
     if (this.sending) return
 
     const batch = this.batches.shift()
-    if (!batch) return
+    if (!batch) return this.leave()
     if (batch.size === 0) return this.flush()
 
     const ids = [...batch]
@@ -295,6 +342,8 @@ export default class extends Controller {
     }
     this.flowing = false
     this.keyboard = false
+    this.leavingTo = null
+    this.left = false
     this.pending = new Set()
     this.batches = []
     this.element.removeAttribute("data-flow-mode")

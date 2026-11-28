@@ -71,12 +71,23 @@
       </button>
     <% end %>
     <%# 最後の行まで画面の上へ流し切れるよう、流すモードの間だけ一画面ぶんの余白を足す %>
+    <%# 余白は一覧の末尾を越えないと画面に入らないので、ここに置くボタンは末尾まで来たときだけ見える %>
     <div class="flow-spacer">
       <%# 余白の底までスクロールしても見えるよう、余白の上に貼りつける %>
-      <div class="flow-done sticky top-4 mt-3 rounded-2xl bg-white px-4 py-10 text-center shadow-sm">
-        <p class="text-3xl" aria-hidden="true">🌊</p>
-        <p class="mt-2 text-lg font-bold">全部流した。</p>
-        <p class="mt-1 text-sm text-gray-500">上へ戻って薄い行をタップすれば戻る。</p>
+      <div class="flow-end sticky top-4 mt-3 space-y-2">
+        <div class="flow-done rounded-2xl bg-white px-4 py-10 text-center shadow-sm">
+          <p class="text-3xl" aria-hidden="true">🌊</p>
+          <p class="mt-2 text-lg font-bold">全部流した。</p>
+          <p class="mt-1 text-sm text-gray-500">上へ戻って薄い行をタップすれば戻る。</p>
+        </div>
+        <button type="button" class="h-11 w-full rounded-2xl bg-white text-sm font-bold text-gray-700 shadow-sm active:bg-gray-100 focus-visible:outline-2 focus-visible:outline-orange-500" data-action="flow#toTop">先頭に戻る</button>
+        <% if @next_feed %>
+          <%= link_to root_path(feed: @next_feed.id), data: { turbo_action: "replace", action: "flow#next" },
+                class: "flex h-11 w-full items-center justify-center gap-1 rounded-2xl bg-orange-500 px-4 text-sm font-bold text-white shadow-sm active:bg-orange-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500" do %>
+            <span class="truncate">次は <%= @next_feed.title %></span>
+            <span class="shrink-0"><%= @feed_unread_counts.fetch(@next_feed.id, 0) %> 件を流す</span>
+          <% end %>
+        <% end %>
       </div>
     </div>
     </div>

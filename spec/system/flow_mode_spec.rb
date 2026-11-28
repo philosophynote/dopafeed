@@ -184,6 +184,101 @@ RSpec.describe "FlowMode", type: :system do
     screenshot!("all_flowed")
   end
 
+  def scroll_to_end = page.execute_script("window.scrollTo(0, document.documentElement.scrollHeight)")
+
+  def wait_for_scroll_top
+    Timeout.timeout(Capybara.default_max_wait_time) { sleep 0.05 until page.evaluate_script("window.scrollY").zero? }
+  end
+
+  def within_screen?(selector)
+    page.evaluate_script(<<~JS, selector)
+      ((rect) => rect.top >= 0 && rect.bottom <= window.innerHeight)(document.querySelector(arguments[0]).getBoundingClientRect())
+    JS
+  end
+
+  def zenn_and_qiita
+    zenn = create(:feed, title: "Zenn")
+    qiita = create(:feed, title: "Qiita")
+    (1..3).each { |n| create(:article, feed: zenn, title: "Zenn #{n}", published_at: now - n.hours) }
+    (1..5).each { |n| create(:article, feed: qiita, title: "Qiita #{n}", published_at: now - n.hours) }
+    [ zenn, qiita ]
+  end
+
+  it "絞ったフィードを流し切ると「先頭に戻る」が出て、押すと先頭に戻り、選んでいるチップにフォーカスが移る。流すモードのままで、新たに流れない" do
+    zenn, = zenn_and_qiita
+    sign_in
+    visit root_path(feed: zenn.id)
+    enter_flow_mode
+
+    scroll_to_end
+    expect(page).to have_css("#toast [data-controller='toast']", text: "3 件を流しました")
+    expect(page).to have_text("全部流した。")
+    expect(within_screen?(".flow-end [data-action~='flow#toTop']")).to be(true)
+    expect(page.evaluate_script("document.documentElement.scrollWidth")).to eq(SystemScreen::SCREEN_SIZE[0])
+    screenshot!("end")
+    count_flow_submits
+
+    click_on "先頭に戻る"
+    wait_for_scroll_top
+    expect(within_screen?("nav.feed-filter")).to be(true)
+    expect(page.evaluate_script("document.activeElement.getAttribute('aria-current')")).to eq("page")
+    expect(page.evaluate_script("document.activeElement.textContent")).to include("Zenn")
+    expect(page).to have_css("[data-flow-mode]")
+    expect(flow_submits_after_settling).to eq(0)
+    expect(dismissed_titles).to eq([ "Zenn 1", "Zenn 2", "Zenn 3" ])
+  end
+
+  it "流さずに残した行があっても、一番下まで来れば「先頭に戻る」が出る（「全部流した。」は出ない）" do
+    create_articles(3)
+    sign_in
+    enter_flow_mode
+    expand("記事 1")
+
+    scroll_to_end
+    expect(page).to have_css("#toast [data-controller='toast']", text: "2 件を流しました")
+    expect(page).to have_button("先頭に戻る")
+    expect(page).to have_no_text("全部流した。")
+  end
+
+  it "読むモードでは一番下まで来ても「先頭に戻る」は出ない" do
+    create_articles(3)
+    sign_in
+
+    scroll_to_end
+    expect(page).to have_no_button("先頭に戻る")
+  end
+
+  it "「次は Qiita 5 件を流す」を押すと、スクロールが止まる前でも今のフィードの流した分を送り切ってから、流すモードのまま Qiita を開く。再読込すると読むで始まる" do
+    zenn, qiita = zenn_and_qiita
+    sign_in
+    visit root_path(feed: zenn.id)
+    enter_flow_mode
+
+    # スクロールが止まる前に押した場合。流れた行はまだ送られていない
+    page.execute_script(<<~JS)
+      window.holdScrollend = (event) => event.stopImmediatePropagation()
+      window.addEventListener("scrollend", window.holdScrollend, true)
+    JS
+    scroll_to_end
+    expect(page).to have_css("li[data-flowed]", count: 3, visible: :all)
+    expect(dismissed_titles).to be_empty
+    find(".flow-end").click_on("次は Qiita 5 件を流す")
+    expect(page).to have_current_path(root_path(feed: qiita.id))
+    expect(page).to have_css("article h2", text: "Qiita 1")
+    expect(page).to have_checked_field("無限スクロール", visible: :all)
+    expect(page).to have_css("[data-flow-mode]")
+    expect(dismissed_titles).to eq([ "Zenn 1", "Zenn 2", "Zenn 3" ])
+    expect(page).to have_no_link(text: /次は/)
+
+    page.execute_script("window.removeEventListener('scrollend', window.holdScrollend, true)")
+    scroll_past("Qiita 2")
+    expect(page).to have_css("#toast [data-controller='toast']", text: "2 件を流しました")
+
+    visit current_url
+    expect(page).to have_checked_field("読む", visible: :all)
+    expect(page).to have_no_css("[data-flow-mode]")
+  end
+
   def flow_submits_after_settling
     page.evaluate_async_script(<<~JS)
       const done = arguments[0]
@@ -245,20 +340,25 @@ RSpec.describe "FlowMode", type: :system do
   end
 
   it "scrollend の無いブラウザでも、流れた分は送られる" do
-    page.driver.browser.execute_cdp("Page.addScriptToEvaluateOnNewDocument", source: <<~JS)
+    script = page.driver.browser.execute_cdp("Page.addScriptToEvaluateOnNewDocument", source: <<~JS)
       delete window.onscrollend
       delete Window.prototype.onscrollend
       window.addEventListener("scrollend", (event) => event.stopImmediatePropagation(), true)
     JS
-    create_articles(8)
-    sign_in
-    expect(page.evaluate_script("'onscrollend' in window")).to be(false)
-    enter_flow_mode
+    begin
+      create_articles(8)
+      sign_in
+      expect(page.evaluate_script("'onscrollend' in window")).to be(false)
+      enter_flow_mode
 
-    scroll_past("記事 3")
-    expect(page).to have_css("#toast [data-controller='toast']", text: /件を流しました/)
-    Timeout.timeout(Capybara.default_max_wait_time) { sleep 0.05 until dismissed_titles.size == 3 }
-    expect(dismissed_titles).to eq([ "記事 1", "記事 2", "記事 3" ])
+      scroll_past("記事 3")
+      expect(page).to have_css("#toast [data-controller='toast']", text: /件を流しました/)
+      Timeout.timeout(Capybara.default_max_wait_time) { sleep 0.05 until dismissed_titles.size == 3 }
+      expect(dismissed_titles).to eq([ "記事 1", "記事 2", "記事 3" ])
+    ensure
+      # 同じブラウザを次の例も使うので、scrollend の無いまま残さない
+      page.driver.browser.execute_cdp("Page.removeScriptToEvaluateOnNewDocument", identifier: script["identifier"])
+    end
   end
 
   it "薄い行の「戻す」は、読み上げで記事の見出しが分かる" do
