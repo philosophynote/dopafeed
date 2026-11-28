@@ -254,11 +254,7 @@ RSpec.describe "FlowMode", type: :system do
     visit root_path(feed: zenn.id)
     enter_flow_mode
 
-    # スクロールが止まる前に押した場合。流れた行はまだ送られていない
-    page.execute_script(<<~JS)
-      window.holdScrollend = (event) => event.stopImmediatePropagation()
-      window.addEventListener("scrollend", window.holdScrollend, true)
-    JS
+    hold_scrollend
     scroll_to_end
     expect(page).to have_css("li[data-flowed]", count: 3, visible: :all)
     expect(dismissed_titles).to be_empty
@@ -275,6 +271,77 @@ RSpec.describe "FlowMode", type: :system do
     expect(page).to have_css("#toast [data-controller='toast']", text: "2 件を流しました")
 
     visit current_url
+    expect(page).to have_checked_field("読む", visible: :all)
+    expect(page).to have_no_css("[data-flow-mode]")
+  end
+
+  def hold_scrollend
+    page.execute_script(<<~JS)
+      window.holdScrollend = (event) => event.stopImmediatePropagation()
+      window.addEventListener("scrollend", window.holdScrollend, true)
+    JS
+  end
+
+  def slow_down_feed(feed)
+    allow_any_instance_of(MainController).to receive(:show).and_wrap_original do |show, *args|
+      sleep 1 if show.receiver.params[:feed] == feed.id.to_s
+      show.call(*args)
+    end
+  end
+
+  it "「次は」を押して流した分を送れなかったら、移らずに行の薄さが取れる。押し直せば移る" do
+    zenn, qiita = zenn_and_qiita
+    sign_in
+    visit root_path(feed: zenn.id)
+    enter_flow_mode
+    allow_any_instance_of(SweepsController).to receive(:create) { |controller| controller.head :service_unavailable }
+    hold_scrollend
+    scroll_to_end
+    expect(page).to have_css("li[data-flowed]", count: 3, visible: :all)
+
+    find(".flow-end").click_on("次は Qiita 5 件を流す")
+    expect(page).to have_no_css("li[data-flowed]", visible: :all)
+    expect(page).to have_current_path(root_path(feed: zenn.id))
+    expect(page).to have_css("[data-flow-mode]")
+
+    find(".flow-end").click_on("次は Qiita 5 件を流す")
+    expect(page).to have_current_path(root_path(feed: qiita.id))
+    expect(page).to have_css("[data-flow-mode]")
+    expect(dismissed_titles).to be_empty
+  end
+
+  it "「次は」で開くのを待つ間に薄い行の「戻す」を押しても、移動は取り消されない" do
+    zenn, qiita = zenn_and_qiita
+    sign_in
+    visit root_path(feed: zenn.id)
+    enter_flow_mode
+    scroll_to_end
+    expect(page).to have_css("li[data-flowed='sent']", count: 3, visible: :all)
+    slow_down_feed(qiita)
+
+    find(".flow-end").click_on("次は Qiita 5 件を流す")
+    page.execute_script("document.querySelector('li[data-flowed] .flow-restore').click()")
+    expect(page).to have_current_path(root_path(feed: qiita.id))
+    expect(page).to have_css("article h2", text: "Qiita 1")
+    expect(page).to have_css("[data-flow-mode]")
+  end
+
+  it "「次は」で開くのを待つ間に別の画面へ移ったら、後でそのフィードのチップを押しても読むで始まる" do
+    zenn, qiita = zenn_and_qiita
+    create(:article, feed: create(:feed, title: "Note"), title: "Note 1", published_at: now)
+    sign_in
+    visit root_path(feed: zenn.id)
+    enter_flow_mode
+    scroll_to_end
+    expect(page).to have_css("li[data-flowed='sent']", count: 3, visible: :all)
+    slow_down_feed(qiita)
+
+    find(".flow-end").click_on("次は Qiita 5 件を流す")
+    find("nav", text: "保存").click_on("保存")
+    expect(page).to have_current_path(saved_path)
+    find("nav", text: "フィード").click_on("フィード")
+    find("nav.feed-filter").click_on("Qiita")
+    expect(page).to have_css("article h2", text: "Qiita 1")
     expect(page).to have_checked_field("読む", visible: :all)
     expect(page).to have_no_css("[data-flow-mode]")
   end

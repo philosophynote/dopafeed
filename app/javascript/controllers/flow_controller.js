@@ -27,9 +27,8 @@ export default class extends Controller {
     this.resumeCarried()
   }
 
-  // 写しの下見でも connect は呼ばれる。下見で使い切ると、本当の描画が読むで始まる
   resumeCarried() {
-    if (!carriedTo || document.documentElement.hasAttribute("data-turbo-preview")) return
+    if (!carriedTo) return
 
     const carried = carriedTo === window.location.href
     carriedTo = null
@@ -49,7 +48,7 @@ export default class extends Controller {
   }
 
   // 流した分を送り切ってから移る。送信中に移ると Turbo が送信を止め、流した記事が未読のまま残る。
-  // 待つ間に流れた分は送らないので、見張りもやめる
+  // 送れなかった・待ちの上限を越えたときは移らず、薄さの取れた行を見せる。待つ間に流れた分は送らないので、見張りもやめる
   next(event) {
     event.preventDefault()
     if (this.leavingTo) return
@@ -59,14 +58,38 @@ export default class extends Controller {
     this.seal()
   }
 
-  // 送信の終わりのたびに flush からも呼ばれるので、移るのは 1 度だけ
+  // 送信の終わりのたびに flush からも呼ばれるので、移るのは 1 度だけ。
+  // 描かれるまで列を止める。止めないと、待つ間に押した「戻す」などの送信を Turbo が始め、移動の方を取り消す。
+  // 別の画面へのリンクで移動が取り消されたら、描かれた先が違うので持ち越しを捨てる
   leave() {
     if (!this.leavingTo || this.left) return
 
     this.left = true
-    carriedTo = this.leavingTo
     const href = this.leavingTo
-    enqueue(() => Turbo.visit(href, { action: "replace" }))
+    carriedTo = href
+    enqueue(() => new Promise((resolve) => {
+      const settle = (timedOut) => {
+        document.removeEventListener("turbo:before-render", rendered)
+        clearTimeout(timer)
+        if (window.location.href !== href) carriedTo = null
+        if (timedOut && this.element.isConnected) {
+          this.left = false
+          this.stay()
+        }
+        resolve()
+      }
+      const rendered = () => settle(false)
+      const timer = setTimeout(() => settle(true), this.submitTimeoutSecondsValue * 1000)
+      document.addEventListener("turbo:before-render", rendered)
+      Turbo.visit(href, { action: "replace" })
+    }))
+  }
+
+  stay() {
+    if (!this.leavingTo || this.left) return
+
+    this.leavingTo = null
+    if (this.flowing) this.watch()
   }
 
   disconnect() {
@@ -84,6 +107,7 @@ export default class extends Controller {
     if (flowing) {
       this.watch()
     } else {
+      this.stay()
       this.stopWatching()
       this.seal()
     }
@@ -194,8 +218,9 @@ export default class extends Controller {
       stamped = !keepToast
       if (stamped) form.elements.namedItem("swipe").value = noteSwipeSent()
     }, {
-      released: ({ timedOut = false, unsent = false } = {}) => {
+      released: ({ timedOut = false, unsent = false, failed = false } = {}) => {
         this.sending = false
+        if (timedOut || unsent || failed) this.stay()
         if (unsent) return ids.forEach((id) => this.unflow(id))
         if (timedOut && stamped) noteSwipeFailed()
         this.flush()
@@ -313,7 +338,7 @@ export default class extends Controller {
         if (event.target !== form || event.detail.formSubmission !== submission) return
 
         stopListening()
-        if (!late) release()
+        if (!late) release({ failed: !event.detail.success })
         ended(event.detail.success, { late })
       }
       const timer = setTimeout(() => {
