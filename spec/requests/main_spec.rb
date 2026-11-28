@@ -234,6 +234,27 @@ RSpec.describe "Main", type: :request do
         expect(page.all("nav[aria-label='フィード'] a").map { |a| a["data-turbo-action"] }.uniq).to eq([ "replace" ])
       end
 
+      it "絞っていると、一覧の末尾に今のフィードを除いて未読の一番多いフィードを「次は <名前> n 件を流す」で出す" do
+        create_list(:article, 3, feed: create(:feed, title: "Note"))
+
+        get root_path(feed: qiita.id)
+
+        expect(page.find(".flow-spacer")).to have_link("次は Note 3 件を流す", href: root_path(feed: Feed.find_by!(title: "Note").id), normalize_ws: true)
+        expect(page.find(".flow-spacer")).to have_button("先頭に戻る")
+      end
+
+      it "「すべて」のときと、ほかに未読のあるフィードが無いときは「次は」を出さない" do
+        get root_path
+
+        expect(page.find(".flow-spacer")).to have_button("先頭に戻る")
+        expect(page.find(".flow-spacer")).to have_no_link(text: /次は/)
+
+        qiita.articles.each(&:dismiss!)
+        get root_path(feed: zenn.id)
+
+        expect(page.find(".flow-spacer")).to have_no_link(text: /次は/)
+      end
+
       it "未読のあるフィードが 1 つだけなら切り替えを出さない" do
         qiita.articles.each(&:dismiss!)
 

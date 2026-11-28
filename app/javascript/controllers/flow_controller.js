@@ -1,9 +1,13 @@
 import { Controller } from "@hotwired/stimulus"
+import { Turbo } from "@hotwired/turbo-rails"
 import { enqueue, noteSwipeFailed, noteSwipeSent } from "controllers/submission_queue"
 
 const ROW_ID_PREFIX = "article_"
 // Safari 26.2 より前は scrollend が無い。止まりを測る秒数を足す代わりに、流れた分をすぐ送り、応答を待つ間に流れた分を次にまとめる
 const SCROLLEND_SUPPORTED = "onscrollend" in window
+// 「次は」で開く先だけを流すのまま始める。URL や sessionStorage に持たせると再読込でも流すで始まり、開いただけで消え始める。
+// モジュールの変数なら再読込で消え、戻る・チップでは立たない
+let carriedTo = null
 
 // 流れた行は DOM から抜かずに薄くして残す。iOS 27 より前の Safari は overflow-anchor を持たず、画面の上の行を抜くと見ている行が跳ねる。
 // 行ごとには送らない。速く払い上げる間に送信が列に積み上がる。モードは写し・bfcache に持ち越さない（開いただけで消え始めないように）
@@ -20,6 +24,66 @@ export default class extends Controller {
       this.toastObserver = new MutationObserver(() => { this.otherToastAwaited = false })
       this.toastObserver.observe(toast, { childList: true })
     }
+    this.resumeCarried()
+  }
+
+  resumeCarried() {
+    if (!carriedTo) return
+
+    const carried = carriedTo === window.location.href
+    carriedTo = null
+    const radio = this.element.querySelector("input[name=mode][value=flow]")
+    if (!carried || !radio) return
+
+    radio.checked = true
+    radio.dispatchEvent(new Event("change", { bubbles: true }))
+  }
+
+  // 先頭へ戻る間、行は画面の下へ動くだけなので流れない
+  toTop() {
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    window.scrollTo({ top: 0, behavior: reduced ? "instant" : "smooth" })
+    const current = this.element.querySelector("nav.feed-filter [aria-current='page']") ?? this.element.querySelector("input[name=mode]:checked")
+    current?.focus({ preventScroll: true })
+  }
+
+  // 流した分を送り切ってから移る。送信中に移ると Turbo が送信を止め、流した記事が未読のまま残る。
+  // 送れなかったときは移らず、薄さの取れた行を見せる。待ちの上限を越えた送信は、遅れて届く終わりを待つ。待つ間に流れた分は送らないので、見張りもやめる
+  next(event) {
+    event.preventDefault()
+    if (this.leavingTo) return
+
+    this.leavingTo = event.currentTarget.href
+    this.stopWatching()
+    this.seal()
+  }
+
+  // 送信の終わりのたびに flush からも呼ばれるので、移るのは 1 度だけ。
+  // 描かれるまで列を止める。止めないと、待つ間に押した「戻す」などの送信を Turbo が始め、移動の方を取り消す。
+  // 上限の秒数で列を解かない。解くと、遅れて届いた移動が解いた後の送信と競う。通信が切れれば Turbo は全体を読み直すので、列はそこで消える。
+  // 別の画面へのリンクで移動が取り消されたら、描かれた先が違うので持ち越しを捨てる
+  leave() {
+    if (!this.leavingTo || this.left || this.unconfirmed > 0) return
+
+    this.left = true
+    const href = this.leavingTo
+    carriedTo = href
+    enqueue(() => new Promise((resolve) => {
+      const rendered = () => {
+        document.removeEventListener("turbo:before-render", rendered)
+        if (window.location.href !== href) carriedTo = null
+        resolve()
+      }
+      document.addEventListener("turbo:before-render", rendered)
+      Turbo.visit(href, { action: "replace" })
+    }))
+  }
+
+  stay() {
+    if (!this.leavingTo || this.left) return
+
+    this.leavingTo = null
+    if (this.flowing) this.watch()
   }
 
   disconnect() {
@@ -37,6 +101,7 @@ export default class extends Controller {
     if (flowing) {
       this.watch()
     } else {
+      this.stay()
       this.stopWatching()
       this.seal()
     }
@@ -132,7 +197,7 @@ export default class extends Controller {
     if (this.sending) return
 
     const batch = this.batches.shift()
-    if (!batch) return
+    if (!batch) return this.leave()
     if (batch.size === 0) return this.flush()
 
     const ids = [...batch]
@@ -147,14 +212,19 @@ export default class extends Controller {
       stamped = !keepToast
       if (stamped) form.elements.namedItem("swipe").value = noteSwipeSent()
     }, {
-      released: ({ timedOut = false, unsent = false } = {}) => {
+      released: ({ timedOut = false, unsent = false, failed = false } = {}) => {
         this.sending = false
+        if (unsent || failed) this.stay()
+        if (timedOut) this.unconfirmed += 1
         if (unsent) return ids.forEach((id) => this.unflow(id))
         if (timedOut && stamped) noteSwipeFailed()
         this.flush()
       },
       // 待ちの上限を越えた後に届いた終わりも拾う。成功は応答の result が行に反映する
       ended: (success, { late }) => {
+        if (late) this.unconfirmed = Math.max(0, this.unconfirmed - 1)
+        if (late && !success) this.stay()
+        if (late && success) this.flush()
         if (success) return
         if (!late && stamped) noteSwipeFailed()
         ids.forEach((id) => { if (document.getElementById(id)?.dataset.flowed !== "sent") this.unflow(id) })
@@ -266,7 +336,7 @@ export default class extends Controller {
         if (event.target !== form || event.detail.formSubmission !== submission) return
 
         stopListening()
-        if (!late) release()
+        if (!late) release({ failed: !event.detail.success })
         ended(event.detail.success, { late })
       }
       const timer = setTimeout(() => {
@@ -295,6 +365,9 @@ export default class extends Controller {
     }
     this.flowing = false
     this.keyboard = false
+    this.leavingTo = null
+    this.left = false
+    this.unconfirmed = 0
     this.pending = new Set()
     this.batches = []
     this.element.removeAttribute("data-flow-mode")
