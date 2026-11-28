@@ -151,6 +151,75 @@ RSpec.describe Reading, type: :model do
     end
   end
 
+  describe "複数の接続からの .open!" do
+    self.use_transactional_tests = false
+
+    let(:at) { Time.zone.local(2026, 10, 20, 12) }
+
+    after do
+      Reading.delete_all
+      DailyGoal.delete_all
+      Article.delete_all
+      Feed.delete_all
+    end
+
+    def open_with_competing_write(article)
+      loaded = Queue.new
+      proceed = Queue.new
+      allow(Reading).to receive(:find_or_initialize_by).and_wrap_original do |find, **attributes|
+        find.call(**attributes).tap do
+          loaded << true
+          proceed.pop
+        end
+      end
+      opener = Thread.new do
+        Reading.with_connection { Reading.open!(Article.find(article.id), at: at) }
+      end
+      raise "Reading の取得を待てなかった" unless loaded.pop(timeout: 5)
+
+      database = SQLite3::Database.new(Reading.connection_db_config.database)
+      writer_first = begin
+        database.transaction(:immediate) { }
+        true
+      rescue SQLite3::BusyException
+        false
+      ensure
+        database.close
+      end
+      yield if writer_first
+      proceed << true
+      opened = opener.value
+      yield unless writer_first
+      [ opened, writer_first ]
+    ensure
+      opener&.kill if opener&.alive?
+    end
+
+    it "初めて開く要求が重なっても、どちらも同じ行を使う" do
+      article = create(:article)
+      competing = nil
+
+      opened, = open_with_competing_write(article) do
+        competing = Reading.find_or_create_by!(article: article) { |row| row.opened_at = at }
+      end
+
+      expect(opened).to eq(competing)
+      expect(Reading.where(article: article)).to contain_exactly(competing)
+    end
+
+    it "完読の確定と開き直しが重なっても、完読後の時刻は書き換わらない" do
+      initial_time = at - 1.hour
+      reading = create(:reading, opened_at: initial_time)
+      finished_at = at + 1.hour
+
+      _, writer_first = open_with_competing_write(reading.article) do
+        reading.with_lock { reading.return!(at: finished_at) }
+      end
+
+      expect(reading.reload).to have_attributes(completed_at: finished_at, opened_at: writer_first ? initial_time : at)
+    end
+  end
+
   describe ".settle_tier!" do
     let(:rare) { Dopamine.rarity_names.second }
 

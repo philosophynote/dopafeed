@@ -78,6 +78,16 @@ module SystemScreen
     options
   end
 
+  def self.chrome_options
+    emulate_iphone(Selenium::WebDriver::Options.chrome(args: [
+      "--headless=new", "--disable-search-engine-choice-screen", "--window-size=#{SCREEN_SIZE.join(',')}"
+    ]))
+  end
+
+  def self.chrome_http_client
+    Selenium::WebDriver::Remote::Http::Default.new(read_timeout: DRIVER_READ_TIMEOUT_SECONDS)
+  end
+
   # CI の新しいランナーで最初に立てた Chrome は、最初の命令が 20 秒を越えて返らないことがある。
   # 例の read timeout を延ばすと固まったときの待ちが全部延びるので、使い捨ての Chrome に初回の重さを肩代わりさせる。
   # プロファイルは chromedriver がセッションごとに作り直すので、温まるのはバイナリとフォントのキャッシュまで。
@@ -104,9 +114,8 @@ module SystemScreen
   end
 
   def self.warm_up_once
-    options = emulate_iphone(Selenium::WebDriver::Options.chrome(args: [ "--headless=new", "--window-size=#{SCREEN_SIZE.join(",")}" ]))
     http_client = Selenium::WebDriver::Remote::Http::Default.new(read_timeout: WARM_UP_SECONDS)
-    browser = Selenium::WebDriver.for(:chrome, options: options, http_client: http_client)
+    browser = Selenium::WebDriver.for(:chrome, options: chrome_options, http_client: http_client)
     browser.navigate.to("data:text/html;charset=utf-8,<p>DopaFeed 読む 保存 図鑑</p>")
     browser.quit
     true
@@ -162,16 +171,24 @@ module SystemScreen
   end
 end
 
+Capybara.register_driver :dopafeed_chrome do |app|
+  service = Selenium::WebDriver::Service.chrome(args: [ "--log-path=#{SystemScreen::CHROMEDRIVER_LOG}" ])
+  Capybara::Selenium::Driver.new(app, browser: :chrome, options: SystemScreen.chrome_options, http_client: SystemScreen.chrome_http_client, service: service).tap do |driver|
+    # Chrome は Capybara のワイルドカードによる消去を拒否する。セッションを閉じれば Cookie やストレージも残らない。
+    def driver.reset!
+      quit
+    ensure
+      options[:http_client] = SystemScreen.chrome_http_client
+    end
+  end
+end
+
 RSpec.configure do |config|
   config.include SystemScreen, type: :system
 
   config.before(:suite) { SystemScreen.warm_up_chrome! if SystemScreen.system_examples_to_run? }
 
   config.before(:each, type: :system) do
-    http_client = Selenium::WebDriver::Remote::Http::Default.new(read_timeout: SystemScreen::DRIVER_READ_TIMEOUT_SECONDS)
-    service = Selenium::WebDriver::Service.chrome(args: [ "--log-path=#{SystemScreen::CHROMEDRIVER_LOG}" ])
-    driven_by :selenium, using: :headless_chrome, screen_size: SystemScreen::SCREEN_SIZE, options: { http_client: http_client, service: service } do |options|
-      SystemScreen.emulate_iphone(options)
-    end
+    driven_by :dopafeed_chrome
   end
 end

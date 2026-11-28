@@ -113,6 +113,34 @@ RSpec.describe "Weekly の画像で共有", type: :system do
     end
   end
 
+  it "1 行に入らない英数字の語を省略し、ひとことの枠内に描く" do
+    WeeklyComment.sole.update!(body: "#{'W' * 44} を読みました。次は計測しましょう。")
+
+    travel_to(noon) do
+      sign_in
+      page.execute_script(<<~JS)
+        const fillText = CanvasRenderingContext2D.prototype.fillText
+        CanvasRenderingContext2D.prototype.fillText = function(text, x, y) {
+          if (text.startsWith("WWWW")) {
+            window.longCommentLine = [text, x + this.measureText(text).width]
+          }
+          return fillText.apply(this, arguments)
+        }
+      JS
+      within("nav[aria-label='タブバー']") { click_link "図鑑" }
+      expect(page).to have_current_path(collection_path)
+      find("a[href='#{weekly_path}']").click
+      expect(page).to have_current_path(weekly_path)
+      stub_share(supported: true)
+      click_button "画像で共有"
+
+      expect(shared_image).to include("image/png")
+      text, right = page.evaluate_script("window.longCommentLine")
+      expect(text.rstrip).to end_with("…")
+      expect(right).to be <= 976
+    end
+  end
+
   it "共有の途中で離れても、戻るで Weekly に戻ればまた押せる" do
     travel_to(noon) do
       sign_in

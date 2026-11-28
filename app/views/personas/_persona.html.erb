@@ -1,4 +1,4 @@
-<li id="<%= dom_id(persona) %>" class="flex items-start gap-3 rounded-2xl bg-white p-4 shadow-sm" data-persona>
+<li id="<%= dom_id(persona) %>" class="flex items-start gap-3 rounded-2xl bg-white p-4 shadow-sm" data-persona data-persona-enabled="<%= persona.enabled %>">
   <div class="flex min-w-0 flex-1 gap-3">
     <span class="flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white <%= "opacity-50" unless persona.enabled %>"
           style="background-color: <%= persona.color %>" aria-hidden="true"><%= persona.name.first %></span>

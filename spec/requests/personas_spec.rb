@@ -69,7 +69,7 @@ RSpec.describe "Personas", type: :request do
       expect(page).to have_text("有効な人物がいないので、記事にコメントの欄は出ません")
     end
 
-    it "「オフにする」「オンにする」は enabled だけを変え、その行と人数の案内を Turbo Stream で差し替える" do
+    it "「オフにする」「オンにする」は enabled だけを変え、その行を Turbo Stream で差し替える" do
       persona = create(:persona, name: "織田信長")
       create(:persona)
 
@@ -77,8 +77,9 @@ RSpec.describe "Personas", type: :request do
 
       expect(persona.reload).to have_attributes(enabled: false, name: "織田信長")
       expect(response.media_type).to eq("text/vnd.turbo-stream.html")
-      expect(response.body).to include(%(target="#{ActionView::RecordIdentifier.dom_id(persona)}"), %(target="personas_summary"))
-      expect(response.body).to include("オンにする", "data-persona-off", "opacity-50", "有効 1 人")
+      expect(response.body).to include(%(target="#{ActionView::RecordIdentifier.dom_id(persona)}"))
+      expect(response.body).to include("オンにする", "data-persona-off", "opacity-50")
+      expect(response.body).not_to include(%(target="personas_summary"))
 
       patch persona_enablement_path(persona), params: { enabled: true }, as: :turbo_stream
       expect(persona.reload.enabled).to be(true)

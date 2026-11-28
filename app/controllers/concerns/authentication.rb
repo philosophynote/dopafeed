@@ -40,8 +40,14 @@ module Authentication
     end
 
     def request_authentication
-      session[:return_to_after_authenticating] = request.url
-      redirect_to new_session_path
+      session[:return_to_after_authenticating] = authentication_return_url
+      redirect_to new_session_path, status: :see_other
+    end
+
+    def authentication_return_url
+      return request.url if request.get? || request.head?
+
+      root_url
     end
 
     def after_authentication_url

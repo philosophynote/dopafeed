@@ -1,11 +1,16 @@
 module PersonasHelper
-  def personas_summary
-    enabled = Persona.enabled.count
-    shown = Dopamine.settings.dig(:comments, :personas_shown)
-    return "有効な人物がいないので、記事にコメントの欄は出ません" if enabled.zero?
-    return "有効 #{enabled} 人。コメントでは #{enabled} 人全員が出ます" if enabled <= shown
+  SUMMARY_MESSAGES = {
+    none: "有効な人物がいないので、記事にコメントの欄は出ません",
+    all: "有効 %{enabled} 人。コメントでは %{enabled} 人全員が出ます",
+    sampled: "有効 %{enabled} 人。コメントでは %{enabled} 人の中から %{shown} 人が出ます"
+  }.freeze
 
-    "有効 #{enabled} 人。コメントでは #{enabled} 人の中から #{shown} 人が出ます"
+  def personas_summary(shown)
+    enabled = Persona.enabled.count
+    return SUMMARY_MESSAGES.fetch(:none) if enabled.zero?
+
+    pattern = SUMMARY_MESSAGES.fetch(enabled <= shown ? :all : :sampled)
+    format(pattern, enabled: enabled, shown: shown)
   end
 
   PERSONA_ERRORS = {

@@ -115,6 +115,58 @@ RSpec.describe "Personas", type: :system do
     screenshot!("last-menu-open")
   end
 
+  it "先に切り替えた行の応答が最後に届いても、有効人数は両方の変更を反映する" do
+    first = Persona.find_by!(slug: "oda-nobunaga")
+    second = Persona.find_by!(slug: "mao-zedong")
+    sign_in
+    visit personas_path
+
+    page.execute_script(<<~JS, persona_enablement_path(first))
+      const path = arguments[0]
+      const fetch = window.fetch.bind(window)
+      window.fetch = async (url, options) => {
+        const response = await fetch(url, options)
+        if (new URL(url, location.href).pathname === path) {
+          await new Promise(resolve => {
+            window.releaseFirstPersonaResponse = resolve
+            document.documentElement.dataset.firstPersonaResponse = "ready"
+          })
+        }
+        return response
+      }
+    JS
+
+    menu_of(first.name).click
+    row_of(first.name).find_button("オフにする").click
+    expect(page).to have_css('html[data-first-persona-response="ready"]', visible: :all)
+    menu_of(second.name).click
+    row_of(second.name).find_button("オフにする").click
+    expect(row_of(second.name)).to have_css("[data-persona-off]")
+
+    page.execute_script("window.releaseFirstPersonaResponse()")
+    expect(row_of(first.name)).to have_css("[data-persona-off]")
+    page.evaluate_async_script("requestAnimationFrame(() => requestAnimationFrame(arguments[0]))")
+    expect(find("#personas_summary").text).to start_with("有効 6 人")
+    expect([ first.reload.enabled, second.reload.enabled ]).to eq([ false, false ])
+  end
+
+  it "一覧を開いたあとにセッションが失効したら、ログインし直して人物一覧に戻る" do
+    persona = Persona.find_by!(slug: "oda-nobunaga")
+    user = sign_in
+    visit personas_path
+    user.sessions.destroy_all
+
+    menu_of(persona.name).click
+    row_of(persona.name).find_button("オフにする").click
+    expect(page).to have_current_path(new_session_path)
+    fill_in "パスワード", with: "password"
+    click_on "ログイン"
+
+    expect(page).to have_current_path(personas_path)
+    expect(row_of(persona.name)).to have_no_css("[data-persona-off]")
+    expect(persona.reload.enabled).to be(true)
+  end
+
   it "空白の無い長い名前の無効の行でも、390 幅で横にはみ出さず ⋯ が行の内に残る" do
     create(:persona, name: "Supercalifragilisticexpialidocious" * 2, enabled: false)
     sign_in

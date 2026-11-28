@@ -145,8 +145,9 @@ export default class extends Controller {
     ctx.font = `${weight} ${size}px ${FONT}`
     const lines = []
     let line = ""
-    for (const token of body.match(/[A-Za-z0-9_.\-/]+|\n|./gu) || []) {
+    for (let token of body.match(/[A-Za-z0-9_.\-/]+|\n|./gu) || []) {
       if (token === "\n") { lines.push(line); line = ""; continue }
+      if (ctx.measureText(token).width > maxWidth) token = this.fit(ctx, token, maxWidth, size, weight)
       if (line && !CLOSING.includes(token) && ctx.measureText(line + token).width > maxWidth) {
         lines.push(line)
         line = token.trimStart()

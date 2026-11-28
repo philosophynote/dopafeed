@@ -14,15 +14,19 @@ class Reading < ApplicationRecord
   end
 
   def self.open!(article, at: Time.current)
-    reading = find_or_initialize_by(article: article)
-    if reading.persisted?
-      # 判定の知らせより後に残った空の枠は、ほかに書く者がいない。
-      reading.update!(tier: tier_at_open(article)) if reading.tier.nil?
-      return reading.reopen!(at: at)
-    end
+    # SQLite の更新ロックを取得してから読むと、直後の完読や別の初回作成を上書きしない。
+    transaction do
+      reading = find_or_initialize_by(article: article)
+      if reading.persisted?
+        # 判定の知らせより後に残った空の枠は、ほかに書く者がいない。
+        reading.update!(tier: tier_at_open(article)) if reading.tier.nil?
+        reading.reopen!(at: at)
+      else
+        reading.update!(tier: tier_at_open(article), opened_at: at)
+      end
 
-    reading.update!(tier: tier_at_open(article), opened_at: at)
-    reading
+      reading
+    end
   rescue ActiveRecord::RecordNotUnique
     find_by!(article: article)
   end
