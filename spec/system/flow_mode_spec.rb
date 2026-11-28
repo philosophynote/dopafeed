@@ -310,6 +310,26 @@ RSpec.describe "FlowMode", type: :system do
     expect(dismissed_titles).to be_empty
   end
 
+  it "「次は」を押して流した分の送信が待ちの上限を越えても、遅れて届いた終わりを待ってから移る" do
+    allow(Dopamine).to receive(:settings).and_return(Dopamine.settings.deep_merge(swipe: { submit_timeout_seconds: 1 }))
+    zenn, qiita = zenn_and_qiita
+    sign_in
+    visit root_path(feed: zenn.id)
+    enter_flow_mode
+    allow_any_instance_of(SweepsController).to receive(:create).and_wrap_original do |create, *args|
+      sleep 2
+      create.call(*args)
+    end
+    hold_scrollend
+    scroll_to_end
+    expect(page).to have_css("li[data-flowed]", count: 3, visible: :all)
+
+    find(".flow-end").click_on("次は Qiita 5 件を流す")
+    expect(page).to have_current_path(root_path(feed: qiita.id), wait: 5)
+    expect(page).to have_css("[data-flow-mode]")
+    expect(dismissed_titles).to eq([ "Zenn 1", "Zenn 2", "Zenn 3" ])
+  end
+
   it "「次は」で開くのを待つ間に薄い行の「戻す」を押しても、移動は取り消されない" do
     zenn, qiita = zenn_and_qiita
     sign_in

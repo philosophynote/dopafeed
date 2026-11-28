@@ -48,7 +48,7 @@ export default class extends Controller {
   }
 
   // 流した分を送り切ってから移る。送信中に移ると Turbo が送信を止め、流した記事が未読のまま残る。
-  // 送れなかった・待ちの上限を越えたときは移らず、薄さの取れた行を見せる。待つ間に流れた分は送らないので、見張りもやめる
+  // 送れなかったときは移らず、薄さの取れた行を見せる。待ちの上限を越えた送信は、遅れて届く終わりを待つ。待つ間に流れた分は送らないので、見張りもやめる
   next(event) {
     event.preventDefault()
     if (this.leavingTo) return
@@ -60,26 +60,20 @@ export default class extends Controller {
 
   // 送信の終わりのたびに flush からも呼ばれるので、移るのは 1 度だけ。
   // 描かれるまで列を止める。止めないと、待つ間に押した「戻す」などの送信を Turbo が始め、移動の方を取り消す。
+  // 上限の秒数で列を解かない。解くと、遅れて届いた移動が解いた後の送信と競う。通信が切れれば Turbo は全体を読み直すので、列はそこで消える。
   // 別の画面へのリンクで移動が取り消されたら、描かれた先が違うので持ち越しを捨てる
   leave() {
-    if (!this.leavingTo || this.left) return
+    if (!this.leavingTo || this.left || this.unconfirmed > 0) return
 
     this.left = true
     const href = this.leavingTo
     carriedTo = href
     enqueue(() => new Promise((resolve) => {
-      const settle = (timedOut) => {
+      const rendered = () => {
         document.removeEventListener("turbo:before-render", rendered)
-        clearTimeout(timer)
         if (window.location.href !== href) carriedTo = null
-        if (timedOut && this.element.isConnected) {
-          this.left = false
-          this.stay()
-        }
         resolve()
       }
-      const rendered = () => settle(false)
-      const timer = setTimeout(() => settle(true), this.submitTimeoutSecondsValue * 1000)
       document.addEventListener("turbo:before-render", rendered)
       Turbo.visit(href, { action: "replace" })
     }))
@@ -220,13 +214,17 @@ export default class extends Controller {
     }, {
       released: ({ timedOut = false, unsent = false, failed = false } = {}) => {
         this.sending = false
-        if (timedOut || unsent || failed) this.stay()
+        if (unsent || failed) this.stay()
+        if (timedOut) this.unconfirmed += 1
         if (unsent) return ids.forEach((id) => this.unflow(id))
         if (timedOut && stamped) noteSwipeFailed()
         this.flush()
       },
       // 待ちの上限を越えた後に届いた終わりも拾う。成功は応答の result が行に反映する
       ended: (success, { late }) => {
+        if (late) this.unconfirmed = Math.max(0, this.unconfirmed - 1)
+        if (late && !success) this.stay()
+        if (late && success) this.flush()
         if (success) return
         if (!late && stamped) noteSwipeFailed()
         ids.forEach((id) => { if (document.getElementById(id)?.dataset.flowed !== "sent") this.unflow(id) })
@@ -369,6 +367,7 @@ export default class extends Controller {
     this.keyboard = false
     this.leavingTo = null
     this.left = false
+    this.unconfirmed = 0
     this.pending = new Set()
     this.batches = []
     this.element.removeAttribute("data-flow-mode")
