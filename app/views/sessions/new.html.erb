@@ -1,4 +1,5 @@
-<% turbo_page_requires_reload %>
+<%# 通常のログインでも再読込させると、誤ったパスワードのエラーが表示前に消える。 %>
+<% turbo_page_requires_reload if turbo_frame_request? %>
 <div class="flex min-h-[80dvh] flex-col justify-center">
   <header class="text-center">
     <h1 class="text-4xl font-black tracking-tight">
